@@ -137,7 +137,6 @@ public static class MultiplyRushBootstrapper
     {
         var root = new GameObject("PlayerCrowd");
         root.AddComponent<TouchDragInput>();
-        var crowdController = root.AddComponent<CrowdController>();
 
         var collider = root.AddComponent<CapsuleCollider>();
         collider.center = new Vector3(0f, 0.9f, -1.2f);
@@ -147,6 +146,8 @@ public static class MultiplyRushBootstrapper
         var body = root.AddComponent<Rigidbody>();
         body.useGravity = false;
         body.isKinematic = true;
+
+        var crowdController = root.AddComponent<CrowdController>();
 
         var leader = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         leader.name = "LeaderVisual";
@@ -369,7 +370,7 @@ public static class MultiplyRushBootstrapper
 
     private static void EnsureEventSystem()
     {
-        if (Object.FindObjectOfType<EventSystem>() != null)
+        if (Object.FindFirstObjectByType<EventSystem>() != null)
         {
             return;
         }
