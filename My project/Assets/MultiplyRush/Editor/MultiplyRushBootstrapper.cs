@@ -179,23 +179,23 @@ public static class MultiplyRushBootstrapper
         var root = new GameObject("Gate");
         var collider = root.AddComponent<BoxCollider>();
         collider.isTrigger = true;
-        collider.center = new Vector3(0f, 1.1f, 0f);
-        collider.size = new Vector3(5.8f, 2.2f, 1.8f);
+        collider.center = new Vector3(0f, 1f, 0f);
+        collider.size = new Vector3(1.45f, 2.15f, 1.15f);
 
         var gate = root.AddComponent<Gate>();
 
-        CreatePrimitiveChild(PrimitiveType.Cube, "LeftPost", root.transform, new Vector3(-2.4f, 1f, 0f), new Vector3(0.2f, 2f, 0.2f), bodyMaterial);
-        CreatePrimitiveChild(PrimitiveType.Cube, "RightPost", root.transform, new Vector3(2.4f, 1f, 0f), new Vector3(0.2f, 2f, 0.2f), bodyMaterial);
+        CreatePrimitiveChild(PrimitiveType.Cube, "LeftPost", root.transform, new Vector3(-0.95f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
+        CreatePrimitiveChild(PrimitiveType.Cube, "RightPost", root.transform, new Vector3(0.95f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
 
         var panel = CreatePrimitiveChild(
             PrimitiveType.Cube,
             "Panel",
             root.transform,
             new Vector3(0f, 1f, 0f),
-            new Vector3(4.4f, 1.6f, 0.22f),
+            new Vector3(1.6f, 1.6f, 0.22f),
             panelMaterial);
 
-        var label = CreateWorldText(root.transform, "Label", "+10", new Vector3(0f, 1.05f, -0.2f), 72, 2.3f);
+        var label = CreateWorldText(root.transform, "Label", "+10", new Vector3(0f, 1.06f, -0.42f), 150, 4.8f);
 
         gate.panelRenderer = panel.GetComponent<MeshRenderer>();
         gate.labelText = label;
@@ -309,6 +309,9 @@ public static class MultiplyRushBootstrapper
         levelGenerator.levelRoot = levelRoot;
         levelGenerator.gateRoot = gateRoot;
         levelGenerator.trackVisual = track.transform;
+        levelGenerator.laneSpacing = 3.6f;
+        levelGenerator.minLaneSpacing = 3.6f;
+        levelGenerator.levelLengthMultiplier = 1.5f;
 
         var crowdStartPoint = new GameObject("CrowdStartPoint").transform;
         crowdStartPoint.position = Vector3.zero;

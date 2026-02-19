@@ -26,8 +26,12 @@ namespace MultiplyRush
 
         [Header("Layout")]
         public float laneSpacing = 2.8f;
+        public float minLaneSpacing = 3.6f;
+        public float laneToEdgePadding = 1.4f;
         public float trackHalfWidth = 4.5f;
         public float rowSpacing = 12f;
+        [Range(1f, 2f)]
+        public float levelLengthMultiplier = 1.5f;
         public float startZ = 18f;
         public float endPadding = 18f;
 
@@ -40,15 +44,19 @@ namespace MultiplyRush
         private readonly Stack<Gate> _gatePool = new Stack<Gate>(128);
 
         private FinishLine _activeFinish;
+        private float _effectiveLaneSpacing;
+        private float _effectiveTrackHalfWidth;
 
         public LevelBuildResult Generate(int levelIndex)
         {
             var safeLevel = Mathf.Max(1, levelIndex);
+            _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
+            _effectiveTrackHalfWidth = Mathf.Max(trackHalfWidth, _effectiveLaneSpacing + laneToEdgePadding);
             var generated = BuildDefinition(safeLevel);
 
             ClearGeneratedObjects();
             EnsureRoots();
-            BuildTrackVisual(generated.finishZ);
+            BuildTrackVisual(generated.finishZ, _effectiveTrackHalfWidth);
             SpawnGates(generated.rows);
             SpawnFinish(generated.finishZ, generated.enemyCount);
 
@@ -58,7 +66,7 @@ namespace MultiplyRush
                 startCount = generated.startCount,
                 enemyCount = generated.enemyCount,
                 finishZ = generated.finishZ,
-                trackHalfWidth = trackHalfWidth,
+                trackHalfWidth = _effectiveTrackHalfWidth,
                 forwardSpeed = generated.forwardSpeed
             };
         }
@@ -80,7 +88,7 @@ namespace MultiplyRush
             }
         }
 
-        private void BuildTrackVisual(float finishZ)
+        private void BuildTrackVisual(float finishZ, float effectiveTrackHalfWidth)
         {
             if (trackVisual == null)
             {
@@ -89,7 +97,7 @@ namespace MultiplyRush
 
             var length = finishZ + 24f;
             trackVisual.position = new Vector3(0f, -0.55f, length * 0.5f);
-            trackVisual.localScale = new Vector3(trackHalfWidth * 2.5f, 1f, length);
+            trackVisual.localScale = new Vector3(effectiveTrackHalfWidth * 2.5f, 1f, length);
         }
 
         private void SpawnGates(List<GateRow> rows)
@@ -173,11 +181,11 @@ namespace MultiplyRush
             switch (lane)
             {
                 case 0:
-                    return -laneSpacing;
+                    return -_effectiveLaneSpacing;
                 case 1:
                     return 0f;
                 case 2:
-                    return laneSpacing;
+                    return _effectiveLaneSpacing;
                 default:
                     return 0f;
             }
@@ -193,6 +201,7 @@ namespace MultiplyRush
             };
 
             var rowCount = Mathf.Clamp(8 + levelIndex, 8, 40);
+            var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier);
             var badGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f);
             var addBase = 4 + Mathf.FloorToInt(levelIndex * 1.6f);
             var subtractBase = 3 + Mathf.FloorToInt(levelIndex * 1.2f);
@@ -204,7 +213,7 @@ namespace MultiplyRush
                 var laneOrder = BuildShuffledLanes(random);
                 var row = new GateRow
                 {
-                    z = startZ + rowIndex * rowSpacing,
+                    z = startZ + rowIndex * effectiveRowSpacing,
                     gates = new List<GateSpec>(gateCount)
                 };
 
@@ -223,7 +232,7 @@ namespace MultiplyRush
                 generated.rows.Add(row);
             }
 
-            generated.finishZ = startZ + (rowCount * rowSpacing) + endPadding;
+            generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
             generated.enemyCount = BuildEnemyCount(levelIndex, generated.startCount, generated.rows);
 
             return generated;
