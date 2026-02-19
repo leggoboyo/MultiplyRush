@@ -19,10 +19,10 @@ namespace MultiplyRush
         public Color negativeColor = new Color(0.9f, 0.25f, 0.25f);
 
         [Header("Layout")]
-        public float hitboxWidth = 1.45f;
+        public float hitboxWidth = 2.1f;
         public float hitboxHeight = 2.15f;
         public float hitboxDepth = 1.15f;
-        public float panelWidth = 1.6f;
+        public float panelWidth = 2.2f;
         public float panelHeight = 1.6f;
         public float postWidth = 0.12f;
         public float postDepth = 0.18f;
@@ -143,10 +143,12 @@ namespace MultiplyRush
             {
                 _trigger.isTrigger = true;
                 _trigger.center = new Vector3(0f, 1f, 0f);
-                _trigger.size = new Vector3(hitboxWidth, hitboxHeight, hitboxDepth);
+                var safeHitboxWidth = Mathf.Max(1.7f, hitboxWidth);
+                _trigger.size = new Vector3(safeHitboxWidth, hitboxHeight, hitboxDepth);
             }
 
-            var postOffset = (panelWidth * 0.5f) + 0.16f;
+            var safePanelWidth = Mathf.Max(1.9f, panelWidth);
+            var postOffset = (safePanelWidth * 0.5f) + 0.16f;
             if (_leftPost != null)
             {
                 _leftPost.localPosition = new Vector3(-postOffset, 1f, 0f);
@@ -162,14 +164,14 @@ namespace MultiplyRush
             if (_panel != null)
             {
                 _panel.localPosition = new Vector3(0f, 1f, 0f);
-                _panel.localScale = new Vector3(panelWidth, panelHeight, 0.22f);
+                _panel.localScale = new Vector3(safePanelWidth, panelHeight, 0.22f);
             }
 
             if (labelText != null)
             {
                 var labelTransform = labelText.transform;
                 labelTransform.localPosition = new Vector3(0f, 1.06f, labelForwardOffset);
-                labelTransform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                labelTransform.localRotation = Quaternion.identity;
                 labelTransform.localScale = Vector3.one * labelScale;
 
                 labelText.alignment = TextAlignment.Center;

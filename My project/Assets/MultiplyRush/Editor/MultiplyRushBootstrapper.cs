@@ -180,19 +180,19 @@ public static class MultiplyRushBootstrapper
         var collider = root.AddComponent<BoxCollider>();
         collider.isTrigger = true;
         collider.center = new Vector3(0f, 1f, 0f);
-        collider.size = new Vector3(1.45f, 2.15f, 1.15f);
+        collider.size = new Vector3(2.1f, 2.15f, 1.15f);
 
         var gate = root.AddComponent<Gate>();
 
-        CreatePrimitiveChild(PrimitiveType.Cube, "LeftPost", root.transform, new Vector3(-0.95f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
-        CreatePrimitiveChild(PrimitiveType.Cube, "RightPost", root.transform, new Vector3(0.95f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
+        CreatePrimitiveChild(PrimitiveType.Cube, "LeftPost", root.transform, new Vector3(-1.26f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
+        CreatePrimitiveChild(PrimitiveType.Cube, "RightPost", root.transform, new Vector3(1.26f, 1f, 0f), new Vector3(0.12f, 2f, 0.18f), bodyMaterial);
 
         var panel = CreatePrimitiveChild(
             PrimitiveType.Cube,
             "Panel",
             root.transform,
             new Vector3(0f, 1f, 0f),
-            new Vector3(1.6f, 1.6f, 0.22f),
+            new Vector3(2.2f, 1.6f, 0.22f),
             panelMaterial);
 
         var label = CreateWorldText(root.transform, "Label", "+10", new Vector3(0f, 1.06f, -0.42f), 150, 4.8f);
@@ -554,7 +554,7 @@ public static class MultiplyRushBootstrapper
         var go = new GameObject(name, typeof(TextMesh));
         go.transform.SetParent(parent, false);
         go.transform.localPosition = localPosition;
-        go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one * 0.025f * scale;
 
         var textMesh = go.GetComponent<TextMesh>();
