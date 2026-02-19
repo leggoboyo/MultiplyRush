@@ -6,6 +6,7 @@ using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -370,12 +371,24 @@ public static class MultiplyRushBootstrapper
 
     private static void EnsureEventSystem()
     {
-        if (Object.FindFirstObjectByType<EventSystem>() != null)
+        var eventSystem = Object.FindFirstObjectByType<EventSystem>();
+        if (eventSystem == null)
         {
-            return;
+            var go = new GameObject("EventSystem");
+            eventSystem = go.AddComponent<EventSystem>();
         }
 
-        new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        var eventSystemGo = eventSystem.gameObject;
+        var standalone = eventSystemGo.GetComponent<StandaloneInputModule>();
+        if (standalone != null)
+        {
+            Object.DestroyImmediate(standalone);
+        }
+
+        if (eventSystemGo.GetComponent<InputSystemUIInputModule>() == null)
+        {
+            eventSystemGo.AddComponent<InputSystemUIInputModule>();
+        }
     }
 
     private static Canvas CreateCanvas(string name)
