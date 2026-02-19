@@ -484,7 +484,13 @@ public static class MultiplyRushBootstrapper
         rect.sizeDelta = sizeDelta;
 
         var text = go.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        var builtInFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (builtInFont == null)
+        {
+            builtInFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        }
+
+        text.font = builtInFont;
         text.text = textValue;
         text.fontSize = fontSize;
         text.alignment = alignment;
