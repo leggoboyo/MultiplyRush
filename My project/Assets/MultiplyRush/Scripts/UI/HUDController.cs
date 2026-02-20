@@ -25,6 +25,11 @@ namespace MultiplyRush
         private float _countFlash;
         private float _targetProgress;
         private float _displayProgress;
+        private int _levelIndex = 1;
+        private string _modifierName = "Core Rush";
+        private bool _isMiniBossLevel;
+        private int _reinforcementKits;
+        private int _shieldCharges;
 
         private void Awake()
         {
@@ -42,12 +47,19 @@ namespace MultiplyRush
             AnimateCount(Time.deltaTime);
         }
 
-        public void SetLevel(int levelIndex)
+        public void SetLevel(int levelIndex, string modifierName = null, bool isMiniBoss = false)
         {
-            if (levelText != null)
-            {
-                levelText.text = "Level " + Mathf.Max(1, levelIndex);
-            }
+            _levelIndex = Mathf.Max(1, levelIndex);
+            _modifierName = string.IsNullOrWhiteSpace(modifierName) ? "Core Rush" : modifierName;
+            _isMiniBossLevel = isMiniBoss;
+            RefreshLevelLabel();
+        }
+
+        public void SetInventory(int reinforcementKits, int shieldCharges)
+        {
+            _reinforcementKits = Mathf.Max(0, reinforcementKits);
+            _shieldCharges = Mathf.Max(0, shieldCharges);
+            RefreshLevelLabel();
         }
 
         public void SetCount(int count)
@@ -136,6 +148,21 @@ namespace MultiplyRush
             {
                 countText.color = Color.Lerp(_countBaseColor, _countFlashColor, _countFlash);
             }
+        }
+
+        private void RefreshLevelLabel()
+        {
+            if (levelText == null)
+            {
+                return;
+            }
+
+            var bossTag = _isMiniBossLevel ? " • Mini-Boss" : string.Empty;
+            levelText.text =
+                "Level " + Mathf.Max(1, _levelIndex) + bossTag +
+                "\nMod: " + _modifierName +
+                "  Kits: " + _reinforcementKits +
+                "  Shield: " + _shieldCharges;
         }
     }
 }

@@ -11,6 +11,10 @@ namespace MultiplyRush
         public Text detailText;
         public Button retryButton;
         public Button nextButton;
+        public Button reinforcementButton;
+        public Button shieldButton;
+        public Text reinforcementButtonLabel;
+        public Text shieldButtonLabel;
         public float fadeInDuration = 0.2f;
         public float fadeOutDuration = 0.12f;
         public float startScale = 0.86f;
@@ -19,6 +23,8 @@ namespace MultiplyRush
 
         public event Action OnRetryRequested;
         public event Action OnNextRequested;
+        public event Action OnUseReinforcementRequested;
+        public event Action OnUseShieldRequested;
 
         private CanvasGroup _canvasGroup;
         private RectTransform _panelRect;
@@ -27,6 +33,7 @@ namespace MultiplyRush
         private bool _isAnimatingIn;
         private bool _isAnimatingOut;
         private float _animTimer;
+        private bool _lastDidWin;
 
         private void Awake()
         {
@@ -63,6 +70,7 @@ namespace MultiplyRush
                 }
             }
 
+            EnsureBuffButtons();
         }
 
         private void Update()
@@ -87,13 +95,20 @@ namespace MultiplyRush
             AnimateOut(deltaTime);
         }
 
-        public void ShowResult(bool didWin, int levelIndex, int playerCount, int enemyCount)
+        public void ShowResult(
+            bool didWin,
+            int levelIndex,
+            int playerCount,
+            int enemyCount,
+            int tankRequirement = 0,
+            string extraDetail = null)
         {
             if (rootPanel != null)
             {
                 rootPanel.SetActive(true);
             }
 
+            _lastDidWin = didWin;
             _isVisible = true;
             _isAnimatingIn = true;
             _isAnimatingOut = false;
@@ -119,7 +134,18 @@ namespace MultiplyRush
 
             if (detailText != null)
             {
-                detailText.text = "Level " + levelIndex + "\nYou: " + playerCount + "  Enemy: " + enemyCount;
+                var detail = "Level " + levelIndex + "\nYou: " + playerCount + "  Enemy: " + enemyCount;
+                if (tankRequirement > 0)
+                {
+                    detail += "\nTank Burst: " + tankRequirement;
+                }
+
+                if (!string.IsNullOrWhiteSpace(extraDetail))
+                {
+                    detail += "\n" + extraDetail.Trim();
+                }
+
+                detailText.text = detail;
             }
 
             if (retryButton != null)
@@ -131,6 +157,8 @@ namespace MultiplyRush
             {
                 nextButton.gameObject.SetActive(didWin);
             }
+
+            SetBuffOptions(0, 0);
         }
 
         public void Hide()
@@ -141,6 +169,8 @@ namespace MultiplyRush
                 {
                     rootPanel.SetActive(false);
                 }
+
+                SetBuffOptions(0, 0);
                 return;
             }
 
@@ -153,6 +183,36 @@ namespace MultiplyRush
             {
                 _canvasGroup.interactable = false;
                 _canvasGroup.blocksRaycasts = false;
+            }
+        }
+
+        public void SetBuffOptions(int reinforcementCount, int shieldCount)
+        {
+            EnsureBuffButtons();
+            var showBuffs = _isVisible && !_lastDidWin;
+            var canUseReinforcement = showBuffs && reinforcementCount > 0;
+            var canUseShield = showBuffs && shieldCount > 0;
+
+            if (reinforcementButton != null)
+            {
+                reinforcementButton.gameObject.SetActive(canUseReinforcement);
+                reinforcementButton.interactable = canUseReinforcement;
+            }
+
+            if (shieldButton != null)
+            {
+                shieldButton.gameObject.SetActive(canUseShield);
+                shieldButton.interactable = canUseShield;
+            }
+
+            if (reinforcementButtonLabel != null)
+            {
+                reinforcementButtonLabel.text = "Use Kit (" + reinforcementCount + ")";
+            }
+
+            if (shieldButtonLabel != null)
+            {
+                shieldButtonLabel.text = "Use Shield (" + shieldCount + ")";
             }
         }
 
@@ -220,6 +280,124 @@ namespace MultiplyRush
                 {
                     _canvasGroup.alpha = 0f;
                 }
+
+                SetBuffOptions(0, 0);
+            }
+        }
+
+        private void EnsureBuffButtons()
+        {
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            if (reinforcementButton == null)
+            {
+                reinforcementButton = CreateBuffButton(
+                    "UseReinforcementButton",
+                    new Vector2(-105f, -120f),
+                    new Color(0.2f, 0.58f, 0.95f, 1f),
+                    _panelRect,
+                    out reinforcementButtonLabel);
+            }
+            else if (reinforcementButtonLabel == null)
+            {
+                reinforcementButtonLabel = reinforcementButton.GetComponentInChildren<Text>();
+            }
+
+            if (shieldButton == null)
+            {
+                shieldButton = CreateBuffButton(
+                    "UseShieldButton",
+                    new Vector2(105f, -120f),
+                    new Color(0.25f, 0.75f, 0.4f, 1f),
+                    _panelRect,
+                    out shieldButtonLabel);
+            }
+            else if (shieldButtonLabel == null)
+            {
+                shieldButtonLabel = shieldButton.GetComponentInChildren<Text>();
+            }
+
+            if (reinforcementButton != null)
+            {
+                reinforcementButton.onClick.RemoveAllListeners();
+                reinforcementButton.onClick.AddListener(() => OnUseReinforcementRequested?.Invoke());
+                reinforcementButton.gameObject.SetActive(false);
+            }
+
+            if (shieldButton != null)
+            {
+                shieldButton.onClick.RemoveAllListeners();
+                shieldButton.onClick.AddListener(() => OnUseShieldRequested?.Invoke());
+                shieldButton.gameObject.SetActive(false);
+            }
+        }
+
+        private static Button CreateBuffButton(
+            string objectName,
+            Vector2 anchoredPosition,
+            Color color,
+            RectTransform parent,
+            out Text label)
+        {
+            var buttonObject = new GameObject(objectName);
+            buttonObject.transform.SetParent(parent, false);
+            var rect = buttonObject.AddComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = anchoredPosition;
+            rect.sizeDelta = new Vector2(180f, 44f);
+
+            var image = buttonObject.AddComponent<Image>();
+            image.color = color;
+
+            var button = buttonObject.AddComponent<Button>();
+            var colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(0.95f, 0.95f, 0.95f, 1f);
+            colors.pressedColor = new Color(0.82f, 0.82f, 0.82f, 1f);
+            button.colors = colors;
+
+            var labelObject = new GameObject("Label");
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            var labelRect = labelObject.AddComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            label = labelObject.AddComponent<Text>();
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.fontSize = 24;
+            label.fontStyle = FontStyle.Bold;
+            label.text = objectName;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+
+            return button;
+        }
+
+        private void OnTransformParentChanged()
+        {
+            // Keep runtime-created buttons attached to panel when Unity reloads scripts.
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            if (reinforcementButton != null && reinforcementButton.transform.parent != _panelRect)
+            {
+                reinforcementButton.transform.SetParent(_panelRect, false);
+            }
+
+            if (shieldButton != null && shieldButton.transform.parent != _panelRect)
+            {
+                shieldButton.transform.SetParent(_panelRect, false);
             }
         }
     }

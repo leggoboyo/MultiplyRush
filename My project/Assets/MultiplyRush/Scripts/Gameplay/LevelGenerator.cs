@@ -18,9 +18,12 @@ namespace MultiplyRush
         public int levelIndex;
         public int startCount;
         public int enemyCount;
+        public int tankRequirement;
         public float finishZ;
         public float trackHalfWidth;
         public float forwardSpeed;
+        public bool isMiniBoss;
+        public string modifierName;
     }
 
     public sealed class LevelGenerator : MonoBehaviour
@@ -76,6 +79,48 @@ namespace MultiplyRush
         public float movingGateSpeedAtStart = 1.1f;
         public float movingGateSpeedAtHighDifficulty = 2.8f;
 
+        [Header("Special Modes")]
+        public int miniBossEveryLevels = 10;
+        [Range(0f, 1f)]
+        public float riskRewardChanceAtStart = 0.08f;
+        [Range(0f, 1f)]
+        public float riskRewardChanceAtHighDifficulty = 0.3f;
+        [Range(0f, 1f)]
+        public float tempoRowChanceAtStart = 0.06f;
+        [Range(0f, 1f)]
+        public float tempoRowChanceAtHighDifficulty = 0.42f;
+        public float tempoCycleAtStart = 2.2f;
+        public float tempoCycleAtHighDifficulty = 1.25f;
+        [Range(0.08f, 0.92f)]
+        public float tempoOpenRatioAtStart = 0.62f;
+        [Range(0.08f, 0.92f)]
+        public float tempoOpenRatioAtHighDifficulty = 0.3f;
+
+        [Header("Adaptive Pressure")]
+        public bool enableAdaptiveLanePressure = true;
+        [Range(0f, 1f)]
+        public float lanePressureLerp = 0.34f;
+        [Range(0f, 2f)]
+        public float lanePressureStrength = 0.8f;
+        [Range(0f, 0.3f)]
+        public float lanePressureDecay = 0.06f;
+
+        [Header("Hazards")]
+        public bool enableHazards = true;
+        public int initialHazardPoolSize = 36;
+        [Range(0f, 1f)]
+        public float hazardChanceAtStart = 0.04f;
+        [Range(0f, 1f)]
+        public float hazardChanceAtHighDifficulty = 0.34f;
+        public float hazardWidth = 2.6f;
+        public float hazardDepth = 2.4f;
+        public float slowHazardMultiplier = 0.74f;
+        public float slowHazardDuration = 1.45f;
+        public float knockbackHazardStrength = 1.9f;
+
+        [Header("Modifier Milestones")]
+        public int modifierUnlockEveryLevels = 20;
+
         public int initialGatePoolSize = 120;
 
         [Header("Track Decor")]
@@ -119,29 +164,35 @@ namespace MultiplyRush
         private readonly Stack<Transform> _backdropPool = new Stack<Transform>(256);
         private readonly List<Transform> _activeClouds = new List<Transform>(64);
         private readonly Stack<Transform> _cloudPool = new Stack<Transform>(64);
+        private readonly List<HazardZone> _activeHazards = new List<HazardZone>(64);
+        private readonly Stack<HazardZone> _hazardPool = new Stack<HazardZone>(64);
         private readonly List<float> _cloudSpeeds = new List<float>(64);
         private readonly List<float> _cloudMinX = new List<float>(64);
         private readonly List<float> _cloudMaxX = new List<float>(64);
         private readonly List<float> _cloudBaseY = new List<float>(64);
         private readonly List<float> _cloudPhases = new List<float>(64);
+        private readonly float[] _lanePressure = { 0.34f, 0.32f, 0.34f };
 
         private FinishLine _activeFinish;
         private float _effectiveLaneSpacing;
         private float _effectiveTrackHalfWidth;
         private int _activeLevelIndex = 1;
         private bool _gatePoolPrewarmed;
+        private bool _hazardPoolPrewarmed;
         private bool _stripePoolPrewarmed;
         private bool _backdropPoolPrewarmed;
         private bool _cloudPoolPrewarmed;
         private Transform _trackDecorRoot;
         private Transform _backdropRoot;
         private Transform _cloudRoot;
+        private Transform _hazardRoot;
         private Transform _leftRail;
         private Transform _rightRail;
         private Material _stripeMaterial;
         private Material _railMaterial;
         private Material _backdropMaterial;
         private Material _cloudMaterial;
+        private Material _hazardMaterial;
 
         public LevelBuildResult Generate(int levelIndex)
         {
@@ -149,24 +200,55 @@ namespace MultiplyRush
             _activeLevelIndex = safeLevel;
             _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
             _effectiveTrackHalfWidth = Mathf.Max(trackHalfWidth, _effectiveLaneSpacing + laneToEdgePadding);
+            DecayLanePressureTowardNeutral();
             EnsureRoots();
             PrewarmGatePool();
+            PrewarmHazardPool();
             var generated = BuildDefinition(safeLevel);
 
             ClearGeneratedObjects();
             BuildTrackVisual(generated.finishZ, _effectiveTrackHalfWidth);
             SpawnGates(generated.rows, generated.gateDifficulty01);
-            SpawnFinish(generated.finishZ, generated.enemyCount);
+            SpawnHazards(generated.hazards);
+            SpawnFinish(generated.finishZ, generated.enemyCount, generated.tankRequirement, generated.isMiniBoss);
 
             return new LevelBuildResult
             {
                 levelIndex = safeLevel,
                 startCount = generated.startCount,
                 enemyCount = generated.enemyCount,
+                tankRequirement = generated.tankRequirement,
                 finishZ = generated.finishZ,
                 trackHalfWidth = _effectiveTrackHalfWidth,
-                forwardSpeed = generated.forwardSpeed
+                forwardSpeed = generated.forwardSpeed,
+                isMiniBoss = generated.isMiniBoss,
+                modifierName = generated.modifierName
             };
+        }
+
+        public void ReportLaneUsage(float leftSeconds, float centerSeconds, float rightSeconds)
+        {
+            if (!enableAdaptiveLanePressure)
+            {
+                return;
+            }
+
+            var total = leftSeconds + centerSeconds + rightSeconds;
+            if (total <= 0.01f)
+            {
+                return;
+            }
+
+            var inverse = 1f / total;
+            var targetLeft = Mathf.Clamp01(leftSeconds * inverse);
+            var targetCenter = Mathf.Clamp01(centerSeconds * inverse);
+            var targetRight = Mathf.Clamp01(rightSeconds * inverse);
+            var blend = Mathf.Clamp01(lanePressureLerp);
+
+            _lanePressure[0] = Mathf.Lerp(_lanePressure[0], targetLeft, blend);
+            _lanePressure[1] = Mathf.Lerp(_lanePressure[1], targetCenter, blend);
+            _lanePressure[2] = Mathf.Lerp(_lanePressure[2], targetRight, blend);
+            NormalizeLanePressure();
         }
 
         private void Update()
@@ -217,6 +299,16 @@ namespace MultiplyRush
                 {
                     _cloudRoot = new GameObject("Clouds").transform;
                     _cloudRoot.SetParent(_trackDecorRoot, false);
+                }
+            }
+
+            if (_hazardRoot == null)
+            {
+                _hazardRoot = levelRoot.Find("HazardRoot");
+                if (_hazardRoot == null)
+                {
+                    _hazardRoot = new GameObject("HazardRoot").transform;
+                    _hazardRoot.SetParent(levelRoot, false);
                 }
             }
         }
@@ -764,6 +856,17 @@ namespace MultiplyRush
             return _cloudMaterial;
         }
 
+        private Material GetHazardMaterial()
+        {
+            if (_hazardMaterial != null)
+            {
+                return _hazardMaterial;
+            }
+
+            _hazardMaterial = CreateRuntimeMaterial("HazardZoneMaterial", new Color(0.95f, 0.72f, 0.14f, 1f), 0.08f);
+            return _hazardMaterial;
+        }
+
         private static Material CreateRuntimeMaterial(string name, Color color, float smoothness)
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
@@ -832,14 +935,48 @@ namespace MultiplyRush
                         gateSpec.movePhase,
                         laneCenterX,
                         laneMinX,
-                        laneMaxX);
+                        laneMaxX,
+                        gateSpec.useTempoWindow,
+                        gateSpec.tempoCycle,
+                        gateSpec.tempoOpenRatio,
+                        gateSpec.tempoPhase);
                     gate.gameObject.SetActive(true);
                     _activeGates.Add(gate);
                 }
             }
         }
 
-        private void SpawnFinish(float finishZ, int enemyCount)
+        private void SpawnHazards(List<HazardSpec> hazards)
+        {
+            if (!enableHazards || hazards == null || hazards.Count == 0)
+            {
+                return;
+            }
+
+            var edgePadding = 0.95f;
+            var minX = -_effectiveTrackHalfWidth + edgePadding;
+            var maxX = _effectiveTrackHalfWidth - edgePadding;
+            for (var i = 0; i < hazards.Count; i++)
+            {
+                var spec = hazards[i];
+                var hazard = GetHazard();
+                var laneX = Mathf.Clamp(LaneToX(spec.lane), minX, maxX);
+                var worldPosition = new Vector3(laneX, -0.01f, spec.z);
+                var worldScale = new Vector3(spec.width, 0.04f, spec.depth);
+                hazard.Configure(
+                    spec.type,
+                    spec.slowMultiplier,
+                    spec.duration,
+                    spec.knockbackDeltaX,
+                    worldPosition,
+                    worldScale,
+                    spec.emphasize);
+                hazard.gameObject.SetActive(true);
+                _activeHazards.Add(hazard);
+            }
+        }
+
+        private void SpawnFinish(float finishZ, int enemyCount, int tankRequirement, bool isMiniBoss)
         {
             if (finishPrefab == null)
             {
@@ -854,7 +991,7 @@ namespace MultiplyRush
             _activeFinish.transform.position = new Vector3(0f, 0f, finishZ);
             _activeFinish.transform.rotation = Quaternion.identity;
             _activeFinish.gameObject.SetActive(true);
-            _activeFinish.Configure(enemyCount);
+            _activeFinish.Configure(enemyCount, tankRequirement, isMiniBoss);
         }
 
         private void ClearGeneratedObjects()
@@ -872,7 +1009,21 @@ namespace MultiplyRush
                 _gatePool.Push(gate);
             }
 
+            for (var i = 0; i < _activeHazards.Count; i++)
+            {
+                var hazard = _activeHazards[i];
+                if (hazard == null)
+                {
+                    continue;
+                }
+
+                hazard.gameObject.SetActive(false);
+                hazard.transform.SetParent(_hazardRoot != null ? _hazardRoot : transform, false);
+                _hazardPool.Push(hazard);
+            }
+
             _activeGates.Clear();
+            _activeHazards.Clear();
             ClearTrackDecor();
             ClearBackdrop();
             ClearClouds();
@@ -901,6 +1052,45 @@ namespace MultiplyRush
             return Instantiate(gatePrefab, gateRoot);
         }
 
+        private HazardZone GetHazard()
+        {
+            EnsureRoots();
+            if (_hazardPool.Count > 0)
+            {
+                return _hazardPool.Pop();
+            }
+
+            return CreateHazard();
+        }
+
+        private HazardZone CreateHazard()
+        {
+            EnsureRoots();
+            var hazardObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            hazardObject.name = "HazardZone";
+            hazardObject.transform.SetParent(_hazardRoot, false);
+
+            var renderer = hazardObject.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = GetHazardMaterial();
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
+
+            var hazard = hazardObject.AddComponent<HazardZone>();
+            hazard.zoneRenderer = renderer;
+
+            var labelRoot = new GameObject("Label");
+            labelRoot.transform.SetParent(hazardObject.transform, false);
+            var label = labelRoot.AddComponent<TextMesh>();
+            label.text = "SLOW";
+            hazard.labelText = label;
+
+            hazardObject.SetActive(false);
+            return hazard;
+        }
+
         private void PrewarmGatePool()
         {
             if (_gatePoolPrewarmed || gatePrefab == null)
@@ -917,6 +1107,24 @@ namespace MultiplyRush
             }
 
             _gatePoolPrewarmed = true;
+        }
+
+        private void PrewarmHazardPool()
+        {
+            if (_hazardPoolPrewarmed || !enableHazards)
+            {
+                return;
+            }
+
+            var targetCount = Mathf.Max(0, initialHazardPoolSize);
+            for (var i = 0; i < targetCount; i++)
+            {
+                var hazard = CreateHazard();
+                hazard.gameObject.SetActive(false);
+                _hazardPool.Push(hazard);
+            }
+
+            _hazardPoolPrewarmed = true;
         }
 
         private float LaneToX(int lane)
@@ -938,55 +1146,139 @@ namespace MultiplyRush
         {
             var random = new System.Random(9143 + levelIndex * 101);
             var gateDifficulty01 = EvaluateGateDifficulty(levelIndex);
+            var isMiniBoss = miniBossEveryLevels > 0 && levelIndex % Mathf.Max(1, miniBossEveryLevels) == 0;
+            var modifier = BuildModifierState(levelIndex);
+
             var generated = new GeneratedLevel
             {
-                startCount = Mathf.Clamp(baseStartCount + (levelIndex / 2), baseStartCount, 80),
-                forwardSpeed = CalculateForwardSpeed(levelIndex)
+                startCount = Mathf.Clamp(baseStartCount + (levelIndex / 2) + (isMiniBoss ? 3 : 0), baseStartCount, 120),
+                forwardSpeed = CalculateForwardSpeed(levelIndex),
+                isMiniBoss = isMiniBoss,
+                modifierName = modifier.label
             };
 
-            var rowCount = Mathf.Clamp(8 + levelIndex, 8, 40);
-            var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier);
-            var badGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f);
+            var rowCount = isMiniBoss
+                ? Mathf.Clamp(15 + (levelIndex / 4), 15, 46)
+                : Mathf.Clamp(8 + levelIndex, 8, 40);
+            var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * (isMiniBoss ? 1.08f : 1f);
+            var baseBadGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f + (isMiniBoss ? 0.05f : 0f));
             var addBase = 4 + Mathf.FloorToInt(levelIndex * 1.6f);
             var subtractBase = 3 + Mathf.FloorToInt(levelIndex * 1.2f);
 
+            var moveChance = Mathf.Lerp(movingGateChanceAtStart, movingGateChanceAtHighDifficulty, gateDifficulty01);
+            if (modifier.forceMovingGates)
+            {
+                moveChance = Mathf.Max(moveChance, 0.46f + (gateDifficulty01 * 0.28f));
+            }
+
+            var moveAmplitude = Mathf.Lerp(movingGateAmplitudeAtStart, movingGateAmplitudeAtHighDifficulty, gateDifficulty01) *
+                                (modifier.forceMovingGates ? 1.16f : 1f);
+            var moveSpeed = Mathf.Lerp(movingGateSpeedAtStart, movingGateSpeedAtHighDifficulty, gateDifficulty01) *
+                            (modifier.forceMovingGates ? 1.12f : 1f);
+            var riskRewardChance = EvaluateRiskRewardChance(gateDifficulty01, modifier, isMiniBoss);
+            var tempoChance = EvaluateTempoChance(gateDifficulty01, modifier, isMiniBoss);
+            var hazardChance = EvaluateHazardChance(gateDifficulty01, modifier, isMiniBoss);
+
             generated.rows = new List<GateRow>(rowCount);
+            generated.hazards = new List<HazardSpec>(Mathf.Max(4, rowCount / 2));
+            var minHazardGap = effectiveRowSpacing * 1.2f;
+            var lastHazardZ = -1000f;
+
             for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
             {
-                var gateCount = random.NextDouble() < 0.48 ? 3 : 2;
-                var laneOrder = BuildShuffledLanes(random);
                 var row = new GateRow
                 {
                     z = startZ + rowIndex * effectiveRowSpacing,
-                    gates = new List<GateSpec>(gateCount)
+                    gates = new List<GateSpec>(3)
                 };
 
-                for (var gateIndex = 0; gateIndex < gateCount; gateIndex++)
+                var rowPattern = PickRowPattern(random, rowIndex, rowCount, isMiniBoss, riskRewardChance, tempoChance);
+                switch (rowPattern)
                 {
-                    var gateOperation = PickOperation(random, badGateChance, levelIndex);
-                    var gateValue = PickGateValue(random, gateOperation, addBase, subtractBase, levelIndex);
-                    var lane = laneOrder[gateIndex];
-                    var moveChance = Mathf.Lerp(movingGateChanceAtStart, movingGateChanceAtHighDifficulty, gateDifficulty01);
-                    var movesHorizontally = random.NextDouble() < moveChance;
-                    var moveAmplitude = Mathf.Lerp(movingGateAmplitudeAtStart, movingGateAmplitudeAtHighDifficulty, gateDifficulty01);
-                    var moveSpeed = Mathf.Lerp(movingGateSpeedAtStart, movingGateSpeedAtHighDifficulty, gateDifficulty01);
-                    row.gates.Add(new GateSpec
-                    {
-                        lane = lane,
-                        operation = gateOperation,
-                        value = gateValue,
-                        movesHorizontally = movesHorizontally,
-                        moveAmplitude = movesHorizontally ? moveAmplitude : 0f,
-                        moveSpeed = movesHorizontally ? moveSpeed : 0f,
-                        movePhase = (float)random.NextDouble() * Mathf.PI * 2f
-                    });
+                    case RowPattern.Tempo:
+                        BuildTempoRow(
+                            random,
+                            levelIndex,
+                            gateDifficulty01,
+                            baseBadGateChance,
+                            addBase,
+                            subtractBase,
+                            moveChance,
+                            moveAmplitude,
+                            moveSpeed,
+                            modifier,
+                            row.gates);
+                        break;
+                    case RowPattern.RiskReward:
+                        BuildRiskRewardRow(
+                            random,
+                            levelIndex,
+                            gateDifficulty01,
+                            addBase,
+                            subtractBase,
+                            moveAmplitude,
+                            moveSpeed,
+                            modifier,
+                            isMiniBoss,
+                            row.gates);
+                        break;
+                    default:
+                        BuildNormalRow(
+                            random,
+                            levelIndex,
+                            baseBadGateChance,
+                            addBase,
+                            subtractBase,
+                            moveChance,
+                            moveAmplitude,
+                            moveSpeed,
+                            modifier,
+                            row.gates);
+                        break;
                 }
 
+                EnsureAtLeastOnePositive(random, addBase, row.gates);
                 generated.rows.Add(row);
+
+                if (enableHazards && rowIndex >= 1 && rowIndex < rowCount - 1)
+                {
+                    var shouldSpawnHazard = random.NextDouble() < hazardChance;
+                    if (isMiniBoss && rowIndex % 3 == 2)
+                    {
+                        shouldSpawnHazard = shouldSpawnHazard || random.NextDouble() < 0.85;
+                    }
+
+                    var hazardZ = row.z + (effectiveRowSpacing * 0.56f);
+                    if (shouldSpawnHazard && hazardZ - lastHazardZ >= minHazardGap)
+                    {
+                        var pressureLane = GetMostPressuredLane();
+                        var lane = enableAdaptiveLanePressure && random.NextDouble() < 0.6 ? pressureLane : random.Next(0, 3);
+                        var hazardType = random.NextDouble() < 0.64 ? HazardType.SlowField : HazardType.KnockbackStrip;
+                        var sideSign = lane == 0 ? 1f : lane == 2 ? -1f : (random.NextDouble() < 0.5 ? -1f : 1f);
+                        generated.hazards.Add(new HazardSpec
+                        {
+                            lane = lane,
+                            z = hazardZ,
+                            type = hazardType,
+                            slowMultiplier = Mathf.Clamp(
+                                slowHazardMultiplier - (gateDifficulty01 * 0.08f) - (modifier.hazardRush ? 0.06f : 0f),
+                                0.45f,
+                                0.9f),
+                            duration = slowHazardDuration + (gateDifficulty01 * 0.4f) + (modifier.hazardRush ? 0.3f : 0f),
+                            knockbackDeltaX = knockbackHazardStrength * sideSign * (modifier.hazardRush ? 1.2f : 1f),
+                            width = Mathf.Max(1.1f, hazardWidth * (isMiniBoss ? 1.08f : 1f)),
+                            depth = Mathf.Max(1f, hazardDepth * (isMiniBoss ? 1.1f : 1f)),
+                            emphasize = isMiniBoss || modifier.hazardRush
+                        });
+                        lastHazardZ = hazardZ;
+                    }
+                }
             }
 
             generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
-            generated.enemyCount = BuildEnemyCount(levelIndex, generated.startCount, generated.rows);
+            var expectedBest = EstimateBestCaseCount(generated.startCount, generated.rows);
+            generated.enemyCount = BuildEnemyCount(levelIndex, generated.startCount, expectedBest, isMiniBoss, modifier);
+            generated.tankRequirement = BuildTankRequirement(levelIndex, expectedBest, generated.enemyCount, isMiniBoss, modifier);
             generated.gateDifficulty01 = gateDifficulty01;
 
             return generated;
@@ -1011,21 +1303,395 @@ namespace MultiplyRush
             return 1f - Mathf.Exp(-(safeLevel - 1) * ramp);
         }
 
-        private static int[] BuildShuffledLanes(System.Random random)
+        private float EvaluateRiskRewardChance(float gateDifficulty01, ModifierState modifier, bool isMiniBoss)
         {
-            var lanes = new[] { 0, 1, 2 };
-            for (var i = lanes.Length - 1; i > 0; i--)
+            var chance = Mathf.Lerp(riskRewardChanceAtStart, riskRewardChanceAtHighDifficulty, gateDifficulty01);
+            if (modifier.forceMovingGates)
             {
-                var swapIndex = random.Next(0, i + 1);
-                var temp = lanes[i];
-                lanes[i] = lanes[swapIndex];
-                lanes[swapIndex] = temp;
+                chance += 0.04f;
             }
 
-            return lanes;
+            if (isMiniBoss)
+            {
+                chance += 0.2f;
+            }
+
+            return Mathf.Clamp01(chance);
         }
 
-        private static GateOperation PickOperation(System.Random random, float badGateChance, int levelIndex)
+        private float EvaluateTempoChance(float gateDifficulty01, ModifierState modifier, bool isMiniBoss)
+        {
+            var chance = Mathf.Lerp(tempoRowChanceAtStart, tempoRowChanceAtHighDifficulty, gateDifficulty01);
+            if (modifier.boostTempoRows)
+            {
+                chance += 0.18f;
+            }
+
+            if (isMiniBoss)
+            {
+                chance += 0.22f;
+            }
+
+            return Mathf.Clamp01(chance);
+        }
+
+        private float EvaluateHazardChance(float gateDifficulty01, ModifierState modifier, bool isMiniBoss)
+        {
+            var chance = Mathf.Lerp(hazardChanceAtStart, hazardChanceAtHighDifficulty, gateDifficulty01);
+            if (modifier.hazardRush)
+            {
+                chance += 0.18f;
+            }
+
+            if (isMiniBoss)
+            {
+                chance += 0.12f;
+            }
+
+            return Mathf.Clamp01(chance);
+        }
+
+        private ModifierState BuildModifierState(int levelIndex)
+        {
+            var unlockEvery = Mathf.Max(1, modifierUnlockEveryLevels);
+            var tier = Mathf.Max(0, (levelIndex - 1) / unlockEvery);
+            return new ModifierState
+            {
+                forceMovingGates = tier >= 1,
+                boostTempoRows = tier >= 2,
+                hazardRush = tier >= 3,
+                aggressivePressure = tier >= 4,
+                tankSurge = tier >= 5,
+                label = BuildModifierLabel(tier)
+            };
+        }
+
+        private static string BuildModifierLabel(int tier)
+        {
+            if (tier <= 0)
+            {
+                return "Core Rush";
+            }
+
+            if (tier == 1)
+            {
+                return "Drift Gates";
+            }
+
+            if (tier == 2)
+            {
+                return "Tempo Lock";
+            }
+
+            if (tier == 3)
+            {
+                return "Hazard Surge";
+            }
+
+            if (tier == 4)
+            {
+                return "Pressure AI";
+            }
+
+            return "Tank Legion";
+        }
+
+        private RowPattern PickRowPattern(
+            System.Random random,
+            int rowIndex,
+            int rowCount,
+            bool isMiniBoss,
+            float riskRewardChance,
+            float tempoChance)
+        {
+            if (rowIndex < 2 && !isMiniBoss)
+            {
+                return RowPattern.Normal;
+            }
+
+            if (isMiniBoss)
+            {
+                var cycle = rowIndex % 5;
+                if (cycle == 1 || cycle == 3)
+                {
+                    return RowPattern.Tempo;
+                }
+
+                if (cycle == 0 || cycle == 4)
+                {
+                    return RowPattern.RiskReward;
+                }
+
+                return RowPattern.Normal;
+            }
+
+            var roll = random.NextDouble();
+            if (roll < riskRewardChance)
+            {
+                return RowPattern.RiskReward;
+            }
+
+            if (roll < riskRewardChance + tempoChance)
+            {
+                return RowPattern.Tempo;
+            }
+
+            if (rowIndex > rowCount - 4 && random.NextDouble() < 0.38)
+            {
+                return RowPattern.Tempo;
+            }
+
+            return RowPattern.Normal;
+        }
+
+        private void BuildNormalRow(
+            System.Random random,
+            int levelIndex,
+            float baseBadGateChance,
+            int addBase,
+            int subtractBase,
+            float moveChance,
+            float moveAmplitude,
+            float moveSpeed,
+            ModifierState modifier,
+            List<GateSpec> gates)
+        {
+            var gateCount = random.NextDouble() < 0.48 ? 3 : 2;
+            var laneOrder = BuildShuffledLanes(random);
+            for (var gateIndex = 0; gateIndex < gateCount; gateIndex++)
+            {
+                var lane = laneOrder[gateIndex];
+                var laneBadChance = EvaluateLaneBadChance(baseBadGateChance, lane, modifier);
+                var operation = PickOperationForLane(random, laneBadChance, levelIndex);
+                var value = PickGateValue(random, operation, addBase, subtractBase, levelIndex, false);
+                var movesHorizontally = random.NextDouble() < moveChance;
+                gates.Add(CreateGateSpec(
+                    lane,
+                    operation,
+                    value,
+                    movesHorizontally,
+                    movesHorizontally ? moveAmplitude : 0f,
+                    movesHorizontally ? moveSpeed : 0f,
+                    (float)random.NextDouble() * Mathf.PI * 2f,
+                    false,
+                    2f,
+                    0.5f,
+                    0f));
+            }
+        }
+
+        private void BuildTempoRow(
+            System.Random random,
+            int levelIndex,
+            float gateDifficulty01,
+            float baseBadGateChance,
+            int addBase,
+            int subtractBase,
+            float moveChance,
+            float moveAmplitude,
+            float moveSpeed,
+            ModifierState modifier,
+            List<GateSpec> gates)
+        {
+            var safeLane = random.Next(0, 3);
+            var cycle = Mathf.Lerp(tempoCycleAtStart, tempoCycleAtHighDifficulty, gateDifficulty01);
+            if (modifier.boostTempoRows)
+            {
+                cycle *= 0.9f;
+            }
+
+            var openRatio = Mathf.Lerp(tempoOpenRatioAtStart, tempoOpenRatioAtHighDifficulty, gateDifficulty01);
+            if (modifier.boostTempoRows)
+            {
+                openRatio -= 0.06f;
+            }
+
+            openRatio = Mathf.Clamp(openRatio, 0.12f, 0.82f);
+
+            for (var lane = 0; lane < 3; lane++)
+            {
+                var laneBadChance = EvaluateLaneBadChance(baseBadGateChance, lane, modifier) * 1.12f;
+                GateOperation operation;
+                int value;
+                if (lane == safeLane)
+                {
+                    operation = random.NextDouble() < 0.16 && levelIndex > 12 ? GateOperation.Multiply : GateOperation.Add;
+                    value = operation == GateOperation.Multiply
+                        ? 2
+                        : Mathf.Max(2, addBase / 2 + random.Next(0, Mathf.Max(2, addBase / 3)));
+                }
+                else
+                {
+                    operation = PickOperationForLane(random, laneBadChance, levelIndex);
+                    value = PickGateValue(random, operation, addBase, subtractBase, levelIndex, true);
+                }
+
+                var movesHorizontally = random.NextDouble() < Mathf.Clamp01(moveChance + 0.2f);
+                var phase = lane * cycle * 0.31f;
+                gates.Add(CreateGateSpec(
+                    lane,
+                    operation,
+                    value,
+                    movesHorizontally,
+                    movesHorizontally ? moveAmplitude * 1.1f : 0f,
+                    movesHorizontally ? moveSpeed * 1.05f : 0f,
+                    (float)random.NextDouble() * Mathf.PI * 2f,
+                    true,
+                    cycle,
+                    openRatio,
+                    phase));
+            }
+        }
+
+        private void BuildRiskRewardRow(
+            System.Random random,
+            int levelIndex,
+            float gateDifficulty01,
+            int addBase,
+            int subtractBase,
+            float moveAmplitude,
+            float moveSpeed,
+            ModifierState modifier,
+            bool isMiniBoss,
+            List<GateSpec> gates)
+        {
+            var leastPressuredLane = GetLeastPressuredLane();
+            var mostPressuredLane = GetMostPressuredLane();
+            var jackpotLane = random.NextDouble() < 0.65 ? leastPressuredLane : random.Next(0, 3);
+            var trapLane = mostPressuredLane == jackpotLane ? (mostPressuredLane + 1) % 3 : mostPressuredLane;
+            var safeLane = 3 - jackpotLane - trapLane;
+
+            for (var lane = 0; lane < 3; lane++)
+            {
+                if (lane == jackpotLane)
+                {
+                    var multiplier = 3;
+                    if (levelIndex > 20 && random.NextDouble() < 0.26)
+                    {
+                        multiplier = 4;
+                    }
+
+                    var tempoCycle = Mathf.Lerp(tempoCycleAtStart, tempoCycleAtHighDifficulty, gateDifficulty01) * 0.9f;
+                    var tempoOpenRatio = Mathf.Lerp(tempoOpenRatioAtStart, tempoOpenRatioAtHighDifficulty, gateDifficulty01) * 0.82f;
+                    var useTempo = random.NextDouble() < (0.45 + (modifier.boostTempoRows ? 0.25 : 0.08));
+                    gates.Add(CreateGateSpec(
+                        lane,
+                        GateOperation.Multiply,
+                        multiplier,
+                        true,
+                        moveAmplitude * (isMiniBoss ? 1.28f : 1.16f),
+                        moveSpeed * (isMiniBoss ? 1.2f : 1.08f),
+                        (float)random.NextDouble() * Mathf.PI * 2f,
+                        useTempo,
+                        tempoCycle,
+                        Mathf.Clamp(tempoOpenRatio, 0.12f, 0.78f),
+                        (float)random.NextDouble() * tempoCycle));
+                    continue;
+                }
+
+                if (lane == trapLane)
+                {
+                    var trapOperation = random.NextDouble() < 0.57 ? GateOperation.Subtract : GateOperation.Divide;
+                    var trapValue = PickGateValue(random, trapOperation, addBase, subtractBase, levelIndex, true);
+                    gates.Add(CreateGateSpec(
+                        lane,
+                        trapOperation,
+                        trapValue,
+                        random.NextDouble() < 0.48,
+                        moveAmplitude * 0.88f,
+                        moveSpeed,
+                        (float)random.NextDouble() * Mathf.PI * 2f,
+                        false,
+                        2f,
+                        0.5f,
+                        0f));
+                    continue;
+                }
+
+                var safeValue = Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1)));
+                gates.Add(CreateGateSpec(
+                    safeLane,
+                    GateOperation.Add,
+                    safeValue,
+                    false,
+                    0f,
+                    0f,
+                    0f,
+                    false,
+                    2f,
+                    0.5f,
+                    0f));
+            }
+        }
+
+        private static GateSpec CreateGateSpec(
+            int lane,
+            GateOperation operation,
+            int value,
+            bool movesHorizontally,
+            float moveAmplitude,
+            float moveSpeed,
+            float movePhase,
+            bool useTempoWindow,
+            float tempoCycle,
+            float tempoOpenRatio,
+            float tempoPhase)
+        {
+            return new GateSpec
+            {
+                lane = lane,
+                operation = operation,
+                value = Mathf.Max(1, value),
+                movesHorizontally = movesHorizontally,
+                moveAmplitude = Mathf.Max(0f, moveAmplitude),
+                moveSpeed = Mathf.Max(0f, moveSpeed),
+                movePhase = movePhase,
+                useTempoWindow = useTempoWindow,
+                tempoCycle = Mathf.Max(0.25f, tempoCycle),
+                tempoOpenRatio = Mathf.Clamp(tempoOpenRatio, 0.08f, 0.92f),
+                tempoPhase = tempoPhase
+            };
+        }
+
+        private static void EnsureAtLeastOnePositive(System.Random random, int addBase, List<GateSpec> gates)
+        {
+            for (var i = 0; i < gates.Count; i++)
+            {
+                var operation = gates[i].operation;
+                if (operation == GateOperation.Add || operation == GateOperation.Multiply)
+                {
+                    return;
+                }
+            }
+
+            if (gates.Count == 0)
+            {
+                return;
+            }
+
+            var index = random.Next(0, gates.Count);
+            var adjusted = gates[index];
+            adjusted.operation = random.NextDouble() < 0.22 ? GateOperation.Multiply : GateOperation.Add;
+            adjusted.value = adjusted.operation == GateOperation.Multiply ? 2 : Mathf.Max(2, addBase / 2);
+            gates[index] = adjusted;
+        }
+
+        private float EvaluateLaneBadChance(float baseChance, int lane, ModifierState modifier)
+        {
+            var laneChance = baseChance;
+            if (enableAdaptiveLanePressure)
+            {
+                var pressure = _lanePressure[Mathf.Clamp(lane, 0, 2)];
+                var neutral = 1f / 3f;
+                var pressureDelta = pressure - neutral;
+                var strength = lanePressureStrength * (modifier.aggressivePressure ? 1.45f : 1f);
+                laneChance *= 1f + (pressureDelta * strength * 2.5f);
+            }
+
+            return Mathf.Clamp01(laneChance);
+        }
+
+        private static GateOperation PickOperationForLane(System.Random random, float badGateChance, int levelIndex)
         {
             var roll = random.NextDouble();
             if (roll < badGateChance)
@@ -1033,23 +1699,25 @@ namespace MultiplyRush
                 return random.NextDouble() < 0.55 ? GateOperation.Subtract : GateOperation.Divide;
             }
 
-            var multiplyChance = Mathf.Clamp01(0.22f + levelIndex * 0.005f);
+            var multiplyChance = Mathf.Clamp01(0.2f + levelIndex * 0.005f);
             return random.NextDouble() < multiplyChance ? GateOperation.Multiply : GateOperation.Add;
         }
 
-        private static int PickGateValue(System.Random random, GateOperation operation, int addBase, int subtractBase, int levelIndex)
+        private static int PickGateValue(System.Random random, GateOperation operation, int addBase, int subtractBase, int levelIndex, bool biasHarder)
         {
             switch (operation)
             {
                 case GateOperation.Add:
                 {
                     var variance = Mathf.Max(1, addBase / 2);
-                    return Mathf.Max(1, addBase + random.Next(-2, variance + 1));
+                    var bonus = biasHarder ? random.Next(0, Mathf.Max(1, addBase / 4 + 1)) : 0;
+                    return Mathf.Max(1, addBase + random.Next(-2, variance + 1) + bonus);
                 }
                 case GateOperation.Subtract:
                 {
                     var variance = Mathf.Max(1, subtractBase / 2);
-                    return Mathf.Max(1, subtractBase + random.Next(0, variance + 2));
+                    var bonus = biasHarder ? random.Next(1, Mathf.Max(2, subtractBase / 3 + 2)) : 0;
+                    return Mathf.Max(1, subtractBase + random.Next(0, variance + 2) + bonus);
                 }
                 case GateOperation.Multiply:
                 {
@@ -1062,7 +1730,7 @@ namespace MultiplyRush
                 }
                 case GateOperation.Divide:
                 {
-                    if (levelIndex > 15 && random.NextDouble() < 0.1)
+                    if (levelIndex > 15 && random.NextDouble() < (biasHarder ? 0.2 : 0.1))
                     {
                         return 3;
                     }
@@ -1074,16 +1742,31 @@ namespace MultiplyRush
             }
         }
 
-        private int BuildEnemyCount(int levelIndex, int startCount, List<GateRow> rows)
+        private int BuildEnemyCount(int levelIndex, int startCount, int expectedBest, bool isMiniBoss, ModifierState modifier)
         {
-            var expectedBest = EstimateBestCaseCount(startCount, rows);
             var safeLevel = Mathf.Max(1, levelIndex);
             var formulaTarget = enemyFormulaBase +
                                 Mathf.FloorToInt((safeLevel - 1) * enemyFormulaLinear) +
                                 Mathf.FloorToInt(enemyFormulaPowerMultiplier * Mathf.Pow(safeLevel, enemyFormulaPower));
 
+            if (isMiniBoss)
+            {
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.14f) + 10;
+            }
+
+            if (modifier.tankSurge)
+            {
+                formulaTarget += Mathf.RoundToInt(levelIndex * 0.65f);
+            }
+
             var floor = Mathf.Max(startCount + 4, Mathf.FloorToInt(expectedBest * enemyMinFractionOfBestPath));
-            var capByBestPath = Mathf.FloorToInt(expectedBest * enemyMaxFractionOfBestPath);
+            if (isMiniBoss)
+            {
+                floor = Mathf.Max(floor, startCount + 16);
+            }
+
+            var bossCeilingBonus = isMiniBoss ? 0.05f : 0.01f;
+            var capByBestPath = Mathf.FloorToInt(expectedBest * Mathf.Clamp01(enemyMaxFractionOfBestPath + bossCeilingBonus));
             var ceiling = Mathf.Max(floor, capByBestPath);
             var enemyCount = Mathf.Clamp(formulaTarget, floor, Mathf.Max(floor, ceiling));
 
@@ -1093,6 +1776,46 @@ namespace MultiplyRush
             }
 
             return Mathf.Max(5, enemyCount);
+        }
+
+        private int BuildTankRequirement(int levelIndex, int expectedBest, int enemyCount, bool isMiniBoss, ModifierState modifier)
+        {
+            if (levelIndex < 10 && !isMiniBoss)
+            {
+                return 0;
+            }
+
+            if (expectedBest <= enemyCount + 1)
+            {
+                return 0;
+            }
+
+            var ratio = 0.88f + Mathf.Clamp(levelIndex * 0.0022f, 0f, 0.14f);
+            if (isMiniBoss)
+            {
+                ratio += 0.1f;
+            }
+
+            if (modifier.tankSurge)
+            {
+                ratio += 0.08f;
+            }
+
+            var target = Mathf.RoundToInt(enemyCount * ratio);
+            var minRequirement = enemyCount + (isMiniBoss ? 6 : 2);
+            var maxRequirement = Mathf.Min(expectedBest - 1, Mathf.FloorToInt(expectedBest * (isMiniBoss ? 0.96f : 0.9f)));
+            if (maxRequirement <= minRequirement)
+            {
+                return 0;
+            }
+
+            var tankRequirement = Mathf.Clamp(target, minRequirement, maxRequirement);
+            if (tankRequirement <= enemyCount + 2 && !isMiniBoss && levelIndex < 24)
+            {
+                return 0;
+            }
+
+            return tankRequirement;
         }
 
         private static int EstimateBestCaseCount(int startCount, List<GateRow> rows)
@@ -1136,6 +1859,99 @@ namespace MultiplyRush
             }
         }
 
+        private void DecayLanePressureTowardNeutral()
+        {
+            if (!enableAdaptiveLanePressure)
+            {
+                return;
+            }
+
+            var neutral = 1f / 3f;
+            var decay = Mathf.Clamp01(lanePressureDecay);
+            for (var i = 0; i < _lanePressure.Length; i++)
+            {
+                _lanePressure[i] = Mathf.Lerp(_lanePressure[i], neutral, decay);
+            }
+
+            NormalizeLanePressure();
+        }
+
+        private void NormalizeLanePressure()
+        {
+            var total = _lanePressure[0] + _lanePressure[1] + _lanePressure[2];
+            if (total <= 0.0001f)
+            {
+                _lanePressure[0] = 1f / 3f;
+                _lanePressure[1] = 1f / 3f;
+                _lanePressure[2] = 1f / 3f;
+                return;
+            }
+
+            var inverse = 1f / total;
+            _lanePressure[0] = Mathf.Clamp(_lanePressure[0] * inverse, 0.05f, 0.9f);
+            _lanePressure[1] = Mathf.Clamp(_lanePressure[1] * inverse, 0.05f, 0.9f);
+            _lanePressure[2] = Mathf.Clamp(_lanePressure[2] * inverse, 0.05f, 0.9f);
+
+            total = _lanePressure[0] + _lanePressure[1] + _lanePressure[2];
+            inverse = 1f / total;
+            _lanePressure[0] *= inverse;
+            _lanePressure[1] *= inverse;
+            _lanePressure[2] *= inverse;
+        }
+
+        private int GetMostPressuredLane()
+        {
+            var bestLane = 0;
+            var bestValue = _lanePressure[0];
+            for (var i = 1; i < _lanePressure.Length; i++)
+            {
+                if (_lanePressure[i] > bestValue)
+                {
+                    bestValue = _lanePressure[i];
+                    bestLane = i;
+                }
+            }
+
+            return bestLane;
+        }
+
+        private int GetLeastPressuredLane()
+        {
+            var bestLane = 0;
+            var bestValue = _lanePressure[0];
+            for (var i = 1; i < _lanePressure.Length; i++)
+            {
+                if (_lanePressure[i] < bestValue)
+                {
+                    bestValue = _lanePressure[i];
+                    bestLane = i;
+                }
+            }
+
+            return bestLane;
+        }
+
+        private static int[] BuildShuffledLanes(System.Random random)
+        {
+            var lanes = new[] { 0, 1, 2 };
+            for (var i = lanes.Length - 1; i > 0; i--)
+            {
+                var swapIndex = random.Next(0, i + 1);
+                var temp = lanes[i];
+                lanes[i] = lanes[swapIndex];
+                lanes[swapIndex] = temp;
+            }
+
+            return lanes;
+        }
+
+        private enum RowPattern
+        {
+            Normal = 0,
+            Tempo = 1,
+            RiskReward = 2
+        }
+
         [Serializable]
         private struct GateSpec
         {
@@ -1146,6 +1962,10 @@ namespace MultiplyRush
             public float moveAmplitude;
             public float moveSpeed;
             public float movePhase;
+            public bool useTempoWindow;
+            public float tempoCycle;
+            public float tempoOpenRatio;
+            public float tempoPhase;
         }
 
         [Serializable]
@@ -1155,14 +1975,42 @@ namespace MultiplyRush
             public List<GateSpec> gates;
         }
 
+        [Serializable]
+        private struct HazardSpec
+        {
+            public int lane;
+            public float z;
+            public HazardType type;
+            public float slowMultiplier;
+            public float duration;
+            public float knockbackDeltaX;
+            public float width;
+            public float depth;
+            public bool emphasize;
+        }
+
+        private struct ModifierState
+        {
+            public bool forceMovingGates;
+            public bool boostTempoRows;
+            public bool hazardRush;
+            public bool aggressivePressure;
+            public bool tankSurge;
+            public string label;
+        }
+
         private struct GeneratedLevel
         {
             public int startCount;
             public int enemyCount;
+            public int tankRequirement;
             public float finishZ;
             public float forwardSpeed;
             public float gateDifficulty01;
+            public bool isMiniBoss;
+            public string modifierName;
             public List<GateRow> rows;
+            public List<HazardSpec> hazards;
         }
     }
 }

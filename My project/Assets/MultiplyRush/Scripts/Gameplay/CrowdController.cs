@@ -40,6 +40,9 @@ namespace MultiplyRush
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
 
+        [Header("Status Effects")]
+        public float minSpeedMultiplier = 0.55f;
+
         [Header("References")]
         public TouchDragInput dragInput;
 
@@ -65,6 +68,12 @@ namespace MultiplyRush
         private float _leaderTilt;
         private float _gatePunchTimer;
         private int _lastConsumedGateRow = -1;
+        private bool _shieldActive;
+        private float _speedMultiplier = 1f;
+        private float _speedEffectTimer;
+        private float _laneTimeLeft;
+        private float _laneTimeCenter;
+        private float _laneTimeRight;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -127,10 +136,19 @@ namespace MultiplyRush
                 _targetX += dragDelta * dragSensitivity * trackHalfWidth;
                 _targetX = Mathf.Clamp(_targetX, -trackHalfWidth, trackHalfWidth);
 
+                if (_speedEffectTimer > 0f)
+                {
+                    _speedEffectTimer = Mathf.Max(0f, _speedEffectTimer - deltaTime);
+                    if (_speedEffectTimer <= 0f)
+                    {
+                        _speedMultiplier = 1f;
+                    }
+                }
+
                 var pos = transform.position;
                 var blend = 1f - Mathf.Exp(-xSmoothSpeed * deltaTime);
                 pos.x = Mathf.Lerp(pos.x, _targetX, blend);
-                pos.z += _forwardSpeed * deltaTime;
+                pos.z += _forwardSpeed * _speedMultiplier * deltaTime;
                 transform.position = pos;
 
                 if (!_hasLastX)
@@ -144,6 +162,7 @@ namespace MultiplyRush
                 var velocityBlend = 1f - Mathf.Exp(-10f * deltaTime);
                 _smoothedStrafeVelocity = Mathf.Lerp(_smoothedStrafeVelocity, rawStrafeVelocity, velocityBlend);
                 _progress01 = _finishZ > 0f ? Mathf.Clamp01(pos.z / _finishZ) : 0f;
+                SampleLaneBias(pos.x, deltaTime);
             }
             else
             {
@@ -182,6 +201,12 @@ namespace MultiplyRush
                 return;
             }
 
+            if (other.TryGetComponent<HazardZone>(out var hazard))
+            {
+                hazard.TryApply(this);
+                return;
+            }
+
             if (other.TryGetComponent<FinishLine>(out var finishLine))
             {
                 finishLine.TryTrigger(this);
@@ -202,6 +227,12 @@ namespace MultiplyRush
             _leaderTilt = 0f;
             _gatePunchTimer = 0f;
             _lastConsumedGateRow = -1;
+            _shieldActive = false;
+            _speedMultiplier = 1f;
+            _speedEffectTimer = 0f;
+            _laneTimeLeft = 0f;
+            _laneTimeCenter = 0f;
+            _laneTimeRight = 0f;
 
             SetCount(initialCount);
         }
@@ -214,6 +245,14 @@ namespace MultiplyRush
         public void ApplyGate(GateOperation operation, int value)
         {
             var safeValue = Mathf.Max(1, value);
+
+            if (IsNegativeGate(operation) && _shieldActive)
+            {
+                _shieldActive = false;
+                TriggerGatePunch();
+                return;
+            }
+
             var next = _count;
 
             switch (operation)
@@ -236,6 +275,47 @@ namespace MultiplyRush
 
             SetCount(next);
             TriggerGatePunch();
+        }
+
+        public void ApplySlow(float speedMultiplier, float duration)
+        {
+            var safeMultiplier = Mathf.Clamp(speedMultiplier, Mathf.Max(0.05f, minSpeedMultiplier), 1f);
+            _speedMultiplier = Mathf.Min(_speedMultiplier, safeMultiplier);
+            _speedEffectTimer = Mathf.Max(_speedEffectTimer, Mathf.Max(0.05f, duration));
+        }
+
+        public void ApplyLateralImpulse(float deltaX)
+        {
+            _targetX = Mathf.Clamp(_targetX + deltaX, -trackHalfWidth, trackHalfWidth);
+        }
+
+        public void ApplyInstantReinforcement(int amount)
+        {
+            if (amount <= 0)
+            {
+                return;
+            }
+
+            SetCount(_count + amount);
+            TriggerGatePunch();
+        }
+
+        public bool ActivateShield()
+        {
+            if (_shieldActive || !_isRunning)
+            {
+                return false;
+            }
+
+            _shieldActive = true;
+            return true;
+        }
+
+        public void GetLaneUsage(out float left, out float center, out float right)
+        {
+            left = _laneTimeLeft;
+            center = _laneTimeCenter;
+            right = _laneTimeRight;
         }
 
         public void NotifyFinishReached(int enemyCount)
@@ -414,6 +494,29 @@ namespace MultiplyRush
         private static float CalculatePhaseOffset(int index)
         {
             return Mathf.Repeat(index * 0.6180339f, 1f) * Mathf.PI * 2f;
+        }
+
+        private void SampleLaneBias(float xPosition, float deltaTime)
+        {
+            var threshold = Mathf.Max(0.2f, trackHalfWidth * 0.28f);
+            if (xPosition <= -threshold)
+            {
+                _laneTimeLeft += deltaTime;
+                return;
+            }
+
+            if (xPosition >= threshold)
+            {
+                _laneTimeRight += deltaTime;
+                return;
+            }
+
+            _laneTimeCenter += deltaTime;
+        }
+
+        private static bool IsNegativeGate(GateOperation operation)
+        {
+            return operation == GateOperation.Subtract || operation == GateOperation.Divide;
         }
 
         private void TriggerGatePunch()

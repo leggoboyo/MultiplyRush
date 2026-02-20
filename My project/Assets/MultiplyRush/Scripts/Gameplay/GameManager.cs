@@ -27,6 +27,9 @@ namespace MultiplyRush
         private bool _roundActive;
         private GameFlowState _state = GameFlowState.Booting;
         private float _resultShownAt;
+        private LevelBuildResult _currentBuild;
+        private bool _pendingReinforcementKit;
+        private bool _pendingShieldCharge;
 
         private void Awake()
         {
@@ -37,6 +40,8 @@ namespace MultiplyRush
             {
                 resultsOverlay.OnRetryRequested += RetryLevel;
                 resultsOverlay.OnNextRequested += NextLevel;
+                resultsOverlay.OnUseReinforcementRequested += UseReinforcementAndRetry;
+                resultsOverlay.OnUseShieldRequested += UseShieldAndRetry;
             }
 
             if (playerCrowd != null)
@@ -44,6 +49,8 @@ namespace MultiplyRush
                 playerCrowd.CountChanged += OnCountChanged;
                 playerCrowd.FinishReached += OnFinishReached;
             }
+
+            RefreshInventoryHud();
         }
 
         private void Start()
@@ -68,6 +75,8 @@ namespace MultiplyRush
             {
                 resultsOverlay.OnRetryRequested -= RetryLevel;
                 resultsOverlay.OnNextRequested -= NextLevel;
+                resultsOverlay.OnUseReinforcementRequested -= UseReinforcementAndRetry;
+                resultsOverlay.OnUseShieldRequested -= UseShieldAndRetry;
             }
 
             if (playerCrowd != null)
@@ -87,17 +96,31 @@ namespace MultiplyRush
 
             _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
-            var build = levelGenerator.Generate(_currentLevelIndex);
+            _currentBuild = levelGenerator.Generate(_currentLevelIndex);
+
+            var startCount = _currentBuild.startCount;
+            if (_pendingReinforcementKit)
+            {
+                startCount += CalculateReinforcementBonus(_currentBuild);
+                _pendingReinforcementKit = false;
+            }
 
             var startPosition = crowdStartPoint != null ? crowdStartPoint.position : Vector3.zero;
-            playerCrowd.StartRun(startPosition, build.startCount, build.forwardSpeed, build.trackHalfWidth, build.finishZ);
+            playerCrowd.StartRun(startPosition, startCount, _currentBuild.forwardSpeed, _currentBuild.trackHalfWidth, _currentBuild.finishZ);
+            if (_pendingShieldCharge)
+            {
+                playerCrowd.ActivateShield();
+                _pendingShieldCharge = false;
+            }
 
             if (hud != null)
             {
-                hud.SetLevel(_currentLevelIndex);
-                hud.SetCount(build.startCount);
+                hud.SetLevel(_currentLevelIndex, _currentBuild.modifierName, _currentBuild.isMiniBoss);
+                hud.SetCount(startCount);
                 hud.SetProgress(0f);
             }
+
+            RefreshInventoryHud();
 
             if (resultsOverlay != null)
             {
@@ -125,16 +148,60 @@ namespace MultiplyRush
 
             _roundActive = false;
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
-            var didWin = playerCount >= enemyCount;
+            if (_currentBuild.enemyCount <= 0)
+            {
+                _currentBuild.enemyCount = Mathf.Max(1, enemyCount);
+            }
+
+            if (playerCrowd != null && levelGenerator != null)
+            {
+                playerCrowd.GetLaneUsage(out var left, out var center, out var right);
+                levelGenerator.ReportLaneUsage(left, center, right);
+            }
+
+            var requiredCount = Mathf.Max(_currentBuild.enemyCount, _currentBuild.tankRequirement);
+            var didWin = playerCount >= requiredCount;
+            var detailLine = string.Empty;
 
             if (didWin)
             {
                 ProgressionStore.MarkLevelWon(_currentLevelIndex);
+                if (_currentBuild.isMiniBoss)
+                {
+                    var reward = ProgressionStore.GrantMiniBossReward(_currentLevelIndex);
+                    if (!reward.IsEmpty)
+                    {
+                        detailLine = "Mini-Boss Reward: +" + reward.reinforcementKits + " Kit";
+                        if (reward.shieldCharges > 0)
+                        {
+                            detailLine += "  +" + reward.shieldCharges + " Shield";
+                        }
+                    }
+                }
             }
+
+            RefreshInventoryHud();
 
             if (resultsOverlay != null)
             {
-                resultsOverlay.ShowResult(didWin, _currentLevelIndex, playerCount, enemyCount);
+                resultsOverlay.ShowResult(
+                    didWin,
+                    _currentLevelIndex,
+                    playerCount,
+                    _currentBuild.enemyCount,
+                    _currentBuild.tankRequirement,
+                    detailLine);
+
+                if (didWin)
+                {
+                    resultsOverlay.SetBuffOptions(0, 0);
+                }
+                else
+                {
+                    resultsOverlay.SetBuffOptions(
+                        ProgressionStore.GetReinforcementKits(),
+                        ProgressionStore.GetShieldCharges());
+                }
             }
 
             _resultShownAt = Time.unscaledTime;
@@ -170,6 +237,58 @@ namespace MultiplyRush
 
             var delay = Mathf.Max(0f, resultInputDelaySeconds);
             return Time.unscaledTime >= _resultShownAt + delay;
+        }
+
+        private void UseReinforcementAndRetry()
+        {
+            if (!CanAcceptResultInput())
+            {
+                return;
+            }
+
+            if (!ProgressionStore.TryConsumeReinforcementKit())
+            {
+                return;
+            }
+
+            _pendingReinforcementKit = true;
+            RefreshInventoryHud();
+            StartLevel(_currentLevelIndex);
+        }
+
+        private void UseShieldAndRetry()
+        {
+            if (!CanAcceptResultInput())
+            {
+                return;
+            }
+
+            if (!ProgressionStore.TryConsumeShieldCharge())
+            {
+                return;
+            }
+
+            _pendingShieldCharge = true;
+            RefreshInventoryHud();
+            StartLevel(_currentLevelIndex);
+        }
+
+        private int CalculateReinforcementBonus(LevelBuildResult build)
+        {
+            var scaled = Mathf.RoundToInt(Mathf.Max(12f, build.enemyCount * 0.16f));
+            return Mathf.Clamp(scaled, 12, 260);
+        }
+
+        private void RefreshInventoryHud()
+        {
+            if (hud == null)
+            {
+                return;
+            }
+
+            hud.SetInventory(
+                ProgressionStore.GetReinforcementKits(),
+                ProgressionStore.GetShieldCharges());
         }
     }
 }

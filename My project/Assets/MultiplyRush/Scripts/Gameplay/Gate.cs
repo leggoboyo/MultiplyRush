@@ -47,6 +47,19 @@ namespace MultiplyRush
         public float laneMinX;
         public float laneMaxX;
 
+        [Header("Tempo")]
+        public bool enableTempoWindow;
+        public float tempoCycleSeconds = 2.1f;
+        [Range(0.08f, 0.92f)]
+        public float tempoOpenRatio = 0.55f;
+        public float tempoPhaseOffset;
+        [Range(0.2f, 0.95f)]
+        public float closedPanelScale = 0.82f;
+        [Range(0.2f, 0.95f)]
+        public float closedLabelScale = 0.78f;
+        [Range(0.2f, 1f)]
+        public float closedColorMultiplier = 0.52f;
+
         private BoxCollider _trigger;
         private MaterialPropertyBlock _materialBlock;
         private bool _isConsumed;
@@ -60,6 +73,10 @@ namespace MultiplyRush
         private Vector3 _rootBaseScale = Vector3.one;
         private Vector3 _panelBaseScale = Vector3.one;
         private Vector3 _labelBaseScale = Vector3.one;
+        private Color _basePanelColor = Color.white;
+        private float _tempoPanelScale = 1f;
+        private float _tempoLabelScale = 1f;
+        private float _tempoColorScale = 1f;
 
         private void Awake()
         {
@@ -85,6 +102,9 @@ namespace MultiplyRush
             laneCenterX = transform.position.x;
             transform.localScale = _rootBaseScale;
             transform.rotation = Quaternion.identity;
+            _tempoPanelScale = 1f;
+            _tempoLabelScale = 1f;
+            _tempoColorScale = 1f;
             NormalizeLayout();
             RefreshVisuals();
         }
@@ -99,7 +119,11 @@ namespace MultiplyRush
             float motionPhase,
             float centerX,
             float minX,
-            float maxX)
+            float maxX,
+            bool useTempoWindow,
+            float tempoCycle,
+            float openRatio,
+            float tempoPhase)
         {
             operation = gateOperation;
             value = Mathf.Max(1, gateValue);
@@ -111,10 +135,17 @@ namespace MultiplyRush
             laneCenterX = centerX;
             laneMinX = Mathf.Min(minX, maxX);
             laneMaxX = Mathf.Max(minX, maxX);
+            enableTempoWindow = useTempoWindow;
+            tempoCycleSeconds = Mathf.Max(0.25f, tempoCycle);
+            tempoOpenRatio = Mathf.Clamp(openRatio, 0.08f, 0.92f);
+            tempoPhaseOffset = tempoPhase;
             _isConsumed = false;
             _isConsuming = false;
             _consumeElapsed = 0f;
             _baseY = transform.position.y;
+            _tempoPanelScale = 1f;
+            _tempoLabelScale = 1f;
+            _tempoColorScale = 1f;
 
             if (_trigger == null)
             {
@@ -164,6 +195,7 @@ namespace MultiplyRush
                 return;
             }
 
+            UpdateTempoWindow(Time.time);
             AnimateIdle(Time.time);
         }
 
@@ -176,7 +208,8 @@ namespace MultiplyRush
                 labelText.fontStyle = FontStyle.Bold;
             }
 
-            SetPanelColor(IsPositive(operation) ? positiveColor : negativeColor);
+            _basePanelColor = IsPositive(operation) ? positiveColor : negativeColor;
+            SetPanelColor(_basePanelColor);
         }
 
         private void CacheReferences()
@@ -322,12 +355,15 @@ namespace MultiplyRush
 
             if (_panel != null)
             {
-                _panel.localScale = new Vector3(_panelBaseScale.x * pulse, _panelBaseScale.y * pulse, _panelBaseScale.z);
+                _panel.localScale = new Vector3(
+                    _panelBaseScale.x * pulse * _tempoPanelScale,
+                    _panelBaseScale.y * pulse * _tempoPanelScale,
+                    _panelBaseScale.z);
             }
 
             if (labelText != null)
             {
-                labelText.transform.localScale = _labelBaseScale * (1f + Mathf.Sin(phase * 1.9f) * (idlePulseAmplitude * 0.42f));
+                labelText.transform.localScale = _labelBaseScale * (1f + Mathf.Sin(phase * 1.9f) * (idlePulseAmplitude * 0.42f)) * _tempoLabelScale;
             }
         }
 
@@ -355,6 +391,62 @@ namespace MultiplyRush
             {
                 _isConsuming = false;
                 gameObject.SetActive(false);
+            }
+        }
+
+        private void UpdateTempoWindow(float runTime)
+        {
+            if (_trigger == null)
+            {
+                return;
+            }
+
+            if (!enableTempoWindow)
+            {
+                _tempoPanelScale = 1f;
+                _tempoLabelScale = 1f;
+                _tempoColorScale = 1f;
+                if (!_trigger.enabled)
+                {
+                    _trigger.enabled = true;
+                }
+
+                SetPanelColor(_basePanelColor);
+                return;
+            }
+
+            var cycle = Mathf.Max(0.25f, tempoCycleSeconds);
+            var openRatio = Mathf.Clamp(tempoOpenRatio, 0.08f, 0.92f);
+            var window = cycle * openRatio;
+            var elapsed = Mathf.Repeat(runTime + tempoPhaseOffset, cycle);
+            var isOpen = elapsed <= window;
+
+            if (_trigger.enabled != isOpen)
+            {
+                _trigger.enabled = isOpen;
+            }
+
+            if (isOpen)
+            {
+                _tempoPanelScale = 1f;
+                _tempoLabelScale = 1f;
+                _tempoColorScale = 1f;
+            }
+            else
+            {
+                var closedDuration = Mathf.Max(0.05f, cycle - window);
+                var closedT = Mathf.Clamp01((elapsed - window) / closedDuration);
+                var pulse = 0.5f + (Mathf.Sin(closedT * Mathf.PI * 2f) * 0.5f);
+                _tempoPanelScale = Mathf.Lerp(closedPanelScale, closedPanelScale + 0.05f, pulse);
+                _tempoLabelScale = Mathf.Lerp(closedLabelScale, closedLabelScale + 0.04f, 1f - pulse);
+                _tempoColorScale = Mathf.Clamp01(Mathf.Lerp(closedColorMultiplier, closedColorMultiplier + 0.15f, pulse));
+            }
+
+            SetPanelColor(_basePanelColor * _tempoColorScale);
+            if (labelText != null)
+            {
+                var baseColor = IsPositive(operation) ? new Color(0.05f, 0.05f, 0.05f) : Color.white;
+                labelText.color = baseColor * Mathf.Lerp(0.65f, 1f, _tempoColorScale);
             }
         }
     }
