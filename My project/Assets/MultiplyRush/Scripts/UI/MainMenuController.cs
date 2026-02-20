@@ -12,11 +12,29 @@ namespace MultiplyRush
         private void Start()
         {
             CanvasRootGuard.NormalizeAllRootCanvasScales();
+            EnsureBackgroundBehindContent();
 
             if (bestLevelText != null)
             {
                 bestLevelText.text = "Best Level: " + ProgressionStore.GetBestLevel();
             }
+        }
+
+        private void EnsureBackgroundBehindContent()
+        {
+            var background = GameObject.Find("Background");
+            if (background == null)
+            {
+                return;
+            }
+
+            var backgroundRect = background.GetComponent<RectTransform>();
+            if (backgroundRect == null)
+            {
+                return;
+            }
+
+            backgroundRect.SetAsFirstSibling();
         }
 
         public void Play()

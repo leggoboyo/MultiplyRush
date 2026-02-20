@@ -352,9 +352,11 @@ public static class MultiplyRushBootstrapper
         EnsureEventSystem();
 
         var canvas = CreateCanvas("MainMenuCanvas");
-        var safeAreaRoot = CreateSafeAreaRoot(canvas.transform, "SafeArea");
         var background = CreateImage(canvas.transform, "Background", new Color(0.08f, 0.09f, 0.12f, 1f));
         StretchToFull(background.rectTransform);
+        background.transform.SetAsFirstSibling();
+
+        var safeAreaRoot = CreateSafeAreaRoot(canvas.transform, "SafeArea");
 
         CreateText(safeAreaRoot, "Title", "Multiply Rush", 96, TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.78f), new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900f, 180f));
