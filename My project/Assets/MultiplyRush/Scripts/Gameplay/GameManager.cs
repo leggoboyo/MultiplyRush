@@ -30,6 +30,8 @@ namespace MultiplyRush
 
         private void Awake()
         {
+            CanvasRootGuard.NormalizeAllRootCanvasScales();
+
             if (resultsOverlay != null)
             {
                 resultsOverlay.OnRetryRequested += RetryLevel;

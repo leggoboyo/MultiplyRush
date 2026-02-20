@@ -11,6 +11,8 @@ namespace MultiplyRush
 
         private void Start()
         {
+            CanvasRootGuard.NormalizeAllRootCanvasScales();
+
             if (bestLevelText != null)
             {
                 bestLevelText.text = "Best Level: " + ProgressionStore.GetBestLevel();
