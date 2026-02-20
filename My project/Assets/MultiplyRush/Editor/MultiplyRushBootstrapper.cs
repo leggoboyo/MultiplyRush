@@ -173,7 +173,7 @@ public static class MultiplyRushBootstrapper
         crowdController.formationRoot = formationRoot;
         crowdController.soldierUnitPrefab = soldierUnitPrefab;
         crowdController.dragInput = root.GetComponent<TouchDragInput>();
-        crowdController.maxVisibleUnits = 150;
+        crowdController.maxVisibleUnits = 120;
         crowdController.minCount = 1;
 
         return SaveAsPrefab(root, PrefabsFolder + "/PlayerCrowd.prefab");
@@ -222,7 +222,7 @@ public static class MultiplyRushBootstrapper
         enemyGroup.unitsRoot = unitsRoot;
         enemyGroup.countLabel = countLabel;
         enemyGroup.enemyUnitPrefab = enemyUnitPrefab;
-        enemyGroup.maxVisibleUnits = 120;
+        enemyGroup.maxVisibleUnits = 100;
 
         return SaveAsPrefab(root, PrefabsFolder + "/Enemy.prefab");
     }
@@ -309,6 +309,9 @@ public static class MultiplyRushBootstrapper
         cameraFollower.lookLerpSpeed = 12f;
         cameraFollower.baseFieldOfView = 58f;
         cameraFollower.maxFieldOfView = 66f;
+        cameraFollower.rollByLateralVelocity = 0.42f;
+        cameraFollower.maxRollDegrees = 3.2f;
+        cameraFollower.horizontalFollowFactor = 0.72f;
 
         var levelRoot = new GameObject("LevelRoot").transform;
         var gateRoot = new GameObject("GateRoot").transform;
@@ -332,6 +335,9 @@ public static class MultiplyRushBootstrapper
         levelGenerator.stripeLength = 1.9f;
         levelGenerator.stripeGap = 1.35f;
         levelGenerator.stripeWidth = 0.16f;
+        levelGenerator.backdropQuality = BackdropQuality.Auto;
+        levelGenerator.enableBackdrop = true;
+        levelGenerator.enableClouds = true;
 
         var crowdStartPoint = new GameObject("CrowdStartPoint").transform;
         crowdStartPoint.position = Vector3.zero;

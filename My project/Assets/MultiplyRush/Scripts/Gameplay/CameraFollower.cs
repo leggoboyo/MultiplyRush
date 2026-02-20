@@ -12,9 +12,10 @@ namespace MultiplyRush
         public float baseFieldOfView = 58f;
         public float maxFieldOfView = 66f;
         public float speedForMaxFov = 14f;
-        public float rollByLateralVelocity = 1.1f;
-        public float maxRollDegrees = 7f;
+        public float rollByLateralVelocity = 0.42f;
+        public float maxRollDegrees = 3.2f;
         public float speedLookAhead = 4f;
+        public float horizontalFollowFactor = 0.72f;
 
         private Camera _camera;
         private Vector3 _smoothedLookOffset;
@@ -31,6 +32,9 @@ namespace MultiplyRush
             }
 
             _smoothedLookOffset = lookOffset;
+            rollByLateralVelocity = Mathf.Min(rollByLateralVelocity, 0.55f);
+            maxRollDegrees = Mathf.Min(maxRollDegrees, 4f);
+            horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.55f, 1f);
         }
 
         private void LateUpdate()
@@ -58,7 +62,10 @@ namespace MultiplyRush
             var forwardSpeed = Mathf.Max(0f, targetVelocity.z);
             var speed01 = Mathf.Clamp01(forwardSpeed / Mathf.Max(0.01f, speedForMaxFov));
 
-            var desiredPosition = target.position + positionOffset;
+            var desiredPosition = new Vector3(
+                (target.position.x * horizontalFollowFactor) + positionOffset.x,
+                target.position.y + positionOffset.y,
+                target.position.z + positionOffset.z);
             var blend = 1f - Mathf.Exp(-followLerpSpeed * deltaTime);
             transform.position = Vector3.Lerp(transform.position, desiredPosition, blend);
 

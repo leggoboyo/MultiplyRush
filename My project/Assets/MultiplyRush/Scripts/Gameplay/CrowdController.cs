@@ -34,6 +34,11 @@ namespace MultiplyRush
         public float leaderBobAmplitude = 0.1f;
         public float leaderScalePulse = 0.04f;
         public float leaderStrafeTilt = 0.9f;
+        public float gatePunchScale = 1.08f;
+        public float gatePunchDuration = 0.16f;
+
+        [Header("Gate Rules")]
+        public bool allowOnlyOneGatePerRow = true;
 
         [Header("References")]
         public TouchDragInput dragInput;
@@ -58,6 +63,8 @@ namespace MultiplyRush
         private bool _hasLastX;
         private float _lastX;
         private float _leaderTilt;
+        private float _gatePunchTimer;
+        private int _lastConsumedGateRow = -1;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -92,6 +99,8 @@ namespace MultiplyRush
                 _leaderBaseScale = _leaderVisual.localScale;
                 _leaderBaseLocalPosition = _leaderVisual.localPosition;
             }
+
+            maxVisibleUnits = Mathf.Min(maxVisibleUnits, 120);
 
             PrewarmPool();
 
@@ -142,6 +151,11 @@ namespace MultiplyRush
                 _smoothedStrafeVelocity = Mathf.Lerp(_smoothedStrafeVelocity, 0f, settleBlend);
             }
 
+            if (_gatePunchTimer > 0f)
+            {
+                _gatePunchTimer = Mathf.Max(0f, _gatePunchTimer - deltaTime);
+            }
+
             AnimateFormation(deltaTime);
             AnimateLeader(deltaTime);
         }
@@ -155,7 +169,16 @@ namespace MultiplyRush
 
             if (other.TryGetComponent<Gate>(out var gate))
             {
-                gate.TryApply(this);
+                if (allowOnlyOneGatePerRow && gate.rowId >= 0 && gate.rowId == _lastConsumedGateRow)
+                {
+                    return;
+                }
+
+                if (gate.TryApply(this) && gate.rowId >= 0)
+                {
+                    _lastConsumedGateRow = gate.rowId;
+                }
+
                 return;
             }
 
@@ -177,6 +200,8 @@ namespace MultiplyRush
             _isRunning = true;
             _hasLastX = false;
             _leaderTilt = 0f;
+            _gatePunchTimer = 0f;
+            _lastConsumedGateRow = -1;
 
             SetCount(initialCount);
         }
@@ -210,6 +235,7 @@ namespace MultiplyRush
             }
 
             SetCount(next);
+            TriggerGatePunch();
         }
 
         public void NotifyFinishReached(int enemyCount)
@@ -282,6 +308,7 @@ namespace MultiplyRush
 
             var instance = Instantiate(soldierUnitPrefab, _poolRoot);
             instance.name = "SoldierUnit";
+            UnitVisualFactory.ApplySoldierVisual(instance.transform, false);
             return instance.transform;
         }
 
@@ -333,6 +360,7 @@ namespace MultiplyRush
 
             var runTime = Time.time;
             var blend = 1f - Mathf.Exp(-formationLerpSpeed * deltaTime);
+            var punchScale = EvaluateGatePunchScale();
             for (var i = 0; i < count; i++)
             {
                 var slot = _formationSlots[i];
@@ -355,6 +383,8 @@ namespace MultiplyRush
 
                 unit.localPosition = Vector3.Lerp(unit.localPosition, slot, blend);
             }
+
+            formationRoot.localScale = Vector3.one * punchScale;
         }
 
         private void AnimateLeader(float deltaTime)
@@ -378,12 +408,28 @@ namespace MultiplyRush
             _leaderVisual.localRotation = Quaternion.Euler(0f, 0f, _leaderTilt);
 
             var pulse = _isRunning ? 1f + Mathf.Sin(Time.time * runBobFrequency * 1.2f) * leaderScalePulse : 1f;
-            _leaderVisual.localScale = _leaderBaseScale * pulse;
+            _leaderVisual.localScale = _leaderBaseScale * (pulse * EvaluateGatePunchScale());
         }
 
         private static float CalculatePhaseOffset(int index)
         {
             return Mathf.Repeat(index * 0.6180339f, 1f) * Mathf.PI * 2f;
+        }
+
+        private void TriggerGatePunch()
+        {
+            _gatePunchTimer = Mathf.Max(_gatePunchTimer, Mathf.Max(0.02f, gatePunchDuration));
+        }
+
+        private float EvaluateGatePunchScale()
+        {
+            if (_gatePunchTimer <= 0f || gatePunchDuration <= 0f)
+            {
+                return 1f;
+            }
+
+            var normalized = 1f - Mathf.Clamp01(_gatePunchTimer / gatePunchDuration);
+            return Mathf.Lerp(1f, Mathf.Max(1f, gatePunchScale), Mathf.Sin(normalized * Mathf.PI));
         }
     }
 }

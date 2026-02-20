@@ -43,6 +43,8 @@ namespace MultiplyRush
                 _poolRoot.SetParent(transform, false);
             }
 
+            maxVisibleUnits = Mathf.Min(maxVisibleUnits, 100);
+
             PrewarmPool();
         }
 
@@ -140,6 +142,7 @@ namespace MultiplyRush
 
             var instance = Instantiate(enemyUnitPrefab, _poolRoot);
             instance.name = "EnemyUnit";
+            UnitVisualFactory.ApplySoldierVisual(instance.transform, true);
             return instance.transform;
         }
 

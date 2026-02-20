@@ -11,6 +11,7 @@ namespace MultiplyRush
         [Header("Gate Data")]
         public GateOperation operation = GateOperation.Add;
         public int value = 5;
+        public int rowId = -1;
 
         [Header("Visuals")]
         public MeshRenderer panelRenderer;
@@ -78,10 +79,11 @@ namespace MultiplyRush
             RefreshVisuals();
         }
 
-        public void Configure(GateOperation gateOperation, int gateValue)
+        public void Configure(GateOperation gateOperation, int gateValue, int gateRowId)
         {
             operation = gateOperation;
             value = Mathf.Max(1, gateValue);
+            rowId = gateRowId;
             _isConsumed = false;
             _isConsuming = false;
             _consumeElapsed = 0f;
@@ -97,11 +99,11 @@ namespace MultiplyRush
             RefreshVisuals();
         }
 
-        public void TryApply(CrowdController crowd)
+        public bool TryApply(CrowdController crowd)
         {
             if (_isConsumed || crowd == null)
             {
-                return;
+                return false;
             }
 
             _isConsumed = true;
@@ -114,11 +116,12 @@ namespace MultiplyRush
             if (consumeDuration <= 0f)
             {
                 gameObject.SetActive(false);
-                return;
+                return true;
             }
 
             _isConsuming = true;
             _consumeElapsed = 0f;
+            return true;
         }
 
         private void Update()
