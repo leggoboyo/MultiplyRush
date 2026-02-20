@@ -54,6 +54,20 @@ namespace MultiplyRush
 
             if (resolution.x <= 0 || resolution.y <= 0)
             {
+                ApplyFullscreen();
+                return;
+            }
+
+            var invalidSafeArea = safeArea.width < 1f ||
+                                  safeArea.height < 1f ||
+                                  safeArea.xMin < 0f ||
+                                  safeArea.yMin < 0f ||
+                                  safeArea.xMax > resolution.x ||
+                                  safeArea.yMax > resolution.y;
+
+            if (invalidSafeArea)
+            {
+                ApplyFullscreen();
                 return;
             }
 
@@ -66,6 +80,14 @@ namespace MultiplyRush
 
             targetRect.anchorMin = anchorMin;
             targetRect.anchorMax = anchorMax;
+            targetRect.offsetMin = Vector2.zero;
+            targetRect.offsetMax = Vector2.zero;
+        }
+
+        private void ApplyFullscreen()
+        {
+            targetRect.anchorMin = Vector2.zero;
+            targetRect.anchorMax = Vector2.one;
             targetRect.offsetMin = Vector2.zero;
             targetRect.offsetMax = Vector2.zero;
         }
