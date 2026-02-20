@@ -403,6 +403,11 @@ public static class MultiplyRushBootstrapper
     private static Canvas CreateCanvas(string name)
     {
         var go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        var rect = go.GetComponent<RectTransform>();
+        rect.localScale = Vector3.one;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+
         var canvas = go.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
 
