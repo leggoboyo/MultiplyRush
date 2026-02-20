@@ -55,6 +55,7 @@ namespace MultiplyRush
         private bool _suppressControlCallbacks;
         private float _overlayAlpha;
         private BackdropQuality _selectedQuality = BackdropQuality.Auto;
+        private bool _fallbackPointerWasDown;
 
         public bool IsPaused => _isPaused;
 
@@ -122,6 +123,7 @@ namespace MultiplyRush
             }
 #endif
 
+            HandlePauseTapFallback();
             AnimatePauseButton(Time.unscaledTime);
             AnimateOverlay(Time.unscaledDeltaTime, Time.unscaledTime);
         }
@@ -150,6 +152,43 @@ namespace MultiplyRush
             }
 
             SetPaused(!_isPaused, false);
+        }
+
+        private void HandlePauseTapFallback()
+        {
+            if (_pauseButtonRect == null || _pauseButton == null || !_pauseButton.gameObject.activeInHierarchy)
+            {
+                _fallbackPointerWasDown = false;
+                return;
+            }
+
+            if (_isPaused || !_canPause)
+            {
+                _fallbackPointerWasDown = false;
+                return;
+            }
+
+            var pointerIsDown = TryGetPrimaryPointerPosition(out var pointerPosition);
+            if (!pointerIsDown)
+            {
+                _fallbackPointerWasDown = false;
+                return;
+            }
+
+            if (_fallbackPointerWasDown)
+            {
+                return;
+            }
+
+            _fallbackPointerWasDown = true;
+            var overPause = RectTransformUtility.RectangleContainsScreenPoint(_pauseButtonRect, pointerPosition, null);
+            if (!overPause)
+            {
+                return;
+            }
+
+            // UI click fallback path for devices/editors where the normal button click is swallowed.
+            TogglePauseRequested();
         }
 
         private void SetPaused(bool paused, bool instant)
@@ -553,6 +592,7 @@ namespace MultiplyRush
 
             _pauseButtonImage = pauseObject.GetComponent<Image>();
             _pauseButtonImage.color = accentColor;
+            _pauseButtonImage.raycastTarget = true;
             var buttonOutline = _pauseButtonImage.GetComponent<Outline>();
             if (buttonOutline == null)
             {
@@ -563,6 +603,22 @@ namespace MultiplyRush
             buttonOutline.effectDistance = new Vector2(2f, -2f);
 
             _pauseButton = pauseObject.GetComponent<Button>();
+            _pauseButton.targetGraphic = _pauseButtonImage;
+            pauseObject.transform.SetAsLastSibling();
+
+            var pauseCanvas = pauseObject.GetComponent<Canvas>();
+            if (pauseCanvas == null)
+            {
+                pauseCanvas = pauseObject.AddComponent<Canvas>();
+            }
+
+            pauseCanvas.overrideSorting = true;
+            pauseCanvas.sortingOrder = 500;
+
+            if (pauseObject.GetComponent<GraphicRaycaster>() == null)
+            {
+                pauseObject.AddComponent<GraphicRaycaster>();
+            }
 
             var icon = EnsureText(
                 _pauseButtonRect,
@@ -1051,6 +1107,30 @@ namespace MultiplyRush
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
+        }
+
+        private static bool TryGetPrimaryPointerPosition(out Vector2 pointerPosition)
+        {
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null)
+            {
+                var touch = touchscreen.primaryTouch;
+                if (touch.press.isPressed)
+                {
+                    pointerPosition = touch.position.ReadValue();
+                    return true;
+                }
+            }
+
+            var mouse = Mouse.current;
+            if (mouse != null && mouse.leftButton.isPressed)
+            {
+                pointerPosition = mouse.position.ReadValue();
+                return true;
+            }
+
+            pointerPosition = Vector2.zero;
+            return false;
         }
     }
 }
