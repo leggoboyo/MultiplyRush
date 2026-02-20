@@ -39,6 +39,10 @@ namespace MultiplyRush
                 _countBaseScale = _countRect.localScale;
                 _countBaseColor = countText.color;
             }
+
+            ApplyTextStyle(levelText, 24, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
+            ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
+            ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
         }
 
         private void Update()
@@ -159,10 +163,58 @@ namespace MultiplyRush
 
             var bossTag = _isMiniBossLevel ? " • Mini-Boss" : string.Empty;
             levelText.text =
-                "Level " + Mathf.Max(1, _levelIndex) + bossTag +
-                "\nMod: " + _modifierName +
-                "  Kits: " + _reinforcementKits +
-                "  Shield: " + _shieldCharges;
+                "L" + Mathf.Max(1, _levelIndex) + bossTag +
+                " • " + AbbreviateModifier(_modifierName) +
+                " • K" + _reinforcementKits +
+                " S" + _shieldCharges;
+        }
+
+        private static string AbbreviateModifier(string modifierName)
+        {
+            if (string.IsNullOrWhiteSpace(modifierName))
+            {
+                return "Core";
+            }
+
+            switch (modifierName.Trim())
+            {
+                case "Core Rush":
+                    return "Core";
+                case "Drift Gates":
+                    return "Drift";
+                case "Tempo Lock":
+                    return "Tempo";
+                case "Hazard Surge":
+                    return "Hazard";
+                case "Pressure AI":
+                    return "Pressure";
+                case "Tank Legion":
+                    return "Tank";
+                default:
+                    return modifierName;
+            }
+        }
+
+        private static void ApplyTextStyle(Text label, int fontSize, FontStyle style, Color color)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = fontSize;
+            label.fontStyle = style;
+            label.color = color;
+
+            var outline = label.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = label.gameObject.AddComponent<Outline>();
+            }
+
+            outline.effectColor = new Color(0f, 0f, 0f, 0.72f);
+            outline.effectDistance = new Vector2(1.6f, -1.6f);
         }
     }
 }

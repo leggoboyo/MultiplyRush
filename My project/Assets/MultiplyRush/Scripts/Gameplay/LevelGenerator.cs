@@ -125,10 +125,11 @@ namespace MultiplyRush
 
         [Header("Track Decor")]
         public bool enableTrackDecor = true;
-        public int stripePoolSize = 100;
+        public int stripePoolSize = 180;
         public float stripeLength = 1.8f;
         public float stripeGap = 1.45f;
         public float stripeWidth = 0.16f;
+        public float sideStripeInsetFactor = 0.58f;
         public float railInset = 0.85f;
         public float railWidth = 0.24f;
         public float railHeight = 0.52f;
@@ -193,6 +194,11 @@ namespace MultiplyRush
         private Material _backdropMaterial;
         private Material _cloudMaterial;
         private Material _hazardMaterial;
+        private Color _trackColor = new Color(0.18f, 0.22f, 0.29f, 1f);
+        private Color _gatePositiveColor = new Color(0.2f, 0.85f, 0.35f, 1f);
+        private Color _gateNegativeColor = new Color(0.9f, 0.25f, 0.25f, 1f);
+        private Color _hazardSlowColor = new Color(0.98f, 0.74f, 0.14f, 1f);
+        private Color _hazardKnockbackColor = new Color(0.95f, 0.36f, 0.24f, 1f);
 
         public LevelBuildResult Generate(int levelIndex)
         {
@@ -205,6 +211,7 @@ namespace MultiplyRush
             PrewarmGatePool();
             PrewarmHazardPool();
             var generated = BuildDefinition(safeLevel);
+            UpdateDynamicPalette(safeLevel, generated.isMiniBoss);
 
             ClearGeneratedObjects();
             BuildTrackVisual(generated.finishZ, _effectiveTrackHalfWidth);
@@ -343,17 +350,17 @@ namespace MultiplyRush
             var material = renderer.sharedMaterial;
             if (material.HasProperty("_BaseColor"))
             {
-                material.SetColor("_BaseColor", new Color(0.18f, 0.22f, 0.29f, 1f));
+                material.SetColor("_BaseColor", _trackColor);
             }
 
             if (material.HasProperty("_Color"))
             {
-                material.SetColor("_Color", new Color(0.18f, 0.22f, 0.29f, 1f));
+                material.SetColor("_Color", _trackColor);
             }
 
             if (material.HasProperty("_Smoothness"))
             {
-                material.SetFloat("_Smoothness", 0.08f);
+                material.SetFloat("_Smoothness", 0.11f);
             }
         }
 
@@ -397,6 +404,8 @@ namespace MultiplyRush
             var stripeY = -0.045f;
             var safeStripeLength = Mathf.Max(0.4f, stripeLength);
             var safeStripeWidth = Mathf.Max(0.04f, stripeWidth);
+            var sideStripeX = Mathf.Clamp(_effectiveLaneSpacing * sideStripeInsetFactor, 0.75f, _effectiveTrackHalfWidth - 0.55f);
+            var row = 0;
 
             for (var z = start; z < end; z += step)
             {
@@ -406,6 +415,27 @@ namespace MultiplyRush
                 stripe.localScale = new Vector3(safeStripeWidth, 0.012f, safeStripeLength);
                 stripe.gameObject.SetActive(true);
                 _activeStripes.Add(stripe);
+
+                if (row % 2 == 0)
+                {
+                    var sideLength = safeStripeLength * 0.72f;
+                    var sideWidth = safeStripeWidth * 0.62f;
+                    var leftStripe = GetStripe();
+                    leftStripe.position = new Vector3(-sideStripeX, stripeY, z + (step * 0.18f));
+                    leftStripe.rotation = Quaternion.identity;
+                    leftStripe.localScale = new Vector3(sideWidth, 0.011f, sideLength);
+                    leftStripe.gameObject.SetActive(true);
+                    _activeStripes.Add(leftStripe);
+
+                    var rightStripe = GetStripe();
+                    rightStripe.position = new Vector3(sideStripeX, stripeY, z + (step * 0.18f));
+                    rightStripe.rotation = Quaternion.identity;
+                    rightStripe.localScale = new Vector3(sideWidth, 0.011f, sideLength);
+                    rightStripe.gameObject.SetActive(true);
+                    _activeStripes.Add(rightStripe);
+                }
+
+                row++;
             }
 
             BuildBackdrop(trackLength, effectiveTrackHalfWidth);
@@ -898,6 +928,64 @@ namespace MultiplyRush
             return material;
         }
 
+        private void UpdateDynamicPalette(int levelIndex, bool isMiniBoss)
+        {
+            var levelHue = Mathf.Repeat(0.56f + (levelIndex * 0.037f), 1f);
+            if (isMiniBoss)
+            {
+                levelHue = Mathf.Repeat(levelHue + 0.13f, 1f);
+            }
+
+            _trackColor = Color.HSVToRGB(levelHue, 0.36f, isMiniBoss ? 0.31f : 0.26f);
+            stripeColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.09f, 1f), 0.78f, 0.98f);
+            railColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.06f, 1f), 0.48f, 0.31f);
+            backdropColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.04f, 1f), 0.38f, 0.46f);
+            cloudColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.02f, 1f), 0.14f, 1f);
+            cloudColor.a = 0.9f;
+
+            _gatePositiveColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.24f, 1f), 0.72f, 0.92f);
+            _gateNegativeColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.02f, 1f), 0.74f, 0.93f);
+            _hazardSlowColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.16f, 1f), 0.68f, 0.96f);
+            _hazardKnockbackColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.08f, 1f), 0.72f, 0.95f);
+
+            if (isMiniBoss)
+            {
+                _gatePositiveColor *= 1.06f;
+                _gateNegativeColor *= 1.08f;
+                _hazardSlowColor *= 1.08f;
+                _hazardKnockbackColor *= 1.1f;
+            }
+
+            ApplyMaterialColor(_stripeMaterial, stripeColor, 0.42f);
+            ApplyMaterialColor(_railMaterial, railColor, 0.24f);
+            ApplyMaterialColor(_backdropMaterial, backdropColor, 0.08f);
+            ApplyMaterialColor(_cloudMaterial, cloudColor, 0.22f);
+            ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f);
+        }
+
+        private static void ApplyMaterialColor(Material material, Color color, float smoothness)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            if (material.HasProperty("_Smoothness"))
+            {
+                material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
+            }
+        }
+
         private void SpawnGates(List<GateRow> rows, float gateDifficulty01)
         {
             var hitboxWidth = Mathf.Lerp(gateWidthAtStart, gateWidthAtHighDifficulty, gateDifficulty01);
@@ -922,6 +1010,8 @@ namespace MultiplyRush
 
                     gate.hitboxWidth = hitboxWidth;
                     gate.panelWidth = panelWidth;
+                    gate.positiveColor = _gatePositiveColor;
+                    gate.negativeColor = _gateNegativeColor;
 
                     gate.transform.position = new Vector3(laneCenterX, 0f, row.z);
                     gate.transform.rotation = Quaternion.identity;
@@ -960,6 +1050,8 @@ namespace MultiplyRush
             {
                 var spec = hazards[i];
                 var hazard = GetHazard();
+                hazard.slowColor = _hazardSlowColor;
+                hazard.knockbackColor = _hazardKnockbackColor;
                 var laneX = Mathf.Clamp(LaneToX(spec.lane), minX, maxX);
                 var worldPosition = new Vector3(laneX, -0.01f, spec.z);
                 var worldScale = new Vector3(spec.width, 0.04f, spec.depth);

@@ -53,12 +53,10 @@ namespace MultiplyRush
         [Range(0.08f, 0.92f)]
         public float tempoOpenRatio = 0.55f;
         public float tempoPhaseOffset;
-        [Range(0.2f, 0.95f)]
-        public float closedPanelScale = 0.82f;
-        [Range(0.2f, 0.95f)]
-        public float closedLabelScale = 0.78f;
-        [Range(0.2f, 1f)]
-        public float closedColorMultiplier = 0.52f;
+        [Range(1f, 1.2f)]
+        public float tempoPanelPulseScale = 1.05f;
+        [Range(1f, 1.25f)]
+        public float tempoLabelPulseScale = 1.08f;
 
         private BoxCollider _trigger;
         private MaterialPropertyBlock _materialBlock;
@@ -76,7 +74,6 @@ namespace MultiplyRush
         private Color _basePanelColor = Color.white;
         private float _tempoPanelScale = 1f;
         private float _tempoLabelScale = 1f;
-        private float _tempoColorScale = 1f;
 
         private void Awake()
         {
@@ -104,7 +101,6 @@ namespace MultiplyRush
             transform.rotation = Quaternion.identity;
             _tempoPanelScale = 1f;
             _tempoLabelScale = 1f;
-            _tempoColorScale = 1f;
             NormalizeLayout();
             RefreshVisuals();
         }
@@ -145,7 +141,6 @@ namespace MultiplyRush
             _baseY = transform.position.y;
             _tempoPanelScale = 1f;
             _tempoLabelScale = 1f;
-            _tempoColorScale = 1f;
 
             if (_trigger == null)
             {
@@ -401,52 +396,37 @@ namespace MultiplyRush
                 return;
             }
 
+            if (!_trigger.enabled)
+            {
+                _trigger.enabled = true;
+            }
+
             if (!enableTempoWindow)
             {
                 _tempoPanelScale = 1f;
                 _tempoLabelScale = 1f;
-                _tempoColorScale = 1f;
-                if (!_trigger.enabled)
+                SetPanelColor(_basePanelColor);
+                if (labelText != null)
                 {
-                    _trigger.enabled = true;
+                    labelText.color = IsPositive(operation) ? new Color(0.05f, 0.05f, 0.05f) : Color.white;
                 }
 
-                SetPanelColor(_basePanelColor);
                 return;
             }
 
             var cycle = Mathf.Max(0.25f, tempoCycleSeconds);
-            var openRatio = Mathf.Clamp(tempoOpenRatio, 0.08f, 0.92f);
-            var window = cycle * openRatio;
-            var elapsed = Mathf.Repeat(runTime + tempoPhaseOffset, cycle);
-            var isOpen = elapsed <= window;
+            var ratio = Mathf.Clamp(tempoOpenRatio, 0.08f, 0.92f);
+            var phaseT = Mathf.Repeat((runTime + tempoPhaseOffset) / cycle, 1f);
+            var syncPulse = 0.5f + (Mathf.Sin(phaseT * Mathf.PI * 2f) * 0.5f);
+            var accent = Mathf.SmoothStep(0f, 1f, syncPulse * ratio + (1f - ratio) * 0.5f);
+            _tempoPanelScale = Mathf.Lerp(1f, Mathf.Max(1f, tempoPanelPulseScale), accent);
+            _tempoLabelScale = Mathf.Lerp(1f, Mathf.Max(1f, tempoLabelPulseScale), accent);
 
-            if (_trigger.enabled != isOpen)
-            {
-                _trigger.enabled = isOpen;
-            }
-
-            if (isOpen)
-            {
-                _tempoPanelScale = 1f;
-                _tempoLabelScale = 1f;
-                _tempoColorScale = 1f;
-            }
-            else
-            {
-                var closedDuration = Mathf.Max(0.05f, cycle - window);
-                var closedT = Mathf.Clamp01((elapsed - window) / closedDuration);
-                var pulse = 0.5f + (Mathf.Sin(closedT * Mathf.PI * 2f) * 0.5f);
-                _tempoPanelScale = Mathf.Lerp(closedPanelScale, closedPanelScale + 0.05f, pulse);
-                _tempoLabelScale = Mathf.Lerp(closedLabelScale, closedLabelScale + 0.04f, 1f - pulse);
-                _tempoColorScale = Mathf.Clamp01(Mathf.Lerp(closedColorMultiplier, closedColorMultiplier + 0.15f, pulse));
-            }
-
-            SetPanelColor(_basePanelColor * _tempoColorScale);
+            SetPanelColor(_basePanelColor);
             if (labelText != null)
             {
                 var baseColor = IsPositive(operation) ? new Color(0.05f, 0.05f, 0.05f) : Color.white;
-                labelText.color = baseColor * Mathf.Lerp(0.65f, 1f, _tempoColorScale);
+                labelText.color = baseColor;
             }
         }
     }

@@ -31,11 +31,15 @@ namespace MultiplyRush
 
             var uniform = enemy ? GetEnemyUniformMaterial() : GetFriendlyUniformMaterial();
 
-            CreatePart(PrimitiveType.Capsule, "Torso", modelRoot, new Vector3(0f, 0.46f, 0f), new Vector3(0.2f, 0.28f, 0.14f), uniform);
-            CreatePart(PrimitiveType.Sphere, "Head", modelRoot, new Vector3(0f, 0.83f, 0f), new Vector3(0.17f, 0.17f, 0.17f), GetSkinMaterial());
-            CreatePart(PrimitiveType.Cube, "Helmet", modelRoot, new Vector3(0f, 0.92f, -0.02f), new Vector3(0.2f, 0.08f, 0.2f), GetHelmetMaterial());
-            CreatePart(PrimitiveType.Cube, "Rifle", modelRoot, new Vector3(0f, 0.52f, 0.16f), new Vector3(0.24f, 0.05f, 0.05f), GetWeaponMaterial());
-            CreatePart(PrimitiveType.Cube, "Legs", modelRoot, new Vector3(0f, 0.16f, 0f), new Vector3(0.18f, 0.24f, 0.12f), uniform);
+            CreatePart(PrimitiveType.Capsule, "Torso", modelRoot, new Vector3(0f, 0.47f, 0f), new Vector3(0.22f, 0.3f, 0.15f), uniform);
+            CreatePart(PrimitiveType.Sphere, "Head", modelRoot, new Vector3(0f, 0.86f, 0f), new Vector3(0.16f, 0.16f, 0.16f), GetSkinMaterial());
+            CreatePart(PrimitiveType.Cube, "Helmet", modelRoot, new Vector3(0f, 0.93f, -0.01f), new Vector3(0.22f, 0.09f, 0.22f), GetHelmetMaterial());
+            CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.9f, 0.1f), new Vector3(0.12f, 0.04f, 0.02f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Cube, "Rifle", modelRoot, new Vector3(0f, 0.53f, 0.16f), new Vector3(0.26f, 0.05f, 0.05f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Cube, "LeftArm", modelRoot, new Vector3(-0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
+            CreatePart(PrimitiveType.Cube, "RightArm", modelRoot, new Vector3(0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
+            CreatePart(PrimitiveType.Cube, "Legs", modelRoot, new Vector3(0f, 0.18f, 0f), new Vector3(0.2f, 0.26f, 0.13f), uniform);
+            CreatePart(PrimitiveType.Cube, "Boots", modelRoot, new Vector3(0f, 0.04f, 0.03f), new Vector3(0.2f, 0.06f, 0.12f), GetHelmetMaterial());
         }
 
         private static void CreatePart(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 localScale, Material material)
@@ -69,7 +73,7 @@ namespace MultiplyRush
                 return _friendlyUniform;
             }
 
-            _friendlyUniform = CreateRuntimeMaterial("FriendlyUniform", new Color(0.2f, 0.6f, 1f, 1f), 0.28f);
+            _friendlyUniform = CreateRuntimeMaterial("FriendlyUniform", new Color(0.19f, 0.66f, 0.98f, 1f), 0.32f);
             return _friendlyUniform;
         }
 
@@ -80,7 +84,7 @@ namespace MultiplyRush
                 return _enemyUniform;
             }
 
-            _enemyUniform = CreateRuntimeMaterial("EnemyUniform", new Color(0.95f, 0.32f, 0.34f, 1f), 0.28f);
+            _enemyUniform = CreateRuntimeMaterial("EnemyUniform", new Color(0.96f, 0.36f, 0.32f, 1f), 0.32f);
             return _enemyUniform;
         }
 
@@ -102,7 +106,7 @@ namespace MultiplyRush
                 return _helmet;
             }
 
-            _helmet = CreateRuntimeMaterial("SoldierHelmet", new Color(0.1f, 0.14f, 0.22f, 1f), 0.18f);
+            _helmet = CreateRuntimeMaterial("SoldierHelmet", new Color(0.08f, 0.12f, 0.2f, 1f), 0.24f);
             return _helmet;
         }
 
