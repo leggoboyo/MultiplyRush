@@ -19,6 +19,7 @@ namespace MultiplyRush
         public Color dimColor = new Color(0f, 0f, 0f, 0.78f);
         public Color selectedQualityColor = new Color(0.23f, 0.77f, 1f, 1f);
         public Color unselectedQualityColor = new Color(0.17f, 0.24f, 0.34f, 1f);
+        public bool animatePauseButton = false;
         public float pauseButtonPulseSpeed = 3.1f;
         public float pauseButtonPulseScale = 0.08f;
 
@@ -201,9 +202,24 @@ namespace MultiplyRush
                 return;
             }
 
+            if (!animatePauseButton)
+            {
+                _pauseButtonRect.localScale = _pauseButtonBaseScale;
+                if (_pauseButtonImage != null)
+                {
+                    _pauseButtonImage.color = accentColor;
+                }
+
+                return;
+            }
+
             if (!_canPause || _isPaused)
             {
                 _pauseButtonRect.localScale = _pauseButtonBaseScale;
+                if (_pauseButtonImage != null)
+                {
+                    _pauseButtonImage.color = accentColor;
+                }
                 return;
             }
 
@@ -560,6 +576,7 @@ namespace MultiplyRush
                 Vector2.zero,
                 true);
             icon.color = Color.white;
+            icon.raycastTarget = false;
         }
 
         private void EnsureOverlay()

@@ -52,8 +52,18 @@ namespace MultiplyRush
             ApplyTextStyle(levelText, 24, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
+            SetNonInteractive(levelText);
+            SetNonInteractive(countText);
+            SetNonInteractive(progressText);
+            SetNonInteractive(progressFill);
+            if (progressFill != null)
+            {
+                var progressBackground = progressFill.transform.parent.GetComponent<Image>();
+                SetNonInteractive(progressBackground);
+            }
             EnsureDeltaLabel();
             ApplyTextStyle(countDeltaText, 28, FontStyle.Bold, Color.white);
+            SetNonInteractive(countDeltaText);
 
             if (countDeltaText != null)
             {
@@ -204,6 +214,7 @@ namespace MultiplyRush
             countDeltaText.horizontalOverflow = HorizontalWrapMode.Overflow;
             countDeltaText.verticalOverflow = VerticalWrapMode.Overflow;
             countDeltaText.text = string.Empty;
+            countDeltaText.raycastTarget = false;
         }
 
         private void ShowCountDelta(int delta)
@@ -353,6 +364,16 @@ namespace MultiplyRush
 
             outline.effectColor = new Color(0f, 0f, 0f, 0.72f);
             outline.effectDistance = new Vector2(1.6f, -1.6f);
+        }
+
+        private static void SetNonInteractive(Graphic graphic)
+        {
+            if (graphic == null)
+            {
+                return;
+            }
+
+            graphic.raycastTarget = false;
         }
     }
 }
