@@ -171,6 +171,7 @@ namespace MultiplyRush
         public float cloudDriftSpeedMax = 0.7f;
         public float cloudMinHeight = 8f;
         public float cloudMaxHeight = 15f;
+        public float cloudTrackExclusionPadding = 3.2f;
         public Color cloudColor = new Color(0.93f, 0.97f, 1f, 0.9f);
 
         private readonly List<Gate> _activeGates = new List<Gate>(128);
@@ -529,13 +530,17 @@ namespace MultiplyRush
             cloudCount = Mathf.Clamp(cloudCount, 6, 26);
             var cloudMinX = -(sideX + 18f);
             var cloudMaxX = sideX + 18f;
+            var cloudBandMinX = Mathf.Max(Mathf.Abs(cloudMinX), _effectiveTrackHalfWidth + Mathf.Max(1.5f, cloudTrackExclusionPadding));
+            var cloudBandMaxX = Mathf.Max(cloudBandMinX + 0.5f, cloudMaxX);
             var minY = Mathf.Min(cloudMinHeight, cloudMaxHeight);
             var maxY = Mathf.Max(minY + 0.5f, cloudMaxHeight);
 
             for (var i = 0; i < cloudCount; i++)
             {
                 var cloud = GetCloud();
-                var x = Mathf.Lerp(cloudMinX, cloudMaxX, (float)random.NextDouble());
+                var side = random.NextDouble() < 0.5 ? -1f : 1f;
+                var xMagnitude = Mathf.Lerp(cloudBandMinX, cloudBandMaxX, (float)random.NextDouble());
+                var x = xMagnitude * side;
                 var y = Mathf.Lerp(minY, maxY, (float)random.NextDouble());
                 var z = Mathf.Lerp(zStart, zEnd, (float)random.NextDouble());
                 var baseScale = Mathf.Lerp(2.5f, 5.8f, (float)random.NextDouble());
@@ -2123,21 +2128,22 @@ namespace MultiplyRush
         private int BuildEnemyCount(int levelIndex, int startCount, int expectedBest, bool isMiniBoss, ModifierState modifier)
         {
             var safeLevel = Mathf.Max(1, levelIndex);
-            var formulaTarget = enemyFormulaBase +
-                                Mathf.FloorToInt((safeLevel - 1) * enemyFormulaLinear) +
-                                Mathf.FloorToInt(enemyFormulaPowerMultiplier * Mathf.Pow(safeLevel, enemyFormulaPower));
+            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear);
+            var curvatureBoost = Mathf.RoundToInt(Mathf.Sqrt(safeLevel) * enemyFormulaPowerMultiplier * 1.35f);
+            var formulaTarget = linearTarget + curvatureBoost;
 
             if (isMiniBoss)
             {
-                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.14f) + 10;
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.16f) + 10;
             }
 
             if (modifier.tankSurge)
             {
-                formulaTarget += Mathf.RoundToInt(levelIndex * 0.65f);
+                formulaTarget += Mathf.RoundToInt(levelIndex * 0.32f);
             }
 
-            var floor = Mathf.Max(startCount + 4, Mathf.FloorToInt(expectedBest * enemyMinFractionOfBestPath));
+            var linearFloor = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.7f);
+            var floor = Mathf.Max(startCount + 4, linearFloor);
             if (isMiniBoss)
             {
                 floor = Mathf.Max(floor, startCount + 16);
@@ -2145,12 +2151,12 @@ namespace MultiplyRush
 
             var bossCeilingBonus = isMiniBoss ? 0.05f : 0.01f;
             var capByBestPath = Mathf.FloorToInt(expectedBest * Mathf.Clamp01(enemyMaxFractionOfBestPath + bossCeilingBonus));
-            var ceiling = Mathf.Max(floor, capByBestPath);
-            var enemyCount = Mathf.Clamp(formulaTarget, floor, Mathf.Max(floor, ceiling));
+            capByBestPath = Mathf.Max(startCount + 5, capByBestPath);
+            var enemyCount = Mathf.Clamp(formulaTarget, floor, Mathf.Max(floor, capByBestPath));
 
             if (enemyCount >= expectedBest)
             {
-                enemyCount = Mathf.Max(1, expectedBest - 1);
+                enemyCount = Mathf.Max(startCount + 1, expectedBest - 1);
             }
 
             return Mathf.Max(5, enemyCount);
