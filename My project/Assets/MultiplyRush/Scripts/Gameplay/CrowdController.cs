@@ -612,6 +612,7 @@ namespace MultiplyRush
                 var burstObject = new GameObject("GateBurstFX");
                 burstObject.transform.SetParent(transform, false);
                 burstObject.transform.localPosition = new Vector3(0f, 0.35f, 0.24f);
+                burstObject.SetActive(false);
                 var particleSystem = burstObject.AddComponent<ParticleSystem>();
                 var renderer = burstObject.GetComponent<ParticleSystemRenderer>();
                 if (renderer != null)
@@ -622,6 +623,7 @@ namespace MultiplyRush
 
                 ConfigureGateBurstParticleSystem(particleSystem);
                 _gateBurstSystem = particleSystem;
+                burstObject.SetActive(true);
             }
         }
 
@@ -631,6 +633,9 @@ namespace MultiplyRush
             {
                 return;
             }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
 
             var main = particleSystem.main;
             main.playOnAwake = false;
@@ -695,9 +700,11 @@ namespace MultiplyRush
                 return;
             }
 
-            var main = _gateBurstSystem.main;
-            main.startColor = new ParticleSystem.MinMaxGradient(color);
-            _gateBurstSystem.Emit(Mathf.Clamp(gateBurstCount, 4, 28));
+            var emitParams = new ParticleSystem.EmitParams
+            {
+                startColor = color
+            };
+            _gateBurstSystem.Emit(emitParams, Mathf.Clamp(gateBurstCount, 4, 28));
         }
 
         private void AnimateGateEffects(float deltaTime)
