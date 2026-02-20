@@ -13,6 +13,7 @@ namespace MultiplyRush
         public GateOperation operation = GateOperation.Add;
         public int value = 5;
         public int rowId = -1;
+        public GatePickTier pickTier = GatePickTier.WorseGood;
 
         [Header("Visuals")]
         public MeshRenderer panelRenderer;
@@ -110,6 +111,7 @@ namespace MultiplyRush
             GateOperation gateOperation,
             int gateValue,
             int gateRowId,
+            GatePickTier gatePickTier,
             bool allowHorizontalMotion,
             float motionAmplitude,
             float motionSpeed,
@@ -125,6 +127,7 @@ namespace MultiplyRush
             operation = gateOperation;
             value = Mathf.Max(1, gateValue);
             rowId = gateRowId;
+            pickTier = gatePickTier;
             enableHorizontalMotion = allowHorizontalMotion;
             horizontalAmplitude = Mathf.Max(0f, motionAmplitude);
             horizontalSpeed = Mathf.Max(0.1f, motionSpeed);

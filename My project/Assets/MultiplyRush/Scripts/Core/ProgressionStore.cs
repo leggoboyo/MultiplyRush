@@ -17,6 +17,7 @@ namespace MultiplyRush
         private const string ReinforcementKitKey = "mr_reinforcement_kits";
         private const string ShieldChargeKey = "mr_shield_charges";
         private const string LastMiniBossRewardLevelKey = "mr_last_miniboss_reward_level";
+        private const string DifficultyModeKey = "mr_difficulty_mode";
 
         public static int GetUnlockedLevel()
         {
@@ -97,6 +98,23 @@ namespace MultiplyRush
             PlayerPrefs.Save();
 
             return reward;
+        }
+
+        public static DifficultyMode GetDifficultyMode(DifficultyMode fallback = DifficultyMode.Normal)
+        {
+            var stored = PlayerPrefs.GetInt(DifficultyModeKey, (int)fallback);
+            if (stored < (int)DifficultyMode.Easy || stored > (int)DifficultyMode.Hard)
+            {
+                return fallback;
+            }
+
+            return (DifficultyMode)stored;
+        }
+
+        public static void SetDifficultyMode(DifficultyMode mode)
+        {
+            PlayerPrefs.SetInt(DifficultyModeKey, (int)mode);
+            PlayerPrefs.Save();
         }
     }
 }

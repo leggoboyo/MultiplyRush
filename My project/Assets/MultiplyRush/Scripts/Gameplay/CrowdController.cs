@@ -107,6 +107,10 @@ namespace MultiplyRush
         private ParticleSystem _weaponFlashSystem;
         private Transform _weaponMuzzle;
         private float _weaponShotAccumulator;
+        private int _betterGateHits;
+        private int _worseGateHits;
+        private int _redGateHits;
+        private int _totalGateRows;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -234,6 +238,7 @@ namespace MultiplyRush
                 if (gate.TryApply(this) && gate.rowId >= 0)
                 {
                     _lastConsumedGateRow = gate.rowId;
+                    RegisterGateOutcome(gate.pickTier);
                 }
 
                 return;
@@ -252,6 +257,17 @@ namespace MultiplyRush
         }
 
         public void StartRun(Vector3 startPosition, int initialCount, float forwardSpeed, float newTrackHalfWidth, float finishZ)
+        {
+            StartRun(startPosition, initialCount, forwardSpeed, newTrackHalfWidth, finishZ, 0);
+        }
+
+        public void StartRun(
+            Vector3 startPosition,
+            int initialCount,
+            float forwardSpeed,
+            float newTrackHalfWidth,
+            float finishZ,
+            int totalGateRows)
         {
             transform.position = startPosition;
             _targetX = startPosition.x;
@@ -272,6 +288,10 @@ namespace MultiplyRush
             _laneTimeCenter = 0f;
             _laneTimeRight = 0f;
             _weaponShotAccumulator = 0f;
+            _betterGateHits = 0;
+            _worseGateHits = 0;
+            _redGateHits = 0;
+            _totalGateRows = Mathf.Max(0, totalGateRows);
 
             SetCount(initialCount);
         }
@@ -357,6 +377,18 @@ namespace MultiplyRush
             left = _laneTimeLeft;
             center = _laneTimeCenter;
             right = _laneTimeRight;
+        }
+
+        public void GetGateHitStats(
+            out int betterHits,
+            out int worseHits,
+            out int redHits,
+            out int totalRows)
+        {
+            betterHits = _betterGateHits;
+            worseHits = _worseGateHits;
+            redHits = _redGateHits;
+            totalRows = _totalGateRows;
         }
 
         public void NotifyFinishReached(int enemyCount)
@@ -579,6 +611,23 @@ namespace MultiplyRush
             }
 
             EmitGateBurst(_gateAuraColor);
+        }
+
+        private void RegisterGateOutcome(GatePickTier pickTier)
+        {
+            switch (pickTier)
+            {
+                case GatePickTier.BetterGood:
+                    _betterGateHits++;
+                    break;
+                case GatePickTier.RedBad:
+                    _redGateHits++;
+                    break;
+                case GatePickTier.WorseGood:
+                default:
+                    _worseGateHits++;
+                    break;
+            }
         }
 
         private float EvaluateGatePunchScale()

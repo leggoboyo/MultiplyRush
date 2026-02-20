@@ -34,6 +34,7 @@ namespace MultiplyRush
         private bool _isMiniBossLevel;
         private int _reinforcementKits;
         private int _shieldCharges;
+        private DifficultyMode _difficultyMode = DifficultyMode.Normal;
         private RectTransform _deltaRect;
         private Vector2 _deltaBasePosition;
         private Color _deltaBaseColor = Color.white;
@@ -82,6 +83,12 @@ namespace MultiplyRush
         {
             _reinforcementKits = Mathf.Max(0, reinforcementKits);
             _shieldCharges = Mathf.Max(0, shieldCharges);
+            RefreshLevelLabel();
+        }
+
+        public void SetDifficulty(DifficultyMode mode)
+        {
+            _difficultyMode = mode;
             RefreshLevelLabel();
         }
 
@@ -265,6 +272,7 @@ namespace MultiplyRush
             levelText.text =
                 "L" + Mathf.Max(1, _levelIndex) + bossTag +
                 " • " + AbbreviateModifier(_modifierName) +
+                " • " + DifficultyRules.GetModeShortLabel(_difficultyMode) +
                 " • K" + _reinforcementKits +
                 " S" + _shieldCharges;
         }

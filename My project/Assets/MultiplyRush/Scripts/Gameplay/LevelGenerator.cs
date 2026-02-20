@@ -19,6 +19,7 @@ namespace MultiplyRush
         public int startCount;
         public int enemyCount;
         public int tankRequirement;
+        public int totalRows;
         public float finishZ;
         public float trackHalfWidth;
         public float forwardSpeed;
@@ -248,6 +249,7 @@ namespace MultiplyRush
                 startCount = generated.startCount,
                 enemyCount = generated.enemyCount,
                 tankRequirement = generated.tankRequirement,
+                totalRows = generated.totalRows,
                 finishZ = generated.finishZ,
                 trackHalfWidth = _effectiveTrackHalfWidth,
                 forwardSpeed = generated.forwardSpeed,
@@ -1308,6 +1310,7 @@ namespace MultiplyRush
                         gateSpec.operation,
                         gateSpec.value,
                         i,
+                        gateSpec.pickTier,
                         gateSpec.movesHorizontally,
                         moveAmplitude,
                         gateSpec.moveSpeed,
@@ -1543,6 +1546,7 @@ namespace MultiplyRush
             var rowCount = isMiniBoss
                 ? Mathf.Clamp(15 + (levelIndex / 4), 15, 46)
                 : Mathf.Clamp(8 + levelIndex, 8, 40);
+            generated.totalRows = rowCount;
             var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * (isMiniBoss ? 1.08f : 1f);
             var baseBadGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f + (isMiniBoss ? 0.05f : 0f));
             var addBase = 4 + Mathf.FloorToInt(levelIndex * 1.6f);
@@ -1620,7 +1624,7 @@ namespace MultiplyRush
                         break;
                 }
 
-                EnsureAtLeastOnePositive(random, addBase, row.gates);
+                NormalizeRowForObjective(random, levelIndex, addBase, subtractBase, row.gates);
                 generated.rows.Add(row);
 
                 if (enableHazards && rowIndex >= 1 && rowIndex < rowCount - 1)
@@ -2025,6 +2029,7 @@ namespace MultiplyRush
                 lane = lane,
                 operation = operation,
                 value = Mathf.Max(1, value),
+                pickTier = GatePickTier.WorseGood,
                 movesHorizontally = movesHorizontally,
                 moveAmplitude = Mathf.Max(0f, moveAmplitude),
                 moveSpeed = Mathf.Max(0f, moveSpeed),
@@ -2036,27 +2041,275 @@ namespace MultiplyRush
             };
         }
 
-        private static void EnsureAtLeastOnePositive(System.Random random, int addBase, List<GateSpec> gates)
+        private static void NormalizeRowForObjective(
+            System.Random random,
+            int levelIndex,
+            int addBase,
+            int subtractBase,
+            List<GateSpec> gates)
         {
-            for (var i = 0; i < gates.Count; i++)
+            if (gates == null)
             {
-                var operation = gates[i].operation;
-                if (operation == GateOperation.Add || operation == GateOperation.Multiply)
-                {
-                    return;
-                }
+                return;
             }
 
+            EnsureThreeGateRow(random, addBase, gates);
             if (gates.Count == 0)
             {
                 return;
             }
 
-            var index = random.Next(0, gates.Count);
-            var adjusted = gates[index];
-            adjusted.operation = random.NextDouble() < 0.22 ? GateOperation.Multiply : GateOperation.Add;
-            adjusted.value = adjusted.operation == GateOperation.Multiply ? 2 : Mathf.Max(2, addBase / 2);
-            gates[index] = adjusted;
+            var redIndex = GetWorstGateIndex(gates, levelIndex);
+            for (var i = 0; i < gates.Count; i++)
+            {
+                var gate = gates[i];
+                if (i == redIndex)
+                {
+                    if (gate.operation == GateOperation.Add || gate.operation == GateOperation.Multiply)
+                    {
+                        gate.operation = random.NextDouble() < 0.62 ? GateOperation.Subtract : GateOperation.Divide;
+                    }
+
+                    if (gate.operation == GateOperation.Subtract)
+                    {
+                        var value = subtractBase + random.Next(0, Mathf.Max(2, subtractBase / 2 + 1));
+                        gate.value = Mathf.Clamp(value, 2, Mathf.Max(4, addBase + 2));
+                    }
+                    else
+                    {
+                        gate.value = levelIndex > 18 && random.NextDouble() < 0.28 ? 3 : 2;
+                    }
+
+                    gate.pickTier = GatePickTier.RedBad;
+                    gates[i] = gate;
+                    continue;
+                }
+
+                if (gate.operation == GateOperation.Subtract || gate.operation == GateOperation.Divide)
+                {
+                    gate.operation = random.NextDouble() < 0.18 && levelIndex > 12
+                        ? GateOperation.Multiply
+                        : GateOperation.Add;
+                }
+
+                if (gate.operation == GateOperation.Add)
+                {
+                    gate.value = Mathf.Max(2, Mathf.Max(gate.value, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1))));
+                }
+                else if (gate.operation == GateOperation.Multiply)
+                {
+                    gate.value = Mathf.Clamp(gate.value, 2, levelIndex > 24 && random.NextDouble() < 0.14 ? 3 : 2);
+                }
+
+                gate.pickTier = GatePickTier.WorseGood;
+                gates[i] = gate;
+            }
+
+            var betterIndex = -1;
+            var worseIndex = -1;
+            var betterScore = float.NegativeInfinity;
+            var worseScore = float.NegativeInfinity;
+            for (var i = 0; i < gates.Count; i++)
+            {
+                if (i == redIndex)
+                {
+                    continue;
+                }
+
+                var score = EvaluateGateBenefit(gates[i], levelIndex);
+                if (score > betterScore)
+                {
+                    worseScore = betterScore;
+                    worseIndex = betterIndex;
+                    betterScore = score;
+                    betterIndex = i;
+                }
+                else if (score > worseScore)
+                {
+                    worseScore = score;
+                    worseIndex = i;
+                }
+            }
+
+            if (betterIndex < 0)
+            {
+                betterIndex = (redIndex + 1) % gates.Count;
+            }
+
+            if (worseIndex < 0)
+            {
+                worseIndex = (betterIndex + 1) % gates.Count;
+                if (worseIndex == redIndex)
+                {
+                    worseIndex = (worseIndex + 1) % gates.Count;
+                }
+            }
+
+            var betterGate = gates[betterIndex];
+            if (betterGate.operation == GateOperation.Add && random.NextDouble() < 0.35 + Mathf.Clamp01(levelIndex / 60f) * 0.3f)
+            {
+                betterGate.operation = GateOperation.Multiply;
+                betterGate.value = levelIndex > 26 && random.NextDouble() < 0.2 ? 3 : 2;
+            }
+            else if (betterGate.operation == GateOperation.Add)
+            {
+                betterGate.value = Mathf.Max(betterGate.value, addBase + random.Next(4, Mathf.Max(6, addBase / 2 + 6)));
+            }
+            else if (betterGate.operation == GateOperation.Multiply)
+            {
+                betterGate.value = Mathf.Clamp(betterGate.value, 2, levelIndex > 26 && random.NextDouble() < 0.2 ? 3 : 2);
+            }
+
+            betterGate.pickTier = GatePickTier.BetterGood;
+            gates[betterIndex] = betterGate;
+
+            var worseGate = gates[worseIndex];
+            if (worseGate.operation == GateOperation.Multiply)
+            {
+                worseGate.value = 2;
+                if (betterGate.operation == GateOperation.Multiply && betterGate.value <= worseGate.value)
+                {
+                    worseGate.operation = GateOperation.Add;
+                    worseGate.value = Mathf.Max(2, addBase / 2 + random.Next(0, Mathf.Max(2, addBase / 4 + 1)));
+                }
+            }
+            else
+            {
+                var cap = Mathf.Max(2, addBase + 2);
+                worseGate.value = Mathf.Clamp(worseGate.value, 2, cap);
+            }
+
+            worseGate.pickTier = GatePickTier.WorseGood;
+            gates[worseIndex] = worseGate;
+
+            for (var i = 0; i < gates.Count; i++)
+            {
+                if (i == redIndex || i == betterIndex || i == worseIndex)
+                {
+                    continue;
+                }
+
+                var gate = gates[i];
+                gate.pickTier = GatePickTier.WorseGood;
+                gates[i] = gate;
+            }
+        }
+
+        private static void EnsureThreeGateRow(System.Random random, int addBase, List<GateSpec> gates)
+        {
+            var usedLane = new bool[3];
+            var laneOwner = new[] { -1, -1, -1 };
+            var duplicateIndices = new List<int>(3);
+            for (var i = 0; i < gates.Count; i++)
+            {
+                var lane = Mathf.Clamp(gates[i].lane, 0, 2);
+                usedLane[lane] = true;
+                if (laneOwner[lane] == -1)
+                {
+                    laneOwner[lane] = i;
+                }
+                else
+                {
+                    duplicateIndices.Add(i);
+                }
+            }
+
+            for (var i = 0; i < duplicateIndices.Count; i++)
+            {
+                var targetLane = -1;
+                for (var lane = 0; lane < 3; lane++)
+                {
+                    if (laneOwner[lane] == -1)
+                    {
+                        targetLane = lane;
+                        break;
+                    }
+                }
+
+                if (targetLane < 0)
+                {
+                    break;
+                }
+
+                var duplicateIndex = duplicateIndices[i];
+                var duplicateGate = gates[duplicateIndex];
+                duplicateGate.lane = targetLane;
+                gates[duplicateIndex] = duplicateGate;
+                laneOwner[targetLane] = duplicateIndex;
+                usedLane[targetLane] = true;
+            }
+
+            while (gates.Count < 3)
+            {
+                var lane = -1;
+                for (var i = 0; i < usedLane.Length; i++)
+                {
+                    if (!usedLane[i])
+                    {
+                        lane = i;
+                        break;
+                    }
+                }
+
+                if (lane < 0)
+                {
+                    lane = random.Next(0, 3);
+                }
+
+                usedLane[Mathf.Clamp(lane, 0, 2)] = true;
+                gates.Add(CreateGateSpec(
+                    lane,
+                    GateOperation.Add,
+                    Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1))),
+                    false,
+                    0f,
+                    0f,
+                    0f,
+                    false,
+                    2f,
+                    0.5f,
+                    0f));
+            }
+
+            while (gates.Count > 3)
+            {
+                var index = GetWorstGateIndex(gates, 1);
+                gates.RemoveAt(Mathf.Clamp(index, 0, gates.Count - 1));
+            }
+        }
+
+        private static int GetWorstGateIndex(List<GateSpec> gates, int levelIndex)
+        {
+            var worstIndex = 0;
+            var worstScore = float.PositiveInfinity;
+            for (var i = 0; i < gates.Count; i++)
+            {
+                var score = EvaluateGateBenefit(gates[i], levelIndex);
+                if (score < worstScore)
+                {
+                    worstScore = score;
+                    worstIndex = i;
+                }
+            }
+
+            return worstIndex;
+        }
+
+        private static float EvaluateGateBenefit(GateSpec gate, int levelIndex)
+        {
+            switch (gate.operation)
+            {
+                case GateOperation.Add:
+                    return gate.value;
+                case GateOperation.Multiply:
+                    return 90f + gate.value * 15f + levelIndex * 0.2f;
+                case GateOperation.Subtract:
+                    return -gate.value;
+                case GateOperation.Divide:
+                    return -70f - gate.value * 18f;
+                default:
+                    return 0f;
+            }
         }
 
         private float EvaluateLaneBadChance(float baseChance, int lane, ModifierState modifier)
@@ -2342,6 +2595,7 @@ namespace MultiplyRush
             public int lane;
             public GateOperation operation;
             public int value;
+            public GatePickTier pickTier;
             public bool movesHorizontally;
             public float moveAmplitude;
             public float moveSpeed;
@@ -2388,6 +2642,7 @@ namespace MultiplyRush
             public int startCount;
             public int enemyCount;
             public int tankRequirement;
+            public int totalRows;
             public float finishZ;
             public float forwardSpeed;
             public float gateDifficulty01;

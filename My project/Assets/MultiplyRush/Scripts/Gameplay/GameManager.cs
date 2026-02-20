@@ -30,6 +30,7 @@ namespace MultiplyRush
         private LevelBuildResult _currentBuild;
         private bool _pendingReinforcementKit;
         private bool _pendingShieldCharge;
+        private DifficultyMode _difficultyMode = DifficultyMode.Normal;
 
         private void Awake()
         {
@@ -50,6 +51,7 @@ namespace MultiplyRush
                 playerCrowd.FinishReached += OnFinishReached;
             }
 
+            _difficultyMode = ProgressionStore.GetDifficultyMode(DifficultyMode.Normal);
             RefreshInventoryHud();
         }
 
@@ -106,7 +108,13 @@ namespace MultiplyRush
             }
 
             var startPosition = crowdStartPoint != null ? crowdStartPoint.position : Vector3.zero;
-            playerCrowd.StartRun(startPosition, startCount, _currentBuild.forwardSpeed, _currentBuild.trackHalfWidth, _currentBuild.finishZ);
+            playerCrowd.StartRun(
+                startPosition,
+                startCount,
+                _currentBuild.forwardSpeed,
+                _currentBuild.trackHalfWidth,
+                _currentBuild.finishZ,
+                _currentBuild.totalRows);
             if (_pendingShieldCharge)
             {
                 playerCrowd.ActivateShield();
@@ -115,6 +123,7 @@ namespace MultiplyRush
 
             if (hud != null)
             {
+                hud.SetDifficulty(_difficultyMode);
                 hud.SetLevel(_currentLevelIndex, _currentBuild.modifierName, _currentBuild.isMiniBoss);
                 hud.SetCount(startCount);
                 hud.SetProgress(0f);
@@ -160,8 +169,30 @@ namespace MultiplyRush
             }
 
             var requiredCount = Mathf.Max(_currentBuild.enemyCount, _currentBuild.tankRequirement);
-            var didWin = playerCount >= requiredCount;
-            var detailLine = string.Empty;
+            var betterHits = 0;
+            var worseHits = 0;
+            var redHits = 0;
+            var totalRows = _currentBuild.totalRows;
+            if (playerCrowd != null)
+            {
+                playerCrowd.GetGateHitStats(out betterHits, out worseHits, out redHits, out totalRows);
+            }
+
+            var objective = DifficultyRules.BuildObjective(
+                _difficultyMode,
+                _currentBuild.isMiniBoss,
+                Mathf.Max(_currentBuild.totalRows, totalRows));
+            var gateObjectivePassed = DifficultyRules.EvaluateObjective(
+                objective,
+                betterHits,
+                worseHits,
+                redHits,
+                out var gateObjectiveLine);
+
+            var didWin = playerCount >= requiredCount && gateObjectivePassed;
+            var detailLine =
+                "Mode " + DifficultyRules.GetModeShortLabel(_difficultyMode) +
+                " • " + gateObjectiveLine;
 
             if (didWin)
             {
@@ -171,13 +202,17 @@ namespace MultiplyRush
                     var reward = ProgressionStore.GrantMiniBossReward(_currentLevelIndex);
                     if (!reward.IsEmpty)
                     {
-                        detailLine = "Mini-Boss Reward: +" + reward.reinforcementKits + " Kit";
+                        detailLine += "\nMini-Boss Reward: +" + reward.reinforcementKits + " Kit";
                         if (reward.shieldCharges > 0)
                         {
                             detailLine += "  +" + reward.shieldCharges + " Shield";
                         }
                     }
                 }
+            }
+            else if (!gateObjectivePassed)
+            {
+                detailLine += "\nGate objective not met.";
             }
 
             RefreshInventoryHud();
