@@ -14,9 +14,15 @@ namespace MultiplyRush
         public int maxColumns = 10;
         public float spacingX = 0.55f;
         public float spacingZ = 0.55f;
+        public float formationLerpSpeed = 14f;
+        public float bobAmplitude = 0.06f;
+        public float bobFrequency = 7.8f;
+        public float tiltDegrees = 5f;
 
         private readonly List<Transform> _activeUnits = new List<Transform>(120);
         private readonly Stack<Transform> _pool = new Stack<Transform>(120);
+        private readonly List<Vector3> _slots = new List<Vector3>(120);
+        private readonly List<float> _phaseOffsets = new List<float>(120);
         private Transform _poolRoot;
         private int _count;
 
@@ -40,6 +46,39 @@ namespace MultiplyRush
             PrewarmPool();
         }
 
+        private void Update()
+        {
+            var count = _activeUnits.Count;
+            if (count == 0)
+            {
+                return;
+            }
+
+            var deltaTime = Time.deltaTime;
+            if (deltaTime <= 0f)
+            {
+                return;
+            }
+
+            var blend = 1f - Mathf.Exp(-formationLerpSpeed * deltaTime);
+            var runTime = Time.time;
+
+            for (var i = 0; i < count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                var phase = runTime * bobFrequency + _phaseOffsets[i];
+                var target = _slots[i];
+                target.y += Mathf.Sin(phase) * bobAmplitude;
+                unit.localPosition = Vector3.Lerp(unit.localPosition, target, blend);
+                unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * tiltDegrees, 0f, 0f);
+            }
+        }
+
         public void SetCount(int count)
         {
             _count = Mathf.Max(1, count);
@@ -55,6 +94,8 @@ namespace MultiplyRush
                 unit.gameObject.SetActive(true);
                 unit.SetParent(unitsRoot, false);
                 _activeUnits.Add(unit);
+                _slots.Add(Vector3.zero);
+                _phaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
             }
 
             while (_activeUnits.Count > targetVisible)
@@ -62,6 +103,8 @@ namespace MultiplyRush
                 var last = _activeUnits.Count - 1;
                 var unit = _activeUnits[last];
                 _activeUnits.RemoveAt(last);
+                _slots.RemoveAt(last);
+                _phaseOffsets.RemoveAt(last);
                 ReturnUnit(unit);
             }
 
@@ -124,7 +167,7 @@ namespace MultiplyRush
                 var column = i % columns;
                 var x = (column - centeredOffset) * spacingX;
                 var z = row * spacingZ;
-                _activeUnits[i].localPosition = new Vector3(x, 0f, z);
+                _slots[i] = new Vector3(x, 0f, z);
             }
         }
 
@@ -136,6 +179,11 @@ namespace MultiplyRush
                 var unit = CreateUnitInstance();
                 ReturnUnit(unit);
             }
+        }
+
+        private static float CalculatePhaseOffset(int index)
+        {
+            return Mathf.Repeat(index * 0.7548777f, 1f) * Mathf.PI * 2f;
         }
     }
 }

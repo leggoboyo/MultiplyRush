@@ -11,6 +11,13 @@ namespace MultiplyRush
         public Text hintText;
         public TouchDragInput dragInput;
         public bool showOnlyUntilFirstDrag = true;
+        public float floatDistance = 8f;
+        public float floatSpeed = 2.2f;
+        public float pulseScale = 0.05f;
+
+        private RectTransform _rootRect;
+        private Vector2 _baseAnchoredPosition;
+        private Vector3 _baseScale = Vector3.one;
 
         private void Awake()
         {
@@ -24,7 +31,25 @@ namespace MultiplyRush
             if (rootPanel != null)
             {
                 rootPanel.SetActive(shouldShow);
+                _rootRect = rootPanel.GetComponent<RectTransform>();
+                if (_rootRect != null)
+                {
+                    _baseAnchoredPosition = _rootRect.anchoredPosition;
+                    _baseScale = _rootRect.localScale;
+                }
             }
+        }
+
+        private void Update()
+        {
+            if (rootPanel == null || !rootPanel.activeSelf || _rootRect == null)
+            {
+                return;
+            }
+
+            var wave = Mathf.Sin(Time.unscaledTime * floatSpeed);
+            _rootRect.anchoredPosition = _baseAnchoredPosition + new Vector2(0f, wave * floatDistance);
+            _rootRect.localScale = _baseScale * (1f + Mathf.Abs(wave) * pulseScale);
         }
 
         private void OnEnable()

@@ -30,17 +30,32 @@ namespace MultiplyRush
         public float labelScale = 0.12f;
         public float labelForwardOffset = -0.42f;
 
+        [Header("Animation")]
+        public float idleFloatAmplitude = 0.09f;
+        public float idleFloatFrequency = 2.6f;
+        public float idlePulseAmplitude = 0.05f;
+        public float consumeDuration = 0.12f;
+        public float consumeSpinDegrees = 220f;
+
         private BoxCollider _trigger;
         private MaterialPropertyBlock _materialBlock;
         private bool _isConsumed;
+        private bool _isConsuming;
         private Transform _leftPost;
         private Transform _rightPost;
         private Transform _panel;
+        private float _baseY;
+        private float _phaseOffset;
+        private float _consumeElapsed;
+        private Vector3 _rootBaseScale = Vector3.one;
+        private Vector3 _panelBaseScale = Vector3.one;
+        private Vector3 _labelBaseScale = Vector3.one;
 
         private void Awake()
         {
             _trigger = GetComponent<BoxCollider>();
             _trigger.isTrigger = true;
+            _phaseOffset = Mathf.Repeat(GetInstanceID() * 0.1732f, 1f) * Mathf.PI * 2f;
             CacheReferences();
             NormalizeLayout();
         }
@@ -48,12 +63,17 @@ namespace MultiplyRush
         private void OnEnable()
         {
             _isConsumed = false;
+            _isConsuming = false;
+            _consumeElapsed = 0f;
             if (_trigger == null)
             {
                 _trigger = GetComponent<BoxCollider>();
             }
 
             _trigger.enabled = true;
+            _baseY = transform.position.y;
+            transform.localScale = _rootBaseScale;
+            transform.rotation = Quaternion.identity;
             NormalizeLayout();
             RefreshVisuals();
         }
@@ -63,6 +83,9 @@ namespace MultiplyRush
             operation = gateOperation;
             value = Mathf.Max(1, gateValue);
             _isConsumed = false;
+            _isConsuming = false;
+            _consumeElapsed = 0f;
+            _baseY = transform.position.y;
 
             if (_trigger == null)
             {
@@ -88,7 +111,30 @@ namespace MultiplyRush
             }
 
             crowd.ApplyGate(operation, value);
-            gameObject.SetActive(false);
+            if (consumeDuration <= 0f)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            _isConsuming = true;
+            _consumeElapsed = 0f;
+        }
+
+        private void Update()
+        {
+            if (_isConsuming)
+            {
+                AnimateConsume(Time.deltaTime);
+                return;
+            }
+
+            if (_isConsumed)
+            {
+                return;
+            }
+
+            AnimateIdle(Time.time);
         }
 
         private void RefreshVisuals()
@@ -138,6 +184,7 @@ namespace MultiplyRush
         private void NormalizeLayout()
         {
             CacheReferences();
+            _rootBaseScale = Vector3.one;
 
             if (_trigger != null)
             {
@@ -165,6 +212,7 @@ namespace MultiplyRush
             {
                 _panel.localPosition = new Vector3(0f, 1f, 0f);
                 _panel.localScale = new Vector3(safePanelWidth, panelHeight, 0.22f);
+                _panelBaseScale = _panel.localScale;
             }
 
             if (labelText != null)
@@ -173,6 +221,7 @@ namespace MultiplyRush
                 labelTransform.localPosition = new Vector3(0f, 1.06f, labelForwardOffset);
                 labelTransform.localRotation = Quaternion.identity;
                 labelTransform.localScale = Vector3.one * labelScale;
+                _labelBaseScale = labelTransform.localScale;
 
                 labelText.alignment = TextAlignment.Center;
                 labelText.anchor = TextAnchor.MiddleCenter;
@@ -218,6 +267,53 @@ namespace MultiplyRush
                     return "/" + gateValue;
                 default:
                     return "?";
+            }
+        }
+
+        private void AnimateIdle(float runTime)
+        {
+            var phase = runTime * idleFloatFrequency + _phaseOffset;
+            var pulse = 1f + Mathf.Sin(phase * 2.25f) * idlePulseAmplitude;
+
+            var position = transform.position;
+            position.y = _baseY + Mathf.Sin(phase) * idleFloatAmplitude;
+            transform.position = position;
+
+            if (_panel != null)
+            {
+                _panel.localScale = new Vector3(_panelBaseScale.x * pulse, _panelBaseScale.y * pulse, _panelBaseScale.z);
+            }
+
+            if (labelText != null)
+            {
+                labelText.transform.localScale = _labelBaseScale * (1f + Mathf.Sin(phase * 1.9f) * (idlePulseAmplitude * 0.42f));
+            }
+        }
+
+        private void AnimateConsume(float deltaTime)
+        {
+            _consumeElapsed += Mathf.Max(0f, deltaTime);
+            var duration = Mathf.Max(0.02f, consumeDuration);
+            var t = Mathf.Clamp01(_consumeElapsed / duration);
+            var eased = 1f - Mathf.Pow(1f - t, 3f);
+
+            transform.localScale = Vector3.Lerp(_rootBaseScale, _rootBaseScale * 0.2f, eased);
+            transform.Rotate(0f, consumeSpinDegrees * (deltaTime / duration), 0f, Space.Self);
+
+            if (_panel != null)
+            {
+                _panel.localScale = Vector3.Lerp(_panelBaseScale, _panelBaseScale * 0.25f, eased);
+            }
+
+            if (labelText != null)
+            {
+                labelText.transform.localScale = Vector3.Lerp(_labelBaseScale, _labelBaseScale * 0.25f, eased);
+            }
+
+            if (t >= 1f)
+            {
+                _isConsuming = false;
+                gameObject.SetActive(false);
             }
         }
     }

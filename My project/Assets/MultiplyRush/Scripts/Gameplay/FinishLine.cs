@@ -8,10 +8,13 @@ namespace MultiplyRush
         [Header("References")]
         public EnemyGroup enemyGroup;
         public TextMesh enemyCountLabel;
+        public float labelPulseAmplitude = 0.08f;
+        public float labelPulseSpeed = 2.5f;
 
         private BoxCollider _trigger;
         private bool _isTriggered;
         private int _enemyCount;
+        private Vector3 _labelBaseScale = Vector3.one;
 
         public int EnemyCount => _enemyCount;
 
@@ -19,6 +22,10 @@ namespace MultiplyRush
         {
             _trigger = GetComponent<BoxCollider>();
             _trigger.isTrigger = true;
+            if (enemyCountLabel != null)
+            {
+                _labelBaseScale = enemyCountLabel.transform.localScale;
+            }
         }
 
         private void OnEnable()
@@ -30,6 +37,17 @@ namespace MultiplyRush
             }
 
             _trigger.enabled = true;
+        }
+
+        private void Update()
+        {
+            if (enemyCountLabel == null || !enemyCountLabel.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            var pulse = 1f + Mathf.Sin(Time.time * labelPulseSpeed) * labelPulseAmplitude;
+            enemyCountLabel.transform.localScale = _labelBaseScale * pulse;
         }
 
         public void Configure(int enemyCount)

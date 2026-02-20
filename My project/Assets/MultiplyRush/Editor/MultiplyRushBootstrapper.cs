@@ -22,12 +22,12 @@ public static class MultiplyRushBootstrapper
     {
         EnsureFolders();
 
-        var trackMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Track.mat", new Color(0.2f, 0.2f, 0.22f));
-        var crowdMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Crowd.mat", new Color(0.15f, 0.55f, 1f));
-        var enemyMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Enemy.mat", new Color(0.95f, 0.25f, 0.25f));
-        var gateBodyMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_GateBody.mat", new Color(0.12f, 0.12f, 0.12f));
-        var gatePanelMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_GatePanel.mat", new Color(0.75f, 0.75f, 0.75f));
-        var finishMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Finish.mat", new Color(0.98f, 0.95f, 0.22f));
+        var trackMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Track.mat", new Color(0.18f, 0.22f, 0.29f));
+        var crowdMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Crowd.mat", new Color(0.18f, 0.62f, 1f));
+        var enemyMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Enemy.mat", new Color(0.95f, 0.28f, 0.34f));
+        var gateBodyMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_GateBody.mat", new Color(0.11f, 0.14f, 0.2f));
+        var gatePanelMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_GatePanel.mat", new Color(0.82f, 0.84f, 0.88f));
+        var finishMaterial = CreateOrUpdateMaterial(MaterialsFolder + "/M_Finish.mat", new Color(0.95f, 0.84f, 0.28f));
 
         var soldierUnitPrefab = CreateSoldierUnitPrefab(crowdMaterial);
         var enemyUnitPrefab = CreateEnemyUnitPrefab(enemyMaterial);
@@ -96,6 +96,11 @@ public static class MultiplyRushBootstrapper
         if (material.HasProperty("_Color"))
         {
             material.SetColor("_Color", color);
+        }
+
+        if (material.HasProperty("_Smoothness"))
+        {
+            material.SetFloat("_Smoothness", 0.24f);
         }
 
         EditorUtility.SetDirty(material);
@@ -262,12 +267,17 @@ public static class MultiplyRushBootstrapper
         cameraGo.tag = "MainCamera";
         cameraGo.transform.position = new Vector3(0f, 10f, -14f);
         cameraGo.transform.rotation = Quaternion.Euler(20f, 0f, 0f);
+        var gameplayCamera = cameraGo.GetComponent<Camera>();
+        gameplayCamera.clearFlags = CameraClearFlags.SolidColor;
+        gameplayCamera.backgroundColor = new Color(0.72f, 0.84f, 0.95f, 1f);
+        gameplayCamera.fieldOfView = 58f;
 
         var lightGo = new GameObject("Directional Light", typeof(Light));
         var directional = lightGo.GetComponent<Light>();
         directional.type = LightType.Directional;
-        directional.intensity = 1.1f;
-        lightGo.transform.rotation = Quaternion.Euler(45f, 30f, 0f);
+        directional.intensity = 1.22f;
+        directional.color = new Color(1f, 0.95f, 0.86f, 1f);
+        lightGo.transform.rotation = Quaternion.Euler(43f, 33f, 0f);
 
         EnsureEventSystem();
 
@@ -295,6 +305,10 @@ public static class MultiplyRushBootstrapper
         var crowdController = playerInstance.GetComponent<CrowdController>();
         var cameraFollower = cameraGo.GetComponent<CameraFollower>();
         cameraFollower.target = playerInstance.transform;
+        cameraFollower.followLerpSpeed = 9f;
+        cameraFollower.lookLerpSpeed = 12f;
+        cameraFollower.baseFieldOfView = 58f;
+        cameraFollower.maxFieldOfView = 66f;
 
         var levelRoot = new GameObject("LevelRoot").transform;
         var gateRoot = new GameObject("GateRoot").transform;
@@ -313,6 +327,11 @@ public static class MultiplyRushBootstrapper
         levelGenerator.laneSpacing = 3.6f;
         levelGenerator.minLaneSpacing = 3.6f;
         levelGenerator.levelLengthMultiplier = 1.5f;
+        levelGenerator.enableTrackDecor = true;
+        levelGenerator.stripePoolSize = 110;
+        levelGenerator.stripeLength = 1.9f;
+        levelGenerator.stripeGap = 1.35f;
+        levelGenerator.stripeWidth = 0.16f;
 
         var crowdStartPoint = new GameObject("CrowdStartPoint").transform;
         crowdStartPoint.position = Vector3.zero;
@@ -342,6 +361,9 @@ public static class MultiplyRushBootstrapper
         var cameraGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
         cameraGo.tag = "MainCamera";
         cameraGo.transform.position = new Vector3(0f, 0f, -10f);
+        var menuCamera = cameraGo.GetComponent<Camera>();
+        menuCamera.clearFlags = CameraClearFlags.SolidColor;
+        menuCamera.backgroundColor = new Color(0.06f, 0.08f, 0.14f, 1f);
 
         var lightGo = new GameObject("Directional Light", typeof(Light));
         var directional = lightGo.GetComponent<Light>();
@@ -352,7 +374,7 @@ public static class MultiplyRushBootstrapper
         EnsureEventSystem();
 
         var canvas = CreateCanvas("MainMenuCanvas");
-        var background = CreateImage(canvas.transform, "Background", new Color(0.08f, 0.09f, 0.12f, 1f));
+        var background = CreateImage(canvas.transform, "Background", new Color(0.06f, 0.08f, 0.14f, 1f));
         StretchToFull(background.rectTransform);
         background.transform.SetAsFirstSibling();
 
@@ -471,7 +493,11 @@ public static class MultiplyRushBootstrapper
         var progressText = CreateText(hudRect, "ProgressText", "0%", 48, TextAnchor.MiddleRight,
             new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -56f), new Vector2(250f, 70f));
 
-        var progressBackground = CreateImage(hudRect, "ProgressBG", new Color(0f, 0f, 0f, 0.38f));
+        levelText.color = new Color(0.96f, 0.98f, 1f, 1f);
+        countText.color = new Color(0.94f, 0.97f, 1f, 1f);
+        progressText.color = new Color(0.96f, 0.98f, 1f, 1f);
+
+        var progressBackground = CreateImage(hudRect, "ProgressBG", new Color(0f, 0f, 0f, 0.45f));
         var progressBgRect = progressBackground.rectTransform;
         progressBgRect.anchorMin = new Vector2(0.5f, 1f);
         progressBgRect.anchorMax = new Vector2(0.5f, 1f);
@@ -479,7 +505,7 @@ public static class MultiplyRushBootstrapper
         progressBgRect.anchoredPosition = new Vector2(0f, -120f);
         progressBgRect.sizeDelta = new Vector2(760f, 36f);
 
-        var progressFill = CreateImage(progressBackground.transform, "ProgressFill", new Color(0.2f, 0.85f, 0.35f, 1f));
+        var progressFill = CreateImage(progressBackground.transform, "ProgressFill", new Color(0.2f, 0.86f, 0.4f, 1f));
         progressFill.type = Image.Type.Filled;
         progressFill.fillMethod = Image.FillMethod.Horizontal;
         progressFill.fillOrigin = (int)Image.OriginHorizontal.Left;
@@ -502,10 +528,10 @@ public static class MultiplyRushBootstrapper
         var overlayRootRect = overlayRoot.GetComponent<RectTransform>();
         StretchToFull(overlayRootRect);
 
-        var dimBackground = CreateImage(overlayRoot.transform, "Dim", new Color(0f, 0f, 0f, 0.65f));
+        var dimBackground = CreateImage(overlayRoot.transform, "Dim", new Color(0f, 0f, 0f, 0.7f));
         StretchToFull(dimBackground.rectTransform);
 
-        var panel = CreateImage(overlayRoot.transform, "Panel", new Color(0.12f, 0.12f, 0.14f, 0.95f));
+        var panel = CreateImage(overlayRoot.transform, "Panel", new Color(0.09f, 0.11f, 0.18f, 0.96f));
         var panelRect = panel.rectTransform;
         panelRect.anchorMin = new Vector2(0.5f, 0.5f);
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -515,9 +541,11 @@ public static class MultiplyRushBootstrapper
 
         var title = CreateText(panel.transform, "Title", "WIN", 90, TextAnchor.MiddleCenter,
             new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(600f, 140f));
+        title.color = new Color(0.24f, 0.95f, 0.42f, 1f);
 
         var detail = CreateText(panel.transform, "Detail", "Level 1", 44, TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.62f), new Vector2(0.5f, 0.62f), Vector2.zero, new Vector2(620f, 160f));
+        detail.color = new Color(0.9f, 0.94f, 1f, 1f);
 
         var retryButton = CreateButton(panel.transform, "RetryButton", "Retry", new Vector2(300f, 100f), new Vector2(0.5f, 0.22f));
         var nextButton = CreateButton(panel.transform, "NextButton", "Next Level", new Vector2(300f, 100f), new Vector2(0.5f, 0.22f));
@@ -585,7 +613,7 @@ public static class MultiplyRushBootstrapper
         rect.sizeDelta = size;
 
         var image = buttonGo.GetComponent<Image>();
-        image.color = new Color(0.2f, 0.6f, 0.95f, 1f);
+        image.color = new Color(0.12f, 0.64f, 1f, 1f);
 
         var button = buttonGo.GetComponent<Button>();
 

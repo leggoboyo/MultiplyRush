@@ -31,6 +31,7 @@ namespace MultiplyRush
         private void Awake()
         {
             CanvasRootGuard.NormalizeAllRootCanvasScales();
+            SceneVisualTuning.ApplyGameLook();
 
             if (resultsOverlay != null)
             {

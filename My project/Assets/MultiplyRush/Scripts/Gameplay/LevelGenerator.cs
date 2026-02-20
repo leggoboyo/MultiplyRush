@@ -41,13 +41,33 @@ namespace MultiplyRush
         public float maxForwardSpeed = 12.5f;
         public int initialGatePoolSize = 120;
 
+        [Header("Track Decor")]
+        public bool enableTrackDecor = true;
+        public int stripePoolSize = 100;
+        public float stripeLength = 1.8f;
+        public float stripeGap = 1.45f;
+        public float stripeWidth = 0.16f;
+        public float railInset = 0.85f;
+        public float railWidth = 0.24f;
+        public float railHeight = 0.52f;
+        public Color stripeColor = new Color(0.95f, 0.84f, 0.32f, 1f);
+        public Color railColor = new Color(0.09f, 0.13f, 0.2f, 1f);
+
         private readonly List<Gate> _activeGates = new List<Gate>(128);
         private readonly Stack<Gate> _gatePool = new Stack<Gate>(128);
+        private readonly List<Transform> _activeStripes = new List<Transform>(128);
+        private readonly Stack<Transform> _stripePool = new Stack<Transform>(128);
 
         private FinishLine _activeFinish;
         private float _effectiveLaneSpacing;
         private float _effectiveTrackHalfWidth;
         private bool _gatePoolPrewarmed;
+        private bool _stripePoolPrewarmed;
+        private Transform _trackDecorRoot;
+        private Transform _leftRail;
+        private Transform _rightRail;
+        private Material _stripeMaterial;
+        private Material _railMaterial;
 
         public LevelBuildResult Generate(int levelIndex)
         {
@@ -89,6 +109,16 @@ namespace MultiplyRush
                 root.SetParent(levelRoot, false);
                 gateRoot = root;
             }
+
+            if (_trackDecorRoot == null)
+            {
+                _trackDecorRoot = levelRoot.Find("TrackDecor");
+                if (_trackDecorRoot == null)
+                {
+                    _trackDecorRoot = new GameObject("TrackDecor").transform;
+                    _trackDecorRoot.SetParent(levelRoot, false);
+                }
+            }
         }
 
         private void BuildTrackVisual(float finishZ, float effectiveTrackHalfWidth)
@@ -101,6 +131,235 @@ namespace MultiplyRush
             var length = finishZ + 24f;
             trackVisual.position = new Vector3(0f, -0.55f, length * 0.5f);
             trackVisual.localScale = new Vector3(effectiveTrackHalfWidth * 2.5f, 1f, length);
+            ApplyTrackColor();
+            BuildTrackDecor(length, effectiveTrackHalfWidth);
+        }
+
+        private void ApplyTrackColor()
+        {
+            if (trackVisual == null)
+            {
+                return;
+            }
+
+            var renderer = trackVisual.GetComponent<MeshRenderer>();
+            if (renderer == null || renderer.sharedMaterial == null)
+            {
+                return;
+            }
+
+            var material = renderer.sharedMaterial;
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", new Color(0.18f, 0.22f, 0.29f, 1f));
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", new Color(0.18f, 0.22f, 0.29f, 1f));
+            }
+
+            if (material.HasProperty("_Smoothness"))
+            {
+                material.SetFloat("_Smoothness", 0.08f);
+            }
+        }
+
+        private void BuildTrackDecor(float trackLength, float effectiveTrackHalfWidth)
+        {
+            if (!enableTrackDecor || _trackDecorRoot == null)
+            {
+                return;
+            }
+
+            PrewarmStripePool();
+            ClearTrackDecor();
+            EnsureRails();
+
+            if (_leftRail != null)
+            {
+                _leftRail.gameObject.SetActive(true);
+                _leftRail.position = new Vector3(-(effectiveTrackHalfWidth + railInset), -0.05f + (railHeight * 0.5f), trackLength * 0.5f);
+                _leftRail.localScale = new Vector3(railWidth, railHeight, trackLength + 4f);
+            }
+
+            if (_rightRail != null)
+            {
+                _rightRail.gameObject.SetActive(true);
+                _rightRail.position = new Vector3(effectiveTrackHalfWidth + railInset, -0.05f + (railHeight * 0.5f), trackLength * 0.5f);
+                _rightRail.localScale = new Vector3(railWidth, railHeight, trackLength + 4f);
+            }
+
+            var start = Mathf.Max(6f, startZ * 0.35f);
+            var end = Mathf.Max(start + 2f, trackLength - 12f);
+            var step = Mathf.Max(0.45f, stripeLength + stripeGap);
+            var stripeY = -0.045f;
+            var safeStripeLength = Mathf.Max(0.4f, stripeLength);
+            var safeStripeWidth = Mathf.Max(0.04f, stripeWidth);
+
+            for (var z = start; z < end; z += step)
+            {
+                var stripe = GetStripe();
+                stripe.position = new Vector3(0f, stripeY, z);
+                stripe.rotation = Quaternion.identity;
+                stripe.localScale = new Vector3(safeStripeWidth, 0.012f, safeStripeLength);
+                stripe.gameObject.SetActive(true);
+                _activeStripes.Add(stripe);
+            }
+        }
+
+        private void EnsureRails()
+        {
+            if (_leftRail == null)
+            {
+                _leftRail = CreateRail("LeftRail");
+            }
+
+            if (_rightRail == null)
+            {
+                _rightRail = CreateRail("RightRail");
+            }
+        }
+
+        private Transform CreateRail(string name)
+        {
+            var rail = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            rail.name = name;
+            rail.transform.SetParent(_trackDecorRoot, false);
+            var collider = rail.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Destroy(collider);
+            }
+
+            var renderer = rail.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = GetRailMaterial();
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
+            return rail.transform;
+        }
+
+        private Transform GetStripe()
+        {
+            if (_stripePool.Count > 0)
+            {
+                return _stripePool.Pop();
+            }
+
+            return CreateStripe();
+        }
+
+        private Transform CreateStripe()
+        {
+            var stripe = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            stripe.name = "LaneStripe";
+            stripe.transform.SetParent(_trackDecorRoot, false);
+            var collider = stripe.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Destroy(collider);
+            }
+
+            var renderer = stripe.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = GetStripeMaterial();
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+
+            stripe.SetActive(false);
+            return stripe.transform;
+        }
+
+        private void ClearTrackDecor()
+        {
+            for (var i = 0; i < _activeStripes.Count; i++)
+            {
+                var stripe = _activeStripes[i];
+                if (stripe == null)
+                {
+                    continue;
+                }
+
+                stripe.gameObject.SetActive(false);
+                stripe.SetParent(_trackDecorRoot, false);
+                _stripePool.Push(stripe);
+            }
+
+            _activeStripes.Clear();
+        }
+
+        private void PrewarmStripePool()
+        {
+            if (_stripePoolPrewarmed)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, stripePoolSize);
+            for (var i = 0; i < count; i++)
+            {
+                var stripe = CreateStripe();
+                _stripePool.Push(stripe);
+            }
+
+            _stripePoolPrewarmed = true;
+        }
+
+        private Material GetStripeMaterial()
+        {
+            if (_stripeMaterial != null)
+            {
+                return _stripeMaterial;
+            }
+
+            _stripeMaterial = CreateRuntimeMaterial("LaneStripeMaterial", stripeColor, 0.35f);
+            return _stripeMaterial;
+        }
+
+        private Material GetRailMaterial()
+        {
+            if (_railMaterial != null)
+            {
+                return _railMaterial;
+            }
+
+            _railMaterial = CreateRuntimeMaterial("SideRailMaterial", railColor, 0.2f);
+            return _railMaterial;
+        }
+
+        private static Material CreateRuntimeMaterial(string name, Color color, float smoothness)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            var material = new Material(shader)
+            {
+                name = name
+            };
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            if (material.HasProperty("_Smoothness"))
+            {
+                material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
+            }
+
+            return material;
         }
 
         private void SpawnGates(List<GateRow> rows)

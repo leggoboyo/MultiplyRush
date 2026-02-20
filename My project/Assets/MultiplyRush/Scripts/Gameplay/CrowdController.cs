@@ -26,13 +26,27 @@ namespace MultiplyRush
         public int maxColumns = 12;
         public float unitYOffset = 0f;
 
+        [Header("Animation")]
+        public float formationLerpSpeed = 18f;
+        public float runBobAmplitude = 0.08f;
+        public float runBobFrequency = 9.2f;
+        public float unitTiltDegrees = 6f;
+        public float leaderBobAmplitude = 0.1f;
+        public float leaderScalePulse = 0.04f;
+        public float leaderStrafeTilt = 0.9f;
+
         [Header("References")]
         public TouchDragInput dragInput;
 
         private readonly List<Transform> _activeUnits = new List<Transform>(160);
         private readonly Stack<Transform> _unitPool = new Stack<Transform>(160);
+        private readonly List<Vector3> _formationSlots = new List<Vector3>(160);
+        private readonly List<float> _unitPhaseOffsets = new List<float>(160);
 
         private Transform _poolRoot;
+        private Transform _leaderVisual;
+        private Vector3 _leaderBaseScale = Vector3.one;
+        private Vector3 _leaderBaseLocalPosition = new Vector3(0f, 0.55f, 0f);
         private bool _isRunning;
         private bool _finishTriggered;
         private float _targetX;
@@ -40,6 +54,10 @@ namespace MultiplyRush
         private float _finishZ = 1f;
         private int _count;
         private float _progress01;
+        private float _smoothedStrafeVelocity;
+        private bool _hasLastX;
+        private float _lastX;
+        private float _leaderTilt;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -68,6 +86,13 @@ namespace MultiplyRush
                 _poolRoot.SetParent(transform, false);
             }
 
+            _leaderVisual = transform.Find("LeaderVisual");
+            if (_leaderVisual != null)
+            {
+                _leaderBaseScale = _leaderVisual.localScale;
+                _leaderBaseLocalPosition = _leaderVisual.localPosition;
+            }
+
             PrewarmPool();
 
             var body = GetComponent<Rigidbody>();
@@ -81,22 +106,44 @@ namespace MultiplyRush
 
         private void Update()
         {
-            if (!_isRunning)
+            var deltaTime = Time.deltaTime;
+            if (deltaTime <= 0f)
             {
                 return;
             }
 
-            var dragDelta = dragInput != null ? dragInput.GetHorizontalDeltaNormalized() : 0f;
-            _targetX += dragDelta * dragSensitivity * trackHalfWidth;
-            _targetX = Mathf.Clamp(_targetX, -trackHalfWidth, trackHalfWidth);
+            if (_isRunning)
+            {
+                var dragDelta = dragInput != null ? dragInput.GetHorizontalDeltaNormalized() : 0f;
+                _targetX += dragDelta * dragSensitivity * trackHalfWidth;
+                _targetX = Mathf.Clamp(_targetX, -trackHalfWidth, trackHalfWidth);
 
-            var pos = transform.position;
-            var blend = 1f - Mathf.Exp(-xSmoothSpeed * Time.deltaTime);
-            pos.x = Mathf.Lerp(pos.x, _targetX, blend);
-            pos.z += _forwardSpeed * Time.deltaTime;
-            transform.position = pos;
+                var pos = transform.position;
+                var blend = 1f - Mathf.Exp(-xSmoothSpeed * deltaTime);
+                pos.x = Mathf.Lerp(pos.x, _targetX, blend);
+                pos.z += _forwardSpeed * deltaTime;
+                transform.position = pos;
 
-            _progress01 = _finishZ > 0f ? Mathf.Clamp01(pos.z / _finishZ) : 0f;
+                if (!_hasLastX)
+                {
+                    _hasLastX = true;
+                    _lastX = pos.x;
+                }
+
+                var rawStrafeVelocity = (pos.x - _lastX) / deltaTime;
+                _lastX = pos.x;
+                var velocityBlend = 1f - Mathf.Exp(-10f * deltaTime);
+                _smoothedStrafeVelocity = Mathf.Lerp(_smoothedStrafeVelocity, rawStrafeVelocity, velocityBlend);
+                _progress01 = _finishZ > 0f ? Mathf.Clamp01(pos.z / _finishZ) : 0f;
+            }
+            else
+            {
+                var settleBlend = 1f - Mathf.Exp(-12f * deltaTime);
+                _smoothedStrafeVelocity = Mathf.Lerp(_smoothedStrafeVelocity, 0f, settleBlend);
+            }
+
+            AnimateFormation(deltaTime);
+            AnimateLeader(deltaTime);
         }
 
         private void OnTriggerEnter(Collider other)
@@ -128,6 +175,8 @@ namespace MultiplyRush
             _finishTriggered = false;
             _progress01 = 0f;
             _isRunning = true;
+            _hasLastX = false;
+            _leaderTilt = 0f;
 
             SetCount(initialCount);
         }
@@ -186,6 +235,8 @@ namespace MultiplyRush
                 unit.gameObject.SetActive(true);
                 unit.SetParent(formationRoot, false);
                 _activeUnits.Add(unit);
+                _formationSlots.Add(Vector3.zero);
+                _unitPhaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
             }
 
             while (_activeUnits.Count > targetVisible)
@@ -193,6 +244,8 @@ namespace MultiplyRush
                 var lastIndex = _activeUnits.Count - 1;
                 var unit = _activeUnits[lastIndex];
                 _activeUnits.RemoveAt(lastIndex);
+                _formationSlots.RemoveAt(lastIndex);
+                _unitPhaseOffsets.RemoveAt(lastIndex);
                 ReturnUnitToPool(unit);
             }
 
@@ -256,7 +309,7 @@ namespace MultiplyRush
                 var column = i % columns;
                 var x = (column - centeredOffset) * unitSpacingX;
                 var z = -row * unitSpacingZ;
-                _activeUnits[i].localPosition = new Vector3(x, unitYOffset, z);
+                _formationSlots[i] = new Vector3(x, unitYOffset, z);
             }
         }
 
@@ -268,6 +321,69 @@ namespace MultiplyRush
                 var unit = CreateUnitInstance();
                 ReturnUnitToPool(unit);
             }
+        }
+
+        private void AnimateFormation(float deltaTime)
+        {
+            var count = _activeUnits.Count;
+            if (count == 0)
+            {
+                return;
+            }
+
+            var runTime = Time.time;
+            var blend = 1f - Mathf.Exp(-formationLerpSpeed * deltaTime);
+            for (var i = 0; i < count; i++)
+            {
+                var slot = _formationSlots[i];
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                if (_isRunning)
+                {
+                    var phase = runTime * runBobFrequency + _unitPhaseOffsets[i];
+                    slot.y += Mathf.Sin(phase) * runBobAmplitude;
+                    unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 1.1f) * unitTiltDegrees, 0f, 0f);
+                }
+                else
+                {
+                    unit.localRotation = Quaternion.identity;
+                }
+
+                unit.localPosition = Vector3.Lerp(unit.localPosition, slot, blend);
+            }
+        }
+
+        private void AnimateLeader(float deltaTime)
+        {
+            if (_leaderVisual == null)
+            {
+                return;
+            }
+
+            var tiltTarget = Mathf.Clamp(-_smoothedStrafeVelocity * leaderStrafeTilt, -18f, 18f);
+            var tiltBlend = 1f - Mathf.Exp(-10f * deltaTime);
+            _leaderTilt = Mathf.Lerp(_leaderTilt, tiltTarget, tiltBlend);
+
+            var localPosition = _leaderBaseLocalPosition;
+            if (_isRunning)
+            {
+                localPosition.y += Mathf.Sin(Time.time * runBobFrequency * 0.9f) * leaderBobAmplitude;
+            }
+
+            _leaderVisual.localPosition = localPosition;
+            _leaderVisual.localRotation = Quaternion.Euler(0f, 0f, _leaderTilt);
+
+            var pulse = _isRunning ? 1f + Mathf.Sin(Time.time * runBobFrequency * 1.2f) * leaderScalePulse : 1f;
+            _leaderVisual.localScale = _leaderBaseScale * pulse;
+        }
+
+        private static float CalculatePhaseOffset(int index)
+        {
+            return Mathf.Repeat(index * 0.6180339f, 1f) * Mathf.PI * 2f;
         }
     }
 }
