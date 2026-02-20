@@ -9,6 +9,7 @@ namespace MultiplyRush
         public LevelGenerator levelGenerator;
         public HUDController hud;
         public ResultOverlayController resultsOverlay;
+        public PauseMenuController pauseMenu;
         public Transform crowdStartPoint;
 
         [Header("Flow")]
@@ -53,6 +54,7 @@ namespace MultiplyRush
 
             _difficultyMode = ProgressionStore.GetDifficultyMode(DifficultyMode.Normal);
             RefreshInventoryHud();
+            EnsurePauseMenu();
         }
 
         private void Start()
@@ -85,6 +87,11 @@ namespace MultiplyRush
             {
                 playerCrowd.CountChanged -= OnCountChanged;
                 playerCrowd.FinishReached -= OnFinishReached;
+            }
+
+            if (Time.timeScale != 1f)
+            {
+                Time.timeScale = 1f;
             }
         }
 
@@ -130,6 +137,11 @@ namespace MultiplyRush
             }
 
             RefreshInventoryHud();
+            if (pauseMenu != null)
+            {
+                pauseMenu.ForceResume(true);
+                pauseMenu.SetPauseAvailable(true);
+            }
 
             if (resultsOverlay != null)
             {
@@ -156,6 +168,11 @@ namespace MultiplyRush
             }
 
             _roundActive = false;
+            if (pauseMenu != null)
+            {
+                pauseMenu.ForceResume(true);
+                pauseMenu.SetPauseAvailable(false);
+            }
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
             if (_currentBuild.enemyCount <= 0)
             {
@@ -324,6 +341,45 @@ namespace MultiplyRush
             hud.SetInventory(
                 ProgressionStore.GetReinforcementKits(),
                 ProgressionStore.GetShieldCharges());
+        }
+
+        public void RetryCurrentLevelFromPauseMenu()
+        {
+            if (_state != GameFlowState.Running)
+            {
+                return;
+            }
+
+            StartLevel(_currentLevelIndex);
+        }
+
+        private void EnsurePauseMenu()
+        {
+            if (pauseMenu == null)
+            {
+                pauseMenu = Object.FindFirstObjectByType<PauseMenuController>(FindObjectsInactive.Include);
+                if (pauseMenu == null)
+                {
+                    var pauseObject = new GameObject("PauseMenuController");
+                    pauseMenu = pauseObject.AddComponent<PauseMenuController>();
+                }
+            }
+
+            RectTransform safeAreaRoot = null;
+            if (hud != null)
+            {
+                safeAreaRoot = hud.transform.parent as RectTransform;
+            }
+
+            var mainCamera = Camera.main;
+            CameraFollower cameraFollower = null;
+            if (mainCamera != null)
+            {
+                cameraFollower = mainCamera.GetComponent<CameraFollower>();
+            }
+
+            pauseMenu.Initialize(this, levelGenerator, cameraFollower, safeAreaRoot);
+            pauseMenu.SetPauseAvailable(false);
         }
     }
 }

@@ -18,6 +18,9 @@ namespace MultiplyRush
         private const string ShieldChargeKey = "mr_shield_charges";
         private const string LastMiniBossRewardLevelKey = "mr_last_miniboss_reward_level";
         private const string DifficultyModeKey = "mr_difficulty_mode";
+        private const string MasterVolumeKey = "mr_master_volume";
+        private const string GraphicsFidelityKey = "mr_graphics_fidelity";
+        private const string CameraMotionKey = "mr_camera_motion";
 
         public static int GetUnlockedLevel()
         {
@@ -114,6 +117,48 @@ namespace MultiplyRush
         public static void SetDifficultyMode(DifficultyMode mode)
         {
             PlayerPrefs.SetInt(DifficultyModeKey, (int)mode);
+            PlayerPrefs.Save();
+        }
+
+        public static float GetMasterVolume(float fallback = 0.85f)
+        {
+            var safeFallback = Mathf.Clamp01(fallback);
+            return Mathf.Clamp01(PlayerPrefs.GetFloat(MasterVolumeKey, safeFallback));
+        }
+
+        public static void SetMasterVolume(float volume)
+        {
+            PlayerPrefs.SetFloat(MasterVolumeKey, Mathf.Clamp01(volume));
+            PlayerPrefs.Save();
+        }
+
+        public static BackdropQuality GetGraphicsFidelity(BackdropQuality fallback = BackdropQuality.Auto)
+        {
+            var stored = PlayerPrefs.GetInt(GraphicsFidelityKey, (int)fallback);
+            if (stored < (int)BackdropQuality.Auto || stored > (int)BackdropQuality.High)
+            {
+                return fallback;
+            }
+
+            return (BackdropQuality)stored;
+        }
+
+        public static void SetGraphicsFidelity(BackdropQuality quality)
+        {
+            var safeQuality = Mathf.Clamp((int)quality, (int)BackdropQuality.Auto, (int)BackdropQuality.High);
+            PlayerPrefs.SetInt(GraphicsFidelityKey, safeQuality);
+            PlayerPrefs.Save();
+        }
+
+        public static float GetCameraMotionIntensity(float fallback = 0.45f)
+        {
+            var safeFallback = Mathf.Clamp01(fallback);
+            return Mathf.Clamp01(PlayerPrefs.GetFloat(CameraMotionKey, safeFallback));
+        }
+
+        public static void SetCameraMotionIntensity(float intensity)
+        {
+            PlayerPrefs.SetFloat(CameraMotionKey, Mathf.Clamp01(intensity));
             PlayerPrefs.Save();
         }
     }

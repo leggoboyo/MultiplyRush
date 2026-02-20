@@ -223,6 +223,8 @@ namespace MultiplyRush
         private Color _gateNegativeColor = new Color(0.9f, 0.25f, 0.25f, 1f);
         private Color _hazardSlowColor = new Color(0.98f, 0.74f, 0.14f, 1f);
         private Color _hazardKnockbackColor = new Color(0.95f, 0.36f, 0.24f, 1f);
+        private float _lastTrackLength;
+        private float _lastTrackHalfWidth;
 
         public LevelBuildResult Generate(int levelIndex)
         {
@@ -230,6 +232,7 @@ namespace MultiplyRush
             _activeLevelIndex = safeLevel;
             _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
             _effectiveTrackHalfWidth = Mathf.Max(trackHalfWidth, _effectiveLaneSpacing + laneToEdgePadding);
+            ApplyGraphicsQualitySettings(backdropQuality);
             DecayLanePressureTowardNeutral();
             EnsureRoots();
             PrewarmGatePool();
@@ -281,6 +284,25 @@ namespace MultiplyRush
             _lanePressure[1] = Mathf.Lerp(_lanePressure[1], targetCenter, blend);
             _lanePressure[2] = Mathf.Lerp(_lanePressure[2], targetRight, blend);
             NormalizeLanePressure();
+        }
+
+        public void ApplyGraphicsFidelity(BackdropQuality quality, bool refreshDecor = true)
+        {
+            backdropQuality = quality;
+            ApplyGraphicsQualitySettings(backdropQuality);
+
+            if (!refreshDecor || _lastTrackLength <= 0.1f || _lastTrackHalfWidth <= 0.1f)
+            {
+                return;
+            }
+
+            EnsureRoots();
+            BuildTrackDecor(_lastTrackLength, _lastTrackHalfWidth);
+        }
+
+        public BackdropQuality GetGraphicsFidelity()
+        {
+            return backdropQuality;
         }
 
         private void Update()
@@ -364,6 +386,8 @@ namespace MultiplyRush
             }
 
             var length = finishZ + 24f;
+            _lastTrackLength = length;
+            _lastTrackHalfWidth = effectiveTrackHalfWidth;
             trackVisual.position = new Vector3(0f, -0.55f, length * 0.5f);
             trackVisual.localScale = new Vector3(effectiveTrackHalfWidth * 2.5f, 1f, length);
             ApplyTrackColor();
@@ -679,6 +703,50 @@ namespace MultiplyRush
                     return 1.2f;
                 }
             }
+        }
+
+        private static void ApplyGraphicsQualitySettings(BackdropQuality quality)
+        {
+            var resolved = quality;
+            if (resolved == BackdropQuality.Auto)
+            {
+                resolved = ResolveAutoQuality();
+            }
+
+            switch (resolved)
+            {
+                case BackdropQuality.Low:
+                    QualitySettings.antiAliasing = 0;
+                    QualitySettings.lodBias = 0.65f;
+                    break;
+                case BackdropQuality.Medium:
+                    QualitySettings.antiAliasing = 2;
+                    QualitySettings.lodBias = 0.9f;
+                    break;
+                case BackdropQuality.High:
+                    QualitySettings.antiAliasing = 4;
+                    QualitySettings.lodBias = 1.15f;
+                    break;
+            }
+        }
+
+        private static BackdropQuality ResolveAutoQuality()
+        {
+            var systemMemory = Mathf.Max(1, SystemInfo.systemMemorySize);
+            var graphicsMemory = SystemInfo.graphicsMemorySize > 0 ? SystemInfo.graphicsMemorySize : (systemMemory / 2);
+            var cores = Mathf.Max(1, SystemInfo.processorCount);
+
+            if (graphicsMemory < 1400 || systemMemory < 3000 || cores <= 4)
+            {
+                return BackdropQuality.Low;
+            }
+
+            if (graphicsMemory < 2600 || systemMemory < 5000 || cores <= 6)
+            {
+                return BackdropQuality.Medium;
+            }
+
+            return BackdropQuality.High;
         }
 
         private void EnsureRails()

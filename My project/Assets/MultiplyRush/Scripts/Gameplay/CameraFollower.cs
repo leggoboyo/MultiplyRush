@@ -18,12 +18,20 @@ namespace MultiplyRush
         public float horizontalFollowFactor = 0.44f;
         public float horizontalLookFactor = 0.24f;
         public float maxHorizontalCameraOffset = 1.6f;
+        [Range(0f, 1f)]
+        public float minimumMotionIntensity = 0.1f;
 
         private Camera _camera;
         private Vector3 _smoothedLookOffset;
         private bool _hasLastTargetPosition;
         private Vector3 _lastTargetPosition;
         private float _currentRoll;
+        private float _baseRollByLateralVelocity;
+        private float _baseMaxRollDegrees;
+        private float _baseHorizontalFollowFactor;
+        private float _baseHorizontalLookFactor;
+        private float _baseMaxHorizontalCameraOffset;
+        private float _motionIntensity = 1f;
 
         private void Awake()
         {
@@ -40,6 +48,12 @@ namespace MultiplyRush
             horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.26f, 0.5f);
             horizontalLookFactor = Mathf.Clamp(horizontalLookFactor, 0.12f, 0.3f);
             maxHorizontalCameraOffset = Mathf.Clamp(maxHorizontalCameraOffset, 0.9f, 1.9f);
+            _baseRollByLateralVelocity = rollByLateralVelocity;
+            _baseMaxRollDegrees = maxRollDegrees;
+            _baseHorizontalFollowFactor = horizontalFollowFactor;
+            _baseHorizontalLookFactor = horizontalLookFactor;
+            _baseMaxHorizontalCameraOffset = maxHorizontalCameraOffset;
+            SetMotionIntensity(ProgressionStore.GetCameraMotionIntensity(0.35f));
         }
 
         private void LateUpdate()
@@ -99,6 +113,23 @@ namespace MultiplyRush
                 var fovTarget = Mathf.Lerp(baseFieldOfView, maxFieldOfView, speed01);
                 _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fovTarget, lookBlend);
             }
+        }
+
+        public void SetMotionIntensity(float intensity01)
+        {
+            _motionIntensity = Mathf.Clamp01(intensity01);
+            var intensity = Mathf.Lerp(minimumMotionIntensity, 1f, _motionIntensity);
+
+            rollByLateralVelocity = _baseRollByLateralVelocity * Mathf.Lerp(0.2f, 1f, intensity);
+            maxRollDegrees = _baseMaxRollDegrees * Mathf.Lerp(0.22f, 1f, intensity);
+            horizontalFollowFactor = _baseHorizontalFollowFactor * Mathf.Lerp(0.35f, 1f, intensity);
+            horizontalLookFactor = _baseHorizontalLookFactor * Mathf.Lerp(0.32f, 1f, intensity);
+            maxHorizontalCameraOffset = _baseMaxHorizontalCameraOffset * Mathf.Lerp(0.4f, 1f, intensity);
+        }
+
+        public float GetMotionIntensity01()
+        {
+            return _motionIntensity;
         }
     }
 }
