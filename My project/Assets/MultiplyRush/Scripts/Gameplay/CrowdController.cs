@@ -16,6 +16,7 @@ namespace MultiplyRush
         [Header("Count")]
         public int minCount = 1;
         public int maxVisibleUnits = 150;
+        public int initialPoolSize = 60;
 
         [Header("Formation")]
         public Transform formationRoot;
@@ -66,6 +67,8 @@ namespace MultiplyRush
                 _poolRoot = new GameObject("SoldierPool").transform;
                 _poolRoot.SetParent(transform, false);
             }
+
+            PrewarmPool();
 
             var body = GetComponent<Rigidbody>();
             body.useGravity = false;
@@ -204,6 +207,11 @@ namespace MultiplyRush
                 return _unitPool.Pop();
             }
 
+            return CreateUnitInstance();
+        }
+
+        private Transform CreateUnitInstance()
+        {
             if (soldierUnitPrefab == null)
             {
                 var fallback = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -249,6 +257,16 @@ namespace MultiplyRush
                 var x = (column - centeredOffset) * unitSpacingX;
                 var z = -row * unitSpacingZ;
                 _activeUnits[i].localPosition = new Vector3(x, unitYOffset, z);
+            }
+        }
+
+        private void PrewarmPool()
+        {
+            var prewarmCount = Mathf.Max(0, initialPoolSize);
+            for (var i = 0; i < prewarmCount; i++)
+            {
+                var unit = CreateUnitInstance();
+                ReturnUnitToPool(unit);
             }
         }
     }

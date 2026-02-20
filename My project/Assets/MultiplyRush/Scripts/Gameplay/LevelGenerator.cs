@@ -39,6 +39,7 @@ namespace MultiplyRush
         public int baseStartCount = 20;
         public float baseForwardSpeed = 8f;
         public float maxForwardSpeed = 12.5f;
+        public int initialGatePoolSize = 120;
 
         private readonly List<Gate> _activeGates = new List<Gate>(128);
         private readonly Stack<Gate> _gatePool = new Stack<Gate>(128);
@@ -46,16 +47,18 @@ namespace MultiplyRush
         private FinishLine _activeFinish;
         private float _effectiveLaneSpacing;
         private float _effectiveTrackHalfWidth;
+        private bool _gatePoolPrewarmed;
 
         public LevelBuildResult Generate(int levelIndex)
         {
             var safeLevel = Mathf.Max(1, levelIndex);
             _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
             _effectiveTrackHalfWidth = Mathf.Max(trackHalfWidth, _effectiveLaneSpacing + laneToEdgePadding);
+            EnsureRoots();
+            PrewarmGatePool();
             var generated = BuildDefinition(safeLevel);
 
             ClearGeneratedObjects();
-            EnsureRoots();
             BuildTrackVisual(generated.finishZ, _effectiveTrackHalfWidth);
             SpawnGates(generated.rows);
             SpawnFinish(generated.finishZ, generated.enemyCount);
@@ -174,6 +177,24 @@ namespace MultiplyRush
             }
 
             return Instantiate(gatePrefab, gateRoot);
+        }
+
+        private void PrewarmGatePool()
+        {
+            if (_gatePoolPrewarmed || gatePrefab == null)
+            {
+                return;
+            }
+
+            var targetCount = Mathf.Max(0, initialGatePoolSize);
+            for (var i = 0; i < targetCount; i++)
+            {
+                var gate = Instantiate(gatePrefab, gateRoot);
+                gate.gameObject.SetActive(false);
+                _gatePool.Push(gate);
+            }
+
+            _gatePoolPrewarmed = true;
         }
 
         private float LaneToX(int lane)

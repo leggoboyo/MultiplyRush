@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -6,14 +7,35 @@ namespace MultiplyRush
     public sealed class TouchDragInput : MonoBehaviour
     {
         private bool _isDraggingFromCurrentPress;
+        private bool _wasPointerDownLastFrame;
         private float _lastX;
+
+        public event Action DragStarted;
+        public event Action DragEnded;
+
+        public bool IsPointerDown => _wasPointerDownLastFrame;
 
         public float GetHorizontalDeltaNormalized()
         {
             var hasPointer = TryGetPrimaryPointerX(out var pointerX);
             if (!hasPointer)
             {
+                if (_wasPointerDownLastFrame)
+                {
+                    DragEnded?.Invoke();
+                }
+
+                _wasPointerDownLastFrame = false;
                 _isDraggingFromCurrentPress = false;
+                return 0f;
+            }
+
+            if (!_wasPointerDownLastFrame)
+            {
+                _wasPointerDownLastFrame = true;
+                _isDraggingFromCurrentPress = true;
+                _lastX = pointerX;
+                DragStarted?.Invoke();
                 return 0f;
             }
 

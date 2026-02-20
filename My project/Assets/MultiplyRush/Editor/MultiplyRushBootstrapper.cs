@@ -301,6 +301,7 @@ public static class MultiplyRushBootstrapper
         gateRoot.SetParent(levelRoot, false);
 
         var systems = new GameObject("GameSystems");
+        systems.AddComponent<DeviceRuntimeSettings>();
         var levelGenerator = systems.AddComponent<LevelGenerator>();
         var gameManager = systems.AddComponent<GameManager>();
 
@@ -317,8 +318,11 @@ public static class MultiplyRushBootstrapper
         crowdStartPoint.position = Vector3.zero;
 
         var canvas = CreateCanvas("GameCanvas");
-        var hud = CreateHUD(canvas.transform);
-        var overlay = CreateResultOverlay(canvas.transform);
+        var safeAreaRoot = CreateSafeAreaRoot(canvas.transform, "SafeArea");
+        var hud = CreateHUD(safeAreaRoot);
+        var overlay = CreateResultOverlay(safeAreaRoot);
+        var dragHint = CreateDragHint(safeAreaRoot);
+        dragHint.dragInput = playerInstance.GetComponent<TouchDragInput>();
 
         gameManager.levelGenerator = levelGenerator;
         gameManager.playerCrowd = crowdController;
@@ -348,18 +352,20 @@ public static class MultiplyRushBootstrapper
         EnsureEventSystem();
 
         var canvas = CreateCanvas("MainMenuCanvas");
+        var safeAreaRoot = CreateSafeAreaRoot(canvas.transform, "SafeArea");
         var background = CreateImage(canvas.transform, "Background", new Color(0.08f, 0.09f, 0.12f, 1f));
         StretchToFull(background.rectTransform);
 
-        CreateText(canvas.transform, "Title", "Multiply Rush", 96, TextAnchor.MiddleCenter,
+        CreateText(safeAreaRoot, "Title", "Multiply Rush", 96, TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.78f), new Vector2(0.5f, 0.78f), Vector2.zero, new Vector2(900f, 180f));
 
-        var bestLevelText = CreateText(canvas.transform, "BestLevel", "Best Level: 1", 48, TextAnchor.MiddleCenter,
+        var bestLevelText = CreateText(safeAreaRoot, "BestLevel", "Best Level: 1", 48, TextAnchor.MiddleCenter,
             new Vector2(0.5f, 0.62f), new Vector2(0.5f, 0.62f), Vector2.zero, new Vector2(700f, 90f));
 
-        var playButton = CreateButton(canvas.transform, "PlayButton", "Play", new Vector2(420f, 120f), new Vector2(0.5f, 0.45f));
+        var playButton = CreateButton(safeAreaRoot, "PlayButton", "Play", new Vector2(420f, 120f), new Vector2(0.5f, 0.45f));
 
         var controllerGo = new GameObject("MainMenuController");
+        controllerGo.AddComponent<DeviceRuntimeSettings>();
         var controller = controllerGo.AddComponent<MainMenuController>();
         controller.bestLevelText = bestLevelText;
         controller.gameSceneName = "Game";
@@ -406,6 +412,40 @@ public static class MultiplyRushBootstrapper
         scaler.matchWidthOrHeight = 0.5f;
 
         return canvas;
+    }
+
+    private static Transform CreateSafeAreaRoot(Transform parent, string name)
+    {
+        var safeAreaGo = new GameObject(name, typeof(RectTransform), typeof(SafeAreaFitter));
+        safeAreaGo.transform.SetParent(parent, false);
+        var safeAreaRect = safeAreaGo.GetComponent<RectTransform>();
+        StretchToFull(safeAreaRect);
+        return safeAreaGo.transform;
+    }
+
+    private static DragHintController CreateDragHint(Transform parent)
+    {
+        var root = new GameObject("DragHint", typeof(RectTransform), typeof(DragHintController));
+        root.transform.SetParent(parent, false);
+
+        var rect = root.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, 64f);
+        rect.sizeDelta = new Vector2(680f, 96f);
+
+        var background = CreateImage(root.transform, "BG", new Color(0f, 0f, 0f, 0.48f));
+        StretchToFull(background.rectTransform);
+
+        var text = CreateText(root.transform, "HintText", "Drag left/right to steer", 38, TextAnchor.MiddleCenter,
+            new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+        text.color = new Color(0.95f, 0.95f, 0.98f, 1f);
+
+        var hint = root.GetComponent<DragHintController>();
+        hint.rootPanel = root;
+        hint.hintText = text;
+        return hint;
     }
 
     private static HUDController CreateHUD(Transform parent)

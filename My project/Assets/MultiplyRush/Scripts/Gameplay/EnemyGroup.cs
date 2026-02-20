@@ -10,6 +10,7 @@ namespace MultiplyRush
         public Transform unitsRoot;
         public TextMesh countLabel;
         public int maxVisibleUnits = 120;
+        public int initialPoolSize = 70;
         public int maxColumns = 10;
         public float spacingX = 0.55f;
         public float spacingZ = 0.55f;
@@ -35,6 +36,8 @@ namespace MultiplyRush
                 _poolRoot = new GameObject("EnemyPool").transform;
                 _poolRoot.SetParent(transform, false);
             }
+
+            PrewarmPool();
         }
 
         public void SetCount(int count)
@@ -72,6 +75,11 @@ namespace MultiplyRush
                 return _pool.Pop();
             }
 
+            return CreateUnitInstance();
+        }
+
+        private Transform CreateUnitInstance()
+        {
             if (enemyUnitPrefab == null)
             {
                 var fallback = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -117,6 +125,16 @@ namespace MultiplyRush
                 var x = (column - centeredOffset) * spacingX;
                 var z = row * spacingZ;
                 _activeUnits[i].localPosition = new Vector3(x, 0f, z);
+            }
+        }
+
+        private void PrewarmPool()
+        {
+            var prewarmCount = Mathf.Max(0, initialPoolSize);
+            for (var i = 0; i < prewarmCount; i++)
+            {
+                var unit = CreateUnitInstance();
+                ReturnUnit(unit);
             }
         }
     }

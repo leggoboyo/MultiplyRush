@@ -4,14 +4,29 @@ namespace MultiplyRush
 {
     public sealed class GameManager : MonoBehaviour
     {
+        [Header("References")]
         public CrowdController playerCrowd;
         public LevelGenerator levelGenerator;
         public HUDController hud;
         public ResultOverlayController resultsOverlay;
         public Transform crowdStartPoint;
 
+        [Header("Flow")]
+        [Range(0f, 1f)]
+        public float resultInputDelaySeconds = 0.2f;
+
+        private enum GameFlowState
+        {
+            Booting,
+            Transitioning,
+            Running,
+            ShowingResult
+        }
+
         private int _currentLevelIndex;
         private bool _roundActive;
+        private GameFlowState _state = GameFlowState.Booting;
+        private float _resultShownAt;
 
         private void Awake()
         {
@@ -67,6 +82,7 @@ namespace MultiplyRush
                 return;
             }
 
+            _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
             var build = levelGenerator.Generate(_currentLevelIndex);
 
@@ -86,6 +102,7 @@ namespace MultiplyRush
             }
 
             _roundActive = true;
+            _state = GameFlowState.Running;
         }
 
         private void OnCountChanged(int count)
@@ -98,6 +115,11 @@ namespace MultiplyRush
 
         private void OnFinishReached(int enemyCount)
         {
+            if (_state != GameFlowState.Running)
+            {
+                return;
+            }
+
             _roundActive = false;
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
             var didWin = playerCount >= enemyCount;
@@ -111,16 +133,40 @@ namespace MultiplyRush
             {
                 resultsOverlay.ShowResult(didWin, _currentLevelIndex, playerCount, enemyCount);
             }
+
+            _resultShownAt = Time.unscaledTime;
+            _state = GameFlowState.ShowingResult;
         }
 
         private void RetryLevel()
         {
+            if (!CanAcceptResultInput())
+            {
+                return;
+            }
+
             StartLevel(_currentLevelIndex);
         }
 
         private void NextLevel()
         {
+            if (!CanAcceptResultInput())
+            {
+                return;
+            }
+
             StartLevel(_currentLevelIndex + 1);
+        }
+
+        private bool CanAcceptResultInput()
+        {
+            if (_state != GameFlowState.ShowingResult)
+            {
+                return false;
+            }
+
+            var delay = Mathf.Max(0f, resultInputDelaySeconds);
+            return Time.unscaledTime >= _resultShownAt + delay;
         }
     }
 }

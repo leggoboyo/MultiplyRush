@@ -15,6 +15,14 @@ Project root: `My project/`
    - reach finish to WIN/LOSE,
    - use `Next Level` or `Retry`.
 
+## Release-Readiness Foundation (current)
+- Safe-area aware UI (notch support)
+- First-run drag hint onboarding
+- Input System-native controls and UI input module
+- Pool prewarm for crowd/enemy/gates to reduce spawn hitches
+- Stronger run/result state guards
+- Mobile runtime defaults: frame cap + no sleep timeout
+
 ## Design Constraints
 - Offline only
 - No ads
