@@ -38,6 +38,15 @@ namespace MultiplyRush
         public float consumeDuration = 0.12f;
         public float consumeSpinDegrees = 220f;
 
+        [Header("Motion")]
+        public bool enableHorizontalMotion;
+        public float horizontalAmplitude = 0.2f;
+        public float horizontalSpeed = 1f;
+        public float horizontalPhase;
+        public float laneCenterX;
+        public float laneMinX;
+        public float laneMaxX;
+
         private BoxCollider _trigger;
         private MaterialPropertyBlock _materialBlock;
         private bool _isConsumed;
@@ -73,17 +82,35 @@ namespace MultiplyRush
 
             _trigger.enabled = true;
             _baseY = transform.position.y;
+            laneCenterX = transform.position.x;
             transform.localScale = _rootBaseScale;
             transform.rotation = Quaternion.identity;
             NormalizeLayout();
             RefreshVisuals();
         }
 
-        public void Configure(GateOperation gateOperation, int gateValue, int gateRowId)
+        public void Configure(
+            GateOperation gateOperation,
+            int gateValue,
+            int gateRowId,
+            bool allowHorizontalMotion,
+            float motionAmplitude,
+            float motionSpeed,
+            float motionPhase,
+            float centerX,
+            float minX,
+            float maxX)
         {
             operation = gateOperation;
             value = Mathf.Max(1, gateValue);
             rowId = gateRowId;
+            enableHorizontalMotion = allowHorizontalMotion;
+            horizontalAmplitude = Mathf.Max(0f, motionAmplitude);
+            horizontalSpeed = Mathf.Max(0.1f, motionSpeed);
+            horizontalPhase = motionPhase;
+            laneCenterX = centerX;
+            laneMinX = Mathf.Min(minX, maxX);
+            laneMaxX = Mathf.Max(minX, maxX);
             _isConsumed = false;
             _isConsuming = false;
             _consumeElapsed = 0f;
@@ -193,11 +220,11 @@ namespace MultiplyRush
             {
                 _trigger.isTrigger = true;
                 _trigger.center = new Vector3(0f, 1f, 0f);
-                var safeHitboxWidth = Mathf.Max(1.7f, hitboxWidth);
+                var safeHitboxWidth = Mathf.Max(1.2f, hitboxWidth);
                 _trigger.size = new Vector3(safeHitboxWidth, hitboxHeight, hitboxDepth);
             }
 
-            var safePanelWidth = Mathf.Max(1.9f, panelWidth);
+            var safePanelWidth = Mathf.Max(1.4f, panelWidth);
             var postOffset = (safePanelWidth * 0.5f) + 0.16f;
             if (_leftPost != null)
             {
@@ -279,6 +306,17 @@ namespace MultiplyRush
             var pulse = 1f + Mathf.Sin(phase * 2.25f) * idlePulseAmplitude;
 
             var position = transform.position;
+            if (enableHorizontalMotion)
+            {
+                var horizontalPhaseValue = (runTime * horizontalSpeed) + horizontalPhase;
+                var x = laneCenterX + (Mathf.Sin(horizontalPhaseValue) * horizontalAmplitude);
+                position.x = Mathf.Clamp(x, laneMinX, laneMaxX);
+            }
+            else
+            {
+                position.x = laneCenterX;
+            }
+
             position.y = _baseY + Mathf.Sin(phase) * idleFloatAmplitude;
             transform.position = position;
 

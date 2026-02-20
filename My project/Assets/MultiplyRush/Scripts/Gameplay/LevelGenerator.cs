@@ -47,6 +47,35 @@ namespace MultiplyRush
         public int baseStartCount = 20;
         public float baseForwardSpeed = 8f;
         public float maxForwardSpeed = 12.5f;
+        public float forwardSpeedPerLevel = 0.035f;
+        public bool useForwardSpeedCap = false;
+
+        [Header("Enemy Formula")]
+        public int enemyFormulaBase = 26;
+        public float enemyFormulaLinear = 6.2f;
+        public float enemyFormulaPowerMultiplier = 1.65f;
+        public float enemyFormulaPower = 1.09f;
+        [Range(0.4f, 0.98f)]
+        public float enemyMaxFractionOfBestPath = 0.9f;
+        [Range(0.1f, 0.8f)]
+        public float enemyMinFractionOfBestPath = 0.34f;
+
+        [Header("Gate Difficulty")]
+        [Range(0f, 0.2f)]
+        public float gateDifficultyRamp = 0.028f;
+        public float gateWidthAtStart = 2.15f;
+        public float gateWidthAtHighDifficulty = 1.3f;
+        public float panelWidthAtStart = 2.2f;
+        public float panelWidthAtHighDifficulty = 1.6f;
+        [Range(0f, 1f)]
+        public float movingGateChanceAtStart = 0f;
+        [Range(0f, 1f)]
+        public float movingGateChanceAtHighDifficulty = 0.75f;
+        public float movingGateAmplitudeAtStart = 0.12f;
+        public float movingGateAmplitudeAtHighDifficulty = 1.05f;
+        public float movingGateSpeedAtStart = 1.1f;
+        public float movingGateSpeedAtHighDifficulty = 2.8f;
+
         public int initialGatePoolSize = 120;
 
         [Header("Track Decor")]
@@ -126,7 +155,7 @@ namespace MultiplyRush
 
             ClearGeneratedObjects();
             BuildTrackVisual(generated.finishZ, _effectiveTrackHalfWidth);
-            SpawnGates(generated.rows);
+            SpawnGates(generated.rows, generated.gateDifficulty01);
             SpawnFinish(generated.finishZ, generated.enemyCount);
 
             return new LevelBuildResult
@@ -766,8 +795,14 @@ namespace MultiplyRush
             return material;
         }
 
-        private void SpawnGates(List<GateRow> rows)
+        private void SpawnGates(List<GateRow> rows, float gateDifficulty01)
         {
+            var hitboxWidth = Mathf.Lerp(gateWidthAtStart, gateWidthAtHighDifficulty, gateDifficulty01);
+            var panelWidth = Mathf.Lerp(panelWidthAtStart, panelWidthAtHighDifficulty, gateDifficulty01);
+            var edgePadding = 0.95f;
+            var trackMinX = -_effectiveTrackHalfWidth + edgePadding;
+            var trackMaxX = _effectiveTrackHalfWidth - edgePadding;
+
             for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
@@ -775,9 +810,29 @@ namespace MultiplyRush
                 {
                     var gateSpec = row.gates[j];
                     var gate = GetGate();
-                    gate.transform.position = new Vector3(LaneToX(gateSpec.lane), 0f, row.z);
+                    var laneCenterX = LaneToX(gateSpec.lane);
+                    var sideLimit = gateSpec.lane == 1 ? _effectiveLaneSpacing * 0.62f : _effectiveLaneSpacing * 0.34f;
+                    var laneMinX = Mathf.Clamp(laneCenterX - sideLimit, trackMinX, trackMaxX);
+                    var laneMaxX = Mathf.Clamp(laneCenterX + sideLimit, trackMinX, trackMaxX);
+                    var maxAmplitude = Mathf.Min(Mathf.Abs(laneCenterX - laneMinX), Mathf.Abs(laneMaxX - laneCenterX));
+                    var moveAmplitude = Mathf.Clamp(gateSpec.moveAmplitude, 0f, maxAmplitude);
+
+                    gate.hitboxWidth = hitboxWidth;
+                    gate.panelWidth = panelWidth;
+
+                    gate.transform.position = new Vector3(laneCenterX, 0f, row.z);
                     gate.transform.rotation = Quaternion.identity;
-                    gate.Configure(gateSpec.operation, gateSpec.value, i);
+                    gate.Configure(
+                        gateSpec.operation,
+                        gateSpec.value,
+                        i,
+                        gateSpec.movesHorizontally,
+                        moveAmplitude,
+                        gateSpec.moveSpeed,
+                        gateSpec.movePhase,
+                        laneCenterX,
+                        laneMinX,
+                        laneMaxX);
                     gate.gameObject.SetActive(true);
                     _activeGates.Add(gate);
                 }
@@ -882,10 +937,11 @@ namespace MultiplyRush
         private GeneratedLevel BuildDefinition(int levelIndex)
         {
             var random = new System.Random(9143 + levelIndex * 101);
+            var gateDifficulty01 = EvaluateGateDifficulty(levelIndex);
             var generated = new GeneratedLevel
             {
                 startCount = Mathf.Clamp(baseStartCount + (levelIndex / 2), baseStartCount, 80),
-                forwardSpeed = Mathf.Min(maxForwardSpeed, baseForwardSpeed + levelIndex * 0.06f)
+                forwardSpeed = CalculateForwardSpeed(levelIndex)
             };
 
             var rowCount = Mathf.Clamp(8 + levelIndex, 8, 40);
@@ -909,11 +965,20 @@ namespace MultiplyRush
                 {
                     var gateOperation = PickOperation(random, badGateChance, levelIndex);
                     var gateValue = PickGateValue(random, gateOperation, addBase, subtractBase, levelIndex);
+                    var lane = laneOrder[gateIndex];
+                    var moveChance = Mathf.Lerp(movingGateChanceAtStart, movingGateChanceAtHighDifficulty, gateDifficulty01);
+                    var movesHorizontally = random.NextDouble() < moveChance;
+                    var moveAmplitude = Mathf.Lerp(movingGateAmplitudeAtStart, movingGateAmplitudeAtHighDifficulty, gateDifficulty01);
+                    var moveSpeed = Mathf.Lerp(movingGateSpeedAtStart, movingGateSpeedAtHighDifficulty, gateDifficulty01);
                     row.gates.Add(new GateSpec
                     {
-                        lane = laneOrder[gateIndex],
+                        lane = lane,
                         operation = gateOperation,
-                        value = gateValue
+                        value = gateValue,
+                        movesHorizontally = movesHorizontally,
+                        moveAmplitude = movesHorizontally ? moveAmplitude : 0f,
+                        moveSpeed = movesHorizontally ? moveSpeed : 0f,
+                        movePhase = (float)random.NextDouble() * Mathf.PI * 2f
                     });
                 }
 
@@ -922,8 +987,28 @@ namespace MultiplyRush
 
             generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
             generated.enemyCount = BuildEnemyCount(levelIndex, generated.startCount, generated.rows);
+            generated.gateDifficulty01 = gateDifficulty01;
 
             return generated;
+        }
+
+        private float CalculateForwardSpeed(int levelIndex)
+        {
+            var level = Mathf.Max(1, levelIndex);
+            var speed = baseForwardSpeed + ((level - 1) * Mathf.Max(0f, forwardSpeedPerLevel));
+            if (useForwardSpeedCap && maxForwardSpeed > 0f)
+            {
+                speed = Mathf.Min(maxForwardSpeed, speed);
+            }
+
+            return speed;
+        }
+
+        private float EvaluateGateDifficulty(int levelIndex)
+        {
+            var safeLevel = Mathf.Max(1, levelIndex);
+            var ramp = Mathf.Max(0.0001f, gateDifficultyRamp);
+            return 1f - Mathf.Exp(-(safeLevel - 1) * ramp);
         }
 
         private static int[] BuildShuffledLanes(System.Random random)
@@ -989,14 +1074,18 @@ namespace MultiplyRush
             }
         }
 
-        private static int BuildEnemyCount(int levelIndex, int startCount, List<GateRow> rows)
+        private int BuildEnemyCount(int levelIndex, int startCount, List<GateRow> rows)
         {
             var expectedBest = EstimateBestCaseCount(startCount, rows);
-            var baseline = 24 + (levelIndex * 7) + Mathf.FloorToInt(Mathf.Pow(levelIndex, 1.12f));
+            var safeLevel = Mathf.Max(1, levelIndex);
+            var formulaTarget = enemyFormulaBase +
+                                Mathf.FloorToInt((safeLevel - 1) * enemyFormulaLinear) +
+                                Mathf.FloorToInt(enemyFormulaPowerMultiplier * Mathf.Pow(safeLevel, enemyFormulaPower));
 
-            var clampedToBest = Mathf.Min(baseline, Mathf.FloorToInt(expectedBest * 0.86f));
-            var floor = Mathf.Max(startCount + 5, Mathf.FloorToInt(expectedBest * 0.35f));
-            var enemyCount = Mathf.Clamp(clampedToBest, floor, Mathf.Max(floor, expectedBest - 1));
+            var floor = Mathf.Max(startCount + 4, Mathf.FloorToInt(expectedBest * enemyMinFractionOfBestPath));
+            var capByBestPath = Mathf.FloorToInt(expectedBest * enemyMaxFractionOfBestPath);
+            var ceiling = Mathf.Max(floor, capByBestPath);
+            var enemyCount = Mathf.Clamp(formulaTarget, floor, Mathf.Max(floor, ceiling));
 
             if (enemyCount >= expectedBest)
             {
@@ -1053,6 +1142,10 @@ namespace MultiplyRush
             public int lane;
             public GateOperation operation;
             public int value;
+            public bool movesHorizontally;
+            public float moveAmplitude;
+            public float moveSpeed;
+            public float movePhase;
         }
 
         [Serializable]
@@ -1068,6 +1161,7 @@ namespace MultiplyRush
             public int enemyCount;
             public float finishZ;
             public float forwardSpeed;
+            public float gateDifficulty01;
             public List<GateRow> rows;
         }
     }
