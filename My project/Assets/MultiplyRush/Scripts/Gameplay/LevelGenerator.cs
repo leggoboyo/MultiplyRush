@@ -1163,33 +1163,31 @@ namespace MultiplyRush
 
         private void UpdateDynamicPalette(int levelIndex, bool isMiniBoss)
         {
-            var levelHue = Mathf.Repeat(0.56f + (levelIndex * 0.037f), 1f);
-            if (isMiniBoss)
-            {
-                levelHue = Mathf.Repeat(levelHue + 0.13f, 1f);
-            }
+            var theme = ResolveTheme(levelIndex);
+            var bandProgress = ((Mathf.Max(1, levelIndex) - 1) % 10) / 9f;
+            var pulse = 0.95f + Mathf.Sin((levelIndex - 1) * 0.55f) * 0.05f;
 
-            _trackColor = Color.HSVToRGB(levelHue, 0.36f, isMiniBoss ? 0.31f : 0.26f);
-            stripeColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.09f, 1f), 0.78f, 0.98f);
-            railColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.06f, 1f), 0.48f, 0.31f);
-            backdropColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.04f, 1f), 0.38f, 0.46f);
-            cloudColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.02f, 1f), 0.14f, 1f);
+            _trackColor = ScaleColor(theme.trackColor, Mathf.Lerp(0.94f, 1.04f, bandProgress));
+            stripeColor = ScaleColor(theme.stripeColor, pulse);
+            railColor = ScaleColor(theme.railColor, 0.96f + (bandProgress * 0.05f));
+            backdropColor = ScaleColor(theme.backdropColor, 0.94f + (bandProgress * 0.08f));
+            cloudColor = theme.cloudColor;
             cloudColor.a = 0.9f;
-            beaconPoleColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.01f, 1f), 0.42f, 0.24f);
-            beaconCoreColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.28f, 1f), 0.64f, 1f);
+            beaconPoleColor = ScaleColor(theme.beaconPoleColor, 0.95f + (bandProgress * 0.04f));
+            beaconCoreColor = ScaleColor(theme.beaconCoreColor, 1f + (bandProgress * 0.12f));
 
-            _gatePositiveColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.24f, 1f), 0.72f, 0.92f);
-            _gateNegativeColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.02f, 1f), 0.74f, 0.93f);
-            _hazardSlowColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.16f, 1f), 0.68f, 0.96f);
-            _hazardKnockbackColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.08f, 1f), 0.72f, 0.95f);
+            _gatePositiveColor = ScaleColor(theme.gatePositiveColor, 0.98f + (bandProgress * 0.06f));
+            _gateNegativeColor = ScaleColor(theme.gateNegativeColor, 1f + (bandProgress * 0.05f));
+            _hazardSlowColor = ScaleColor(theme.hazardSlowColor, 1f + (bandProgress * 0.05f));
+            _hazardKnockbackColor = ScaleColor(theme.hazardKnockbackColor, 1f + (bandProgress * 0.08f));
 
             if (isMiniBoss)
             {
-                _gatePositiveColor *= 1.06f;
-                _gateNegativeColor *= 1.08f;
-                _hazardSlowColor *= 1.08f;
-                _hazardKnockbackColor *= 1.1f;
-                beaconCoreColor *= 1.18f;
+                _gatePositiveColor = ScaleColor(_gatePositiveColor, 1.08f);
+                _gateNegativeColor = ScaleColor(_gateNegativeColor, 1.1f);
+                _hazardSlowColor = ScaleColor(_hazardSlowColor, 1.08f);
+                _hazardKnockbackColor = ScaleColor(_hazardKnockbackColor, 1.12f);
+                beaconCoreColor = ScaleColor(beaconCoreColor, 1.18f);
             }
 
             ApplyMaterialColor(_stripeMaterial, stripeColor, 0.42f, 0.44f);
@@ -1197,8 +1195,50 @@ namespace MultiplyRush
             ApplyMaterialColor(_backdropMaterial, backdropColor, 0.08f, 0.08f);
             ApplyMaterialColor(_cloudMaterial, cloudColor, 0.22f, 0.2f);
             ApplyMaterialColor(_beaconPoleMaterial, beaconPoleColor, 0.2f, 0.05f);
-            ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor, 0.66f, 0.9f);
+            ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor, 0.66f, 0.95f);
             ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f, 0.36f);
+
+            SceneVisualTuning.ApplyLevelTheme(
+                theme.skyTint,
+                theme.groundTint,
+                theme.fogColor,
+                theme.fogDensity,
+                theme.skyExposure,
+                theme.atmosphereThickness,
+                theme.ambientSky,
+                theme.ambientEquator,
+                theme.ambientGround,
+                theme.sunColor,
+                theme.sunIntensity);
+        }
+
+        private static Color ScaleColor(Color color, float multiplier)
+        {
+            return new Color(
+                Mathf.Clamp01(color.r * multiplier),
+                Mathf.Clamp01(color.g * multiplier),
+                Mathf.Clamp01(color.b * multiplier),
+                color.a);
+        }
+
+        private static ThemeDefinition ResolveTheme(int levelIndex)
+        {
+            var themeIndex = ((Mathf.Max(1, levelIndex) - 1) / 10) % 6;
+            switch (themeIndex)
+            {
+                case 0:
+                    return ThemeDefinition.MetroDawn();
+                case 1:
+                    return ThemeDefinition.SunsetDunes();
+                case 2:
+                    return ThemeDefinition.AuroraIce();
+                case 3:
+                    return ThemeDefinition.VolcanicRift();
+                case 4:
+                    return ThemeDefinition.EmeraldVista();
+                default:
+                    return ThemeDefinition.NeoNight();
+            }
         }
 
         private static void ApplyMaterialColor(Material material, Color color, float smoothness, float emission)
@@ -1485,13 +1525,14 @@ namespace MultiplyRush
             var gateDifficulty01 = EvaluateGateDifficulty(levelIndex);
             var isMiniBoss = miniBossEveryLevels > 0 && levelIndex % Mathf.Max(1, miniBossEveryLevels) == 0;
             var modifier = BuildModifierState(levelIndex);
+            var themeName = ResolveTheme(levelIndex).name;
 
             var generated = new GeneratedLevel
             {
                 startCount = Mathf.Clamp(baseStartCount + (levelIndex / 2) + (isMiniBoss ? 3 : 0), baseStartCount, 120),
                 forwardSpeed = CalculateForwardSpeed(levelIndex),
                 isMiniBoss = isMiniBoss,
-                modifierName = modifier.label
+                modifierName = themeName + " • " + modifier.label
             };
 
             var rowCount = isMiniBoss
@@ -2348,6 +2389,213 @@ namespace MultiplyRush
             public string modifierName;
             public List<GateRow> rows;
             public List<HazardSpec> hazards;
+        }
+
+        private struct ThemeDefinition
+        {
+            public string name;
+            public Color trackColor;
+            public Color stripeColor;
+            public Color railColor;
+            public Color backdropColor;
+            public Color cloudColor;
+            public Color beaconPoleColor;
+            public Color beaconCoreColor;
+            public Color gatePositiveColor;
+            public Color gateNegativeColor;
+            public Color hazardSlowColor;
+            public Color hazardKnockbackColor;
+            public Color skyTint;
+            public Color groundTint;
+            public Color fogColor;
+            public float fogDensity;
+            public float skyExposure;
+            public float atmosphereThickness;
+            public Color ambientSky;
+            public Color ambientEquator;
+            public Color ambientGround;
+            public Color sunColor;
+            public float sunIntensity;
+
+            public static ThemeDefinition MetroDawn()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Metro Dawn",
+                    trackColor = new Color(0.22f, 0.23f, 0.29f, 1f),
+                    stripeColor = new Color(0.96f, 0.78f, 0.28f, 1f),
+                    railColor = new Color(0.11f, 0.14f, 0.19f, 1f),
+                    backdropColor = new Color(0.28f, 0.33f, 0.42f, 1f),
+                    cloudColor = new Color(0.95f, 0.98f, 1f, 0.9f),
+                    beaconPoleColor = new Color(0.08f, 0.12f, 0.18f, 1f),
+                    beaconCoreColor = new Color(0.38f, 0.9f, 1f, 1f),
+                    gatePositiveColor = new Color(0.26f, 0.92f, 0.42f, 1f),
+                    gateNegativeColor = new Color(0.96f, 0.35f, 0.38f, 1f),
+                    hazardSlowColor = new Color(0.98f, 0.78f, 0.24f, 1f),
+                    hazardKnockbackColor = new Color(0.95f, 0.36f, 0.24f, 1f),
+                    skyTint = new Color(0.45f, 0.66f, 0.9f, 1f),
+                    groundTint = new Color(0.83f, 0.89f, 0.94f, 1f),
+                    fogColor = new Color(0.7f, 0.8f, 0.92f, 1f),
+                    fogDensity = 0.0058f,
+                    skyExposure = 1.16f,
+                    atmosphereThickness = 0.84f,
+                    ambientSky = new Color(0.62f, 0.76f, 0.92f, 1f),
+                    ambientEquator = new Color(0.37f, 0.46f, 0.58f, 1f),
+                    ambientGround = new Color(0.2f, 0.24f, 0.3f, 1f),
+                    sunColor = new Color(1f, 0.95f, 0.86f, 1f),
+                    sunIntensity = 1.34f
+                };
+            }
+
+            public static ThemeDefinition SunsetDunes()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Sunset Dunes",
+                    trackColor = new Color(0.29f, 0.19f, 0.16f, 1f),
+                    stripeColor = new Color(1f, 0.74f, 0.33f, 1f),
+                    railColor = new Color(0.17f, 0.12f, 0.11f, 1f),
+                    backdropColor = new Color(0.52f, 0.39f, 0.31f, 1f),
+                    cloudColor = new Color(1f, 0.91f, 0.84f, 0.9f),
+                    beaconPoleColor = new Color(0.18f, 0.11f, 0.1f, 1f),
+                    beaconCoreColor = new Color(1f, 0.72f, 0.38f, 1f),
+                    gatePositiveColor = new Color(0.3f, 0.92f, 0.48f, 1f),
+                    gateNegativeColor = new Color(0.98f, 0.32f, 0.3f, 1f),
+                    hazardSlowColor = new Color(1f, 0.83f, 0.3f, 1f),
+                    hazardKnockbackColor = new Color(0.97f, 0.39f, 0.24f, 1f),
+                    skyTint = new Color(0.83f, 0.56f, 0.4f, 1f),
+                    groundTint = new Color(0.95f, 0.82f, 0.7f, 1f),
+                    fogColor = new Color(0.84f, 0.65f, 0.53f, 1f),
+                    fogDensity = 0.005f,
+                    skyExposure = 1.2f,
+                    atmosphereThickness = 0.95f,
+                    ambientSky = new Color(0.88f, 0.66f, 0.5f, 1f),
+                    ambientEquator = new Color(0.57f, 0.38f, 0.3f, 1f),
+                    ambientGround = new Color(0.28f, 0.18f, 0.13f, 1f),
+                    sunColor = new Color(1f, 0.84f, 0.63f, 1f),
+                    sunIntensity = 1.26f
+                };
+            }
+
+            public static ThemeDefinition AuroraIce()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Aurora Ice",
+                    trackColor = new Color(0.15f, 0.21f, 0.28f, 1f),
+                    stripeColor = new Color(0.69f, 0.94f, 1f, 1f),
+                    railColor = new Color(0.11f, 0.16f, 0.24f, 1f),
+                    backdropColor = new Color(0.31f, 0.43f, 0.54f, 1f),
+                    cloudColor = new Color(0.92f, 0.98f, 1f, 0.9f),
+                    beaconPoleColor = new Color(0.08f, 0.16f, 0.22f, 1f),
+                    beaconCoreColor = new Color(0.48f, 1f, 0.94f, 1f),
+                    gatePositiveColor = new Color(0.32f, 1f, 0.62f, 1f),
+                    gateNegativeColor = new Color(1f, 0.38f, 0.54f, 1f),
+                    hazardSlowColor = new Color(0.88f, 0.95f, 1f, 1f),
+                    hazardKnockbackColor = new Color(0.95f, 0.47f, 0.56f, 1f),
+                    skyTint = new Color(0.37f, 0.62f, 0.87f, 1f),
+                    groundTint = new Color(0.77f, 0.9f, 0.96f, 1f),
+                    fogColor = new Color(0.67f, 0.83f, 0.93f, 1f),
+                    fogDensity = 0.0048f,
+                    skyExposure = 1.14f,
+                    atmosphereThickness = 0.78f,
+                    ambientSky = new Color(0.61f, 0.81f, 0.94f, 1f),
+                    ambientEquator = new Color(0.33f, 0.5f, 0.6f, 1f),
+                    ambientGround = new Color(0.16f, 0.25f, 0.32f, 1f),
+                    sunColor = new Color(0.9f, 0.97f, 1f, 1f),
+                    sunIntensity = 1.28f
+                };
+            }
+
+            public static ThemeDefinition VolcanicRift()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Volcanic Rift",
+                    trackColor = new Color(0.2f, 0.14f, 0.14f, 1f),
+                    stripeColor = new Color(1f, 0.5f, 0.18f, 1f),
+                    railColor = new Color(0.14f, 0.1f, 0.1f, 1f),
+                    backdropColor = new Color(0.4f, 0.24f, 0.2f, 1f),
+                    cloudColor = new Color(0.84f, 0.82f, 0.78f, 0.9f),
+                    beaconPoleColor = new Color(0.16f, 0.1f, 0.09f, 1f),
+                    beaconCoreColor = new Color(1f, 0.43f, 0.16f, 1f),
+                    gatePositiveColor = new Color(0.36f, 1f, 0.47f, 1f),
+                    gateNegativeColor = new Color(1f, 0.27f, 0.2f, 1f),
+                    hazardSlowColor = new Color(1f, 0.62f, 0.14f, 1f),
+                    hazardKnockbackColor = new Color(1f, 0.3f, 0.16f, 1f),
+                    skyTint = new Color(0.42f, 0.27f, 0.24f, 1f),
+                    groundTint = new Color(0.58f, 0.42f, 0.34f, 1f),
+                    fogColor = new Color(0.46f, 0.31f, 0.28f, 1f),
+                    fogDensity = 0.0064f,
+                    skyExposure = 1.1f,
+                    atmosphereThickness = 1.06f,
+                    ambientSky = new Color(0.5f, 0.36f, 0.32f, 1f),
+                    ambientEquator = new Color(0.35f, 0.22f, 0.18f, 1f),
+                    ambientGround = new Color(0.18f, 0.11f, 0.1f, 1f),
+                    sunColor = new Color(1f, 0.76f, 0.54f, 1f),
+                    sunIntensity = 1.24f
+                };
+            }
+
+            public static ThemeDefinition EmeraldVista()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Emerald Vista",
+                    trackColor = new Color(0.16f, 0.23f, 0.2f, 1f),
+                    stripeColor = new Color(0.98f, 0.9f, 0.33f, 1f),
+                    railColor = new Color(0.1f, 0.16f, 0.14f, 1f),
+                    backdropColor = new Color(0.26f, 0.39f, 0.31f, 1f),
+                    cloudColor = new Color(0.95f, 1f, 0.94f, 0.9f),
+                    beaconPoleColor = new Color(0.09f, 0.18f, 0.14f, 1f),
+                    beaconCoreColor = new Color(0.51f, 1f, 0.62f, 1f),
+                    gatePositiveColor = new Color(0.34f, 1f, 0.52f, 1f),
+                    gateNegativeColor = new Color(0.99f, 0.39f, 0.3f, 1f),
+                    hazardSlowColor = new Color(0.98f, 0.9f, 0.29f, 1f),
+                    hazardKnockbackColor = new Color(0.95f, 0.42f, 0.24f, 1f),
+                    skyTint = new Color(0.49f, 0.76f, 0.61f, 1f),
+                    groundTint = new Color(0.74f, 0.9f, 0.76f, 1f),
+                    fogColor = new Color(0.62f, 0.8f, 0.68f, 1f),
+                    fogDensity = 0.0052f,
+                    skyExposure = 1.18f,
+                    atmosphereThickness = 0.86f,
+                    ambientSky = new Color(0.64f, 0.85f, 0.72f, 1f),
+                    ambientEquator = new Color(0.34f, 0.52f, 0.42f, 1f),
+                    ambientGround = new Color(0.17f, 0.28f, 0.22f, 1f),
+                    sunColor = new Color(0.98f, 0.95f, 0.8f, 1f),
+                    sunIntensity = 1.31f
+                };
+            }
+
+            public static ThemeDefinition NeoNight()
+            {
+                return new ThemeDefinition
+                {
+                    name = "Neo Night",
+                    trackColor = new Color(0.1f, 0.11f, 0.18f, 1f),
+                    stripeColor = new Color(0.53f, 0.84f, 1f, 1f),
+                    railColor = new Color(0.08f, 0.1f, 0.15f, 1f),
+                    backdropColor = new Color(0.18f, 0.24f, 0.34f, 1f),
+                    cloudColor = new Color(0.72f, 0.82f, 0.94f, 0.9f),
+                    beaconPoleColor = new Color(0.07f, 0.1f, 0.16f, 1f),
+                    beaconCoreColor = new Color(0.59f, 0.78f, 1f, 1f),
+                    gatePositiveColor = new Color(0.35f, 0.98f, 0.77f, 1f),
+                    gateNegativeColor = new Color(1f, 0.35f, 0.7f, 1f),
+                    hazardSlowColor = new Color(0.62f, 0.88f, 1f, 1f),
+                    hazardKnockbackColor = new Color(0.97f, 0.39f, 0.68f, 1f),
+                    skyTint = new Color(0.18f, 0.23f, 0.42f, 1f),
+                    groundTint = new Color(0.23f, 0.28f, 0.38f, 1f),
+                    fogColor = new Color(0.2f, 0.28f, 0.44f, 1f),
+                    fogDensity = 0.0068f,
+                    skyExposure = 0.98f,
+                    atmosphereThickness = 1.1f,
+                    ambientSky = new Color(0.24f, 0.36f, 0.54f, 1f),
+                    ambientEquator = new Color(0.16f, 0.23f, 0.36f, 1f),
+                    ambientGround = new Color(0.09f, 0.12f, 0.2f, 1f),
+                    sunColor = new Color(0.68f, 0.78f, 1f, 1f),
+                    sunIntensity = 1.02f
+                };
+            }
         }
     }
 }

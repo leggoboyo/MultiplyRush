@@ -71,6 +71,60 @@ namespace MultiplyRush
             RenderSettings.reflectionIntensity = 0.58f;
         }
 
+        public static void ApplyLevelTheme(
+            Color skyTint,
+            Color groundTint,
+            Color fogColor,
+            float fogDensity,
+            float skyExposure,
+            float atmosphereThickness,
+            Color ambientSky,
+            Color ambientEquator,
+            Color ambientGround,
+            Color sunColor,
+            float sunIntensity)
+        {
+            EnsureStylizedSkybox();
+            if (_runtimeSkybox != null)
+            {
+                if (_runtimeSkybox.HasProperty("_SkyTint"))
+                {
+                    _runtimeSkybox.SetColor("_SkyTint", skyTint);
+                }
+
+                if (_runtimeSkybox.HasProperty("_GroundColor"))
+                {
+                    _runtimeSkybox.SetColor("_GroundColor", groundTint);
+                }
+
+                if (_runtimeSkybox.HasProperty("_Exposure"))
+                {
+                    _runtimeSkybox.SetFloat("_Exposure", Mathf.Clamp(skyExposure, 0.5f, 1.6f));
+                }
+
+                if (_runtimeSkybox.HasProperty("_AtmosphereThickness"))
+                {
+                    _runtimeSkybox.SetFloat("_AtmosphereThickness", Mathf.Clamp(atmosphereThickness, 0.35f, 1.4f));
+                }
+            }
+
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = ambientSky;
+            RenderSettings.ambientEquatorColor = ambientEquator;
+            RenderSettings.ambientGroundColor = ambientGround;
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = fogColor;
+            RenderSettings.fogDensity = Mathf.Clamp(fogDensity, 0.0024f, 0.01f);
+
+            var sun = RenderSettings.sun;
+            if (sun != null)
+            {
+                sun.color = sunColor;
+                sun.intensity = Mathf.Clamp(sunIntensity, 0.7f, 1.7f);
+            }
+        }
+
         private static void ConfigureRuntimeQuality()
         {
             if (_qualityConfigured)

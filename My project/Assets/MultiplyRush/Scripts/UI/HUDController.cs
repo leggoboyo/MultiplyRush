@@ -276,6 +276,15 @@ namespace MultiplyRush
                 return "Core";
             }
 
+            if (modifierName.Contains("•"))
+            {
+                var parts = modifierName.Split('•');
+                if (parts.Length >= 2)
+                {
+                    return AbbreviateTheme(parts[0].Trim()) + "/" + AbbreviateModifier(parts[1].Trim());
+                }
+            }
+
             switch (modifierName.Trim())
             {
                 case "Core Rush":
@@ -292,6 +301,27 @@ namespace MultiplyRush
                     return "Tank";
                 default:
                     return modifierName;
+            }
+        }
+
+        private static string AbbreviateTheme(string themeName)
+        {
+            switch (themeName)
+            {
+                case "Metro Dawn":
+                    return "Dawn";
+                case "Sunset Dunes":
+                    return "Dunes";
+                case "Aurora Ice":
+                    return "Ice";
+                case "Volcanic Rift":
+                    return "Rift";
+                case "Emerald Vista":
+                    return "Vista";
+                case "Neo Night":
+                    return "Neon";
+                default:
+                    return themeName;
             }
         }
 

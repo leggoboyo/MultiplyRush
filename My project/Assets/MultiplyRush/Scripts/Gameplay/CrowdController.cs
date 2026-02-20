@@ -49,6 +49,16 @@ namespace MultiplyRush
         public float gateAuraMaxScale = 2.2f;
         public float gateAuraHeight = 0.03f;
 
+        [Header("Weapon VFX")]
+        public bool enableWeaponVfx = true;
+        public float baseShotsPerSecond = 8f;
+        public float shotsPerVisibleUnit = 0.34f;
+        public float maxShotsPerSecond = 38f;
+        public float tracerSpeed = 35f;
+        public float tracerLifetime = 0.24f;
+        public float tracerSpread = 0.1f;
+        public float tracerMuzzleJitter = 0.07f;
+
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
 
@@ -93,6 +103,10 @@ namespace MultiplyRush
         private float _gateAuraTimer;
         private Color _gateAuraColor = new Color(0.42f, 1f, 0.52f, 1f);
         private ParticleSystem _gateBurstSystem;
+        private ParticleSystem _weaponTracerSystem;
+        private ParticleSystem _weaponFlashSystem;
+        private Transform _weaponMuzzle;
+        private float _weaponShotAccumulator;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -129,6 +143,7 @@ namespace MultiplyRush
             }
 
             EnsureGateEffects();
+            EnsureWeaponEffects();
 
             maxVisibleUnits = Mathf.Min(maxVisibleUnits, 120);
 
@@ -199,6 +214,7 @@ namespace MultiplyRush
             AnimateFormation(deltaTime);
             AnimateLeader(deltaTime);
             AnimateGateEffects(deltaTime);
+            UpdateWeaponEffects(deltaTime);
         }
 
         private void OnTriggerEnter(Collider other)
@@ -255,6 +271,7 @@ namespace MultiplyRush
             _laneTimeLeft = 0f;
             _laneTimeCenter = 0f;
             _laneTimeRight = 0f;
+            _weaponShotAccumulator = 0f;
 
             SetCount(initialCount);
         }
@@ -705,6 +722,215 @@ namespace MultiplyRush
                 startColor = color
             };
             _gateBurstSystem.Emit(emitParams, Mathf.Clamp(gateBurstCount, 4, 28));
+        }
+
+        private void EnsureWeaponEffects()
+        {
+            if (!enableWeaponVfx)
+            {
+                return;
+            }
+
+            if (_weaponMuzzle == null)
+            {
+                var muzzleRoot = new GameObject("WeaponMuzzle");
+                muzzleRoot.transform.SetParent(_leaderVisual != null ? _leaderVisual : transform, false);
+                muzzleRoot.transform.localPosition = new Vector3(0f, 0.35f, 0.38f);
+                muzzleRoot.transform.localRotation = Quaternion.identity;
+                _weaponMuzzle = muzzleRoot.transform;
+            }
+
+            if (_weaponTracerSystem == null)
+            {
+                var tracerObject = new GameObject("WeaponTracerFX");
+                tracerObject.transform.SetParent(transform, false);
+                tracerObject.transform.position = _weaponMuzzle.position;
+                tracerObject.transform.rotation = Quaternion.identity;
+                tracerObject.SetActive(false);
+                _weaponTracerSystem = tracerObject.AddComponent<ParticleSystem>();
+                var tracerRenderer = tracerObject.GetComponent<ParticleSystemRenderer>();
+                if (tracerRenderer != null)
+                {
+                    tracerRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+                    tracerRenderer.lengthScale = 4.2f;
+                    tracerRenderer.velocityScale = 0.55f;
+                    tracerRenderer.material = CreateEffectMaterial("WeaponTracerMaterial", new Color(1f, 0.95f, 0.55f, 1f), 0.18f, 1.2f);
+                }
+
+                ConfigureWeaponTracerSystem(_weaponTracerSystem);
+                tracerObject.SetActive(true);
+            }
+
+            if (_weaponFlashSystem == null)
+            {
+                var flashObject = new GameObject("WeaponFlashFX");
+                flashObject.transform.SetParent(_weaponMuzzle, false);
+                flashObject.transform.localPosition = Vector3.zero;
+                flashObject.transform.localRotation = Quaternion.identity;
+                flashObject.SetActive(false);
+                _weaponFlashSystem = flashObject.AddComponent<ParticleSystem>();
+                var flashRenderer = flashObject.GetComponent<ParticleSystemRenderer>();
+                if (flashRenderer != null)
+                {
+                    flashRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+                    flashRenderer.material = CreateEffectMaterial("WeaponFlashMaterial", new Color(1f, 0.86f, 0.42f, 1f), 0.12f, 1.4f);
+                }
+
+                ConfigureWeaponFlashSystem(_weaponFlashSystem);
+                flashObject.SetActive(true);
+            }
+        }
+
+        private static void ConfigureWeaponTracerSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 1f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.16f, 0.32f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(22f, 42f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.026f, 0.05f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.56f, 1f));
+            main.maxParticles = 320;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = false;
+
+            var colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.95f, 0.6f, 1f), 0f),
+                    new GradientColorKey(new Color(1f, 0.78f, 0.28f, 1f), 0.6f),
+                    new GradientColorKey(new Color(1f, 0.48f, 0.14f, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.95f, 0.3f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+
+            var trails = particleSystem.trails;
+            trails.enabled = true;
+            trails.mode = ParticleSystemTrailMode.PerParticle;
+            trails.ratio = 1f;
+            trails.dieWithParticles = true;
+            trails.lifetime = 0.08f;
+            trails.minVertexDistance = 0.03f;
+            trails.widthOverTrail = new ParticleSystem.MinMaxCurve(0.75f);
+            trails.colorOverTrail = new ParticleSystem.MinMaxGradient(new Color(1f, 0.84f, 0.36f, 1f));
+        }
+
+        private static void ConfigureWeaponFlashSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.14f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.04f, 0.1f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.84f, 0.32f, 1f));
+            main.maxParticles = 64;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.radius = 0.02f;
+            shape.angle = 8f;
+            shape.length = 0.04f;
+
+            var sizeOverLifetime = particleSystem.sizeOverLifetime;
+            sizeOverLifetime.enabled = true;
+            var curve = new AnimationCurve();
+            curve.AddKey(0f, 0.15f);
+            curve.AddKey(0.2f, 1f);
+            curve.AddKey(1f, 0f);
+            sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, curve);
+        }
+
+        private void UpdateWeaponEffects(float deltaTime)
+        {
+            if (!enableWeaponVfx || !_isRunning)
+            {
+                return;
+            }
+
+            EnsureWeaponEffects();
+            if (_weaponMuzzle == null || _weaponTracerSystem == null)
+            {
+                return;
+            }
+
+            var shotsPerSecond = Mathf.Clamp(
+                baseShotsPerSecond + (Mathf.Sqrt(Mathf.Max(1f, _count)) * Mathf.Max(0f, shotsPerVisibleUnit)),
+                1f,
+                Mathf.Max(1f, maxShotsPerSecond));
+            _weaponShotAccumulator += deltaTime * shotsPerSecond;
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, 28);
+            if (shotCount <= 0)
+            {
+                return;
+            }
+
+            _weaponShotAccumulator -= shotCount;
+            for (var i = 0; i < shotCount; i++)
+            {
+                var jitter = new Vector3(
+                    UnityEngine.Random.Range(-tracerMuzzleJitter, tracerMuzzleJitter),
+                    UnityEngine.Random.Range(-tracerMuzzleJitter * 0.35f, tracerMuzzleJitter * 0.35f),
+                    UnityEngine.Random.Range(-0.02f, 0.04f));
+                var emitPosition = _weaponMuzzle.position + jitter;
+                var direction = (Vector3.forward + new Vector3(
+                    UnityEngine.Random.Range(-tracerSpread, tracerSpread),
+                    UnityEngine.Random.Range(-tracerSpread * 0.2f, tracerSpread * 0.2f),
+                    0f)).normalized;
+                var emitVelocity = direction * Mathf.Max(4f, tracerSpeed * UnityEngine.Random.Range(0.84f, 1.18f));
+
+                var emitParams = new ParticleSystem.EmitParams
+                {
+                    position = emitPosition,
+                    velocity = emitVelocity,
+                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.85f, tracerLifetime * 1.2f),
+                    startSize = UnityEngine.Random.Range(0.024f, 0.05f),
+                    startColor = Color.Lerp(new Color(1f, 0.92f, 0.5f, 1f), new Color(1f, 0.62f, 0.2f, 1f), UnityEngine.Random.value)
+                };
+
+                _weaponTracerSystem.Emit(emitParams, 1);
+            }
+
+            if (_weaponFlashSystem != null)
+            {
+                _weaponFlashSystem.Emit(Mathf.Clamp(1 + (shotCount / 5), 1, 5));
+            }
         }
 
         private void AnimateGateEffects(float deltaTime)
