@@ -7,6 +7,7 @@ namespace MultiplyRush
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
         [Header("Gate Data")]
         public GateOperation operation = GateOperation.Add;
@@ -303,6 +304,7 @@ namespace MultiplyRush
             panelRenderer.GetPropertyBlock(_materialBlock);
             _materialBlock.SetColor(BaseColorId, color);
             _materialBlock.SetColor(ColorId, color);
+            _materialBlock.SetColor(EmissionColorId, color * 0.42f);
             panelRenderer.SetPropertyBlock(_materialBlock);
         }
 
@@ -422,7 +424,7 @@ namespace MultiplyRush
             _tempoPanelScale = Mathf.Lerp(1f, Mathf.Max(1f, tempoPanelPulseScale), accent);
             _tempoLabelScale = Mathf.Lerp(1f, Mathf.Max(1f, tempoLabelPulseScale), accent);
 
-            SetPanelColor(_basePanelColor);
+            SetPanelColor(Color.Lerp(_basePanelColor * 0.84f, _basePanelColor * 1.18f, accent));
             if (labelText != null)
             {
                 var baseColor = IsPositive(operation) ? new Color(0.05f, 0.05f, 0.05f) : Color.white;

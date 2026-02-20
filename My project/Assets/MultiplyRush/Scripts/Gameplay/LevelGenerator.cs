@@ -136,6 +136,22 @@ namespace MultiplyRush
         public Color stripeColor = new Color(0.95f, 0.84f, 0.32f, 1f);
         public Color railColor = new Color(0.09f, 0.13f, 0.2f, 1f);
 
+        [Header("Side Beacons")]
+        public bool enableSideBeacons = true;
+        public int beaconPoolSize = 96;
+        public float beaconSpacing = 8f;
+        public float beaconOffsetFromRail = 1.05f;
+        public float beaconMinHeight = 1.9f;
+        public float beaconMaxHeight = 3.6f;
+        public Color beaconPoleColor = new Color(0.08f, 0.12f, 0.18f, 1f);
+        public Color beaconCoreColor = new Color(0.36f, 0.88f, 1f, 1f);
+
+        [Header("Ambient Pulse")]
+        public bool enableDecorPulse = true;
+        public float decorPulseSpeed = 1.7f;
+        [Range(0f, 0.4f)]
+        public float decorPulseStrength = 0.14f;
+
         [Header("Backdrop")]
         public BackdropQuality backdropQuality = BackdropQuality.Auto;
         public bool enableBackdrop = true;
@@ -165,6 +181,8 @@ namespace MultiplyRush
         private readonly Stack<Transform> _backdropPool = new Stack<Transform>(256);
         private readonly List<Transform> _activeClouds = new List<Transform>(64);
         private readonly Stack<Transform> _cloudPool = new Stack<Transform>(64);
+        private readonly List<Transform> _activeBeacons = new List<Transform>(160);
+        private readonly Stack<Transform> _beaconPool = new Stack<Transform>(160);
         private readonly List<HazardZone> _activeHazards = new List<HazardZone>(64);
         private readonly Stack<HazardZone> _hazardPool = new Stack<HazardZone>(64);
         private readonly List<float> _cloudSpeeds = new List<float>(64);
@@ -183,9 +201,11 @@ namespace MultiplyRush
         private bool _stripePoolPrewarmed;
         private bool _backdropPoolPrewarmed;
         private bool _cloudPoolPrewarmed;
+        private bool _beaconPoolPrewarmed;
         private Transform _trackDecorRoot;
         private Transform _backdropRoot;
         private Transform _cloudRoot;
+        private Transform _beaconRoot;
         private Transform _hazardRoot;
         private Transform _leftRail;
         private Transform _rightRail;
@@ -193,6 +213,8 @@ namespace MultiplyRush
         private Material _railMaterial;
         private Material _backdropMaterial;
         private Material _cloudMaterial;
+        private Material _beaconPoleMaterial;
+        private Material _beaconCoreMaterial;
         private Material _hazardMaterial;
         private Color _trackColor = new Color(0.18f, 0.22f, 0.29f, 1f);
         private Color _gatePositiveColor = new Color(0.2f, 0.85f, 0.35f, 1f);
@@ -261,6 +283,7 @@ namespace MultiplyRush
         private void Update()
         {
             AnimateClouds(Time.deltaTime);
+            AnimateDecorPulse(Time.time);
         }
 
         private void EnsureRoots()
@@ -306,6 +329,16 @@ namespace MultiplyRush
                 {
                     _cloudRoot = new GameObject("Clouds").transform;
                     _cloudRoot.SetParent(_trackDecorRoot, false);
+                }
+            }
+
+            if (_beaconRoot == null)
+            {
+                _beaconRoot = _trackDecorRoot.Find("Beacons");
+                if (_beaconRoot == null)
+                {
+                    _beaconRoot = new GameObject("Beacons").transform;
+                    _beaconRoot.SetParent(_trackDecorRoot, false);
                 }
             }
 
@@ -374,6 +407,7 @@ namespace MultiplyRush
             ClearTrackDecor();
             ClearBackdrop();
             ClearClouds();
+            ClearBeacons();
 
             if (!enableTrackDecor)
             {
@@ -439,6 +473,7 @@ namespace MultiplyRush
             }
 
             BuildBackdrop(trackLength, effectiveTrackHalfWidth);
+            BuildSideBeacons(trackLength, effectiveTrackHalfWidth);
         }
 
         private void BuildBackdrop(float trackLength, float effectiveTrackHalfWidth)
@@ -520,6 +555,42 @@ namespace MultiplyRush
             }
         }
 
+        private void BuildSideBeacons(float trackLength, float effectiveTrackHalfWidth)
+        {
+            if (!enableSideBeacons || _beaconRoot == null)
+            {
+                return;
+            }
+
+            PrewarmBeaconPool();
+            var random = new System.Random(27109 + (_activeLevelIndex * 83));
+            var density = GetBackdropDensityMultiplier();
+            var spacing = Mathf.Max(4.2f, beaconSpacing / Mathf.Max(0.6f, density));
+            var start = Mathf.Max(6f, startZ * 0.35f);
+            var end = Mathf.Max(start + 2f, trackLength - 8f);
+            var baseX = effectiveTrackHalfWidth + railInset + Mathf.Max(0.2f, beaconOffsetFromRail);
+            var minHeight = Mathf.Max(1f, beaconMinHeight);
+            var maxHeight = Mathf.Max(minHeight + 0.3f, beaconMaxHeight);
+
+            for (var side = -1; side <= 1; side += 2)
+            {
+                for (var z = start; z <= end; z += spacing)
+                {
+                    var beacon = GetBeacon();
+                    var jitter = ((float)random.NextDouble() * 2f - 1f) * spacing * 0.25f;
+                    var x = side * (baseX + ((float)random.NextDouble() - 0.5f) * 0.45f);
+                    var height = Mathf.Lerp(minHeight, maxHeight, (float)random.NextDouble());
+                    var coreScale = Mathf.Lerp(0.28f, 0.44f, (float)random.NextDouble());
+                    beacon.position = new Vector3(x, -0.08f, z + jitter);
+                    beacon.rotation = Quaternion.Euler(0f, side < 0 ? 90f : -90f, 0f);
+                    beacon.localScale = Vector3.one;
+                    ConfigureBeaconGeometry(beacon, height, coreScale);
+                    beacon.gameObject.SetActive(true);
+                    _activeBeacons.Add(beacon);
+                }
+            }
+        }
+
         private void AnimateClouds(float deltaTime)
         {
             if (deltaTime <= 0f || _activeClouds.Count == 0)
@@ -553,6 +624,22 @@ namespace MultiplyRush
                 position.y = _cloudBaseY[i] + Mathf.Sin(waveTime + _cloudPhases[i]) * 0.18f;
                 cloud.position = position;
             }
+        }
+
+        private void AnimateDecorPulse(float runTime)
+        {
+            if (!enableDecorPulse)
+            {
+                return;
+            }
+
+            var pulseStrength = Mathf.Clamp(decorPulseStrength, 0f, 0.4f);
+            var speed = Mathf.Max(0.1f, decorPulseSpeed);
+            var oscillation = 0.5f + (Mathf.Sin(runTime * speed) * 0.5f);
+            var pulse = 1f + (oscillation * pulseStrength);
+            ApplyMaterialColor(_stripeMaterial, stripeColor * pulse, 0.42f, 0.42f * pulse);
+            ApplyMaterialColor(_railMaterial, railColor * (0.98f + pulseStrength * 0.2f), 0.24f, 0.1f * pulse);
+            ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor * pulse, 0.66f, 0.95f * pulse);
         }
 
         private float GetBackdropDensityMultiplier()
@@ -709,6 +796,16 @@ namespace MultiplyRush
             return CreateCloud();
         }
 
+        private Transform GetBeacon()
+        {
+            if (_beaconPool.Count > 0)
+            {
+                return _beaconPool.Pop();
+            }
+
+            return CreateBeacon();
+        }
+
         private Transform CreateCloud()
         {
             var cloud = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -730,6 +827,73 @@ namespace MultiplyRush
 
             cloud.SetActive(false);
             return cloud.transform;
+        }
+
+        private Transform CreateBeacon()
+        {
+            var beaconRoot = new GameObject("SideBeacon");
+            beaconRoot.transform.SetParent(_beaconRoot, false);
+
+            var pole = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pole.name = "Pole";
+            pole.transform.SetParent(beaconRoot.transform, false);
+            var poleCollider = pole.GetComponent<Collider>();
+            if (poleCollider != null)
+            {
+                Destroy(poleCollider);
+            }
+
+            var poleRenderer = pole.GetComponent<MeshRenderer>();
+            if (poleRenderer != null)
+            {
+                poleRenderer.sharedMaterial = GetBeaconPoleMaterial();
+                poleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                poleRenderer.receiveShadows = false;
+            }
+
+            var core = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            core.name = "Core";
+            core.transform.SetParent(beaconRoot.transform, false);
+            var coreCollider = core.GetComponent<Collider>();
+            if (coreCollider != null)
+            {
+                Destroy(coreCollider);
+            }
+
+            var coreRenderer = core.GetComponent<MeshRenderer>();
+            if (coreRenderer != null)
+            {
+                coreRenderer.sharedMaterial = GetBeaconCoreMaterial();
+                coreRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                coreRenderer.receiveShadows = false;
+            }
+
+            beaconRoot.SetActive(false);
+            return beaconRoot.transform;
+        }
+
+        private static void ConfigureBeaconGeometry(Transform beacon, float height, float coreScale)
+        {
+            if (beacon == null)
+            {
+                return;
+            }
+
+            var safeHeight = Mathf.Max(0.8f, height);
+            var safeCoreScale = Mathf.Max(0.12f, coreScale);
+            var pole = beacon.Find("Pole");
+            if (pole != null)
+            {
+                pole.localPosition = new Vector3(0f, safeHeight * 0.5f, 0f);
+                pole.localScale = new Vector3(0.13f, safeHeight, 0.13f);
+            }
+
+            var core = beacon.Find("Core");
+            if (core != null)
+            {
+                core.localPosition = new Vector3(0f, safeHeight + 0.08f, 0f);
+                core.localScale = Vector3.one * safeCoreScale;
+            }
         }
 
         private void ClearTrackDecor()
@@ -791,6 +955,30 @@ namespace MultiplyRush
             _cloudPhases.Clear();
         }
 
+        private void ClearBeacons()
+        {
+            if (_beaconRoot == null)
+            {
+                _activeBeacons.Clear();
+                return;
+            }
+
+            for (var i = 0; i < _activeBeacons.Count; i++)
+            {
+                var beacon = _activeBeacons[i];
+                if (beacon == null)
+                {
+                    continue;
+                }
+
+                beacon.gameObject.SetActive(false);
+                beacon.SetParent(_beaconRoot, false);
+                _beaconPool.Push(beacon);
+            }
+
+            _activeBeacons.Clear();
+        }
+
         private void PrewarmStripePool()
         {
             if (_stripePoolPrewarmed)
@@ -842,6 +1030,23 @@ namespace MultiplyRush
             _cloudPoolPrewarmed = true;
         }
 
+        private void PrewarmBeaconPool()
+        {
+            if (_beaconPoolPrewarmed)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, beaconPoolSize);
+            for (var i = 0; i < count; i++)
+            {
+                var beacon = CreateBeacon();
+                _beaconPool.Push(beacon);
+            }
+
+            _beaconPoolPrewarmed = true;
+        }
+
         private Material GetStripeMaterial()
         {
             if (_stripeMaterial != null)
@@ -849,7 +1054,7 @@ namespace MultiplyRush
                 return _stripeMaterial;
             }
 
-            _stripeMaterial = CreateRuntimeMaterial("LaneStripeMaterial", stripeColor, 0.35f);
+            _stripeMaterial = CreateRuntimeMaterial("LaneStripeMaterial", stripeColor, 0.35f, 0.36f);
             return _stripeMaterial;
         }
 
@@ -860,7 +1065,7 @@ namespace MultiplyRush
                 return _railMaterial;
             }
 
-            _railMaterial = CreateRuntimeMaterial("SideRailMaterial", railColor, 0.2f);
+            _railMaterial = CreateRuntimeMaterial("SideRailMaterial", railColor, 0.2f, 0.08f);
             return _railMaterial;
         }
 
@@ -871,7 +1076,7 @@ namespace MultiplyRush
                 return _backdropMaterial;
             }
 
-            _backdropMaterial = CreateRuntimeMaterial("BackdropMaterial", backdropColor, 0.05f);
+            _backdropMaterial = CreateRuntimeMaterial("BackdropMaterial", backdropColor, 0.05f, 0.06f);
             return _backdropMaterial;
         }
 
@@ -882,8 +1087,30 @@ namespace MultiplyRush
                 return _cloudMaterial;
             }
 
-            _cloudMaterial = CreateRuntimeMaterial("CloudMaterial", cloudColor, 0.2f);
+            _cloudMaterial = CreateRuntimeMaterial("CloudMaterial", cloudColor, 0.2f, 0.18f);
             return _cloudMaterial;
+        }
+
+        private Material GetBeaconPoleMaterial()
+        {
+            if (_beaconPoleMaterial != null)
+            {
+                return _beaconPoleMaterial;
+            }
+
+            _beaconPoleMaterial = CreateRuntimeMaterial("BeaconPoleMaterial", beaconPoleColor, 0.22f, 0.04f);
+            return _beaconPoleMaterial;
+        }
+
+        private Material GetBeaconCoreMaterial()
+        {
+            if (_beaconCoreMaterial != null)
+            {
+                return _beaconCoreMaterial;
+            }
+
+            _beaconCoreMaterial = CreateRuntimeMaterial("BeaconCoreMaterial", beaconCoreColor, 0.55f, 0.7f);
+            return _beaconCoreMaterial;
         }
 
         private Material GetHazardMaterial()
@@ -893,11 +1120,11 @@ namespace MultiplyRush
                 return _hazardMaterial;
             }
 
-            _hazardMaterial = CreateRuntimeMaterial("HazardZoneMaterial", new Color(0.95f, 0.72f, 0.14f, 1f), 0.08f);
+            _hazardMaterial = CreateRuntimeMaterial("HazardZoneMaterial", new Color(0.95f, 0.72f, 0.14f, 1f), 0.08f, 0.32f);
             return _hazardMaterial;
         }
 
-        private static Material CreateRuntimeMaterial(string name, Color color, float smoothness)
+        private static Material CreateRuntimeMaterial(string name, Color color, float smoothness, float emission = 0f)
         {
             var shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
@@ -925,6 +1152,12 @@ namespace MultiplyRush
                 material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
             }
 
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", color * Mathf.Clamp(emission, 0f, 2f));
+            }
+
             return material;
         }
 
@@ -942,6 +1175,8 @@ namespace MultiplyRush
             backdropColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.04f, 1f), 0.38f, 0.46f);
             cloudColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.02f, 1f), 0.14f, 1f);
             cloudColor.a = 0.9f;
+            beaconPoleColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.01f, 1f), 0.42f, 0.24f);
+            beaconCoreColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.28f, 1f), 0.64f, 1f);
 
             _gatePositiveColor = Color.HSVToRGB(Mathf.Repeat(levelHue + 0.24f, 1f), 0.72f, 0.92f);
             _gateNegativeColor = Color.HSVToRGB(Mathf.Repeat(levelHue - 0.02f, 1f), 0.74f, 0.93f);
@@ -954,16 +1189,19 @@ namespace MultiplyRush
                 _gateNegativeColor *= 1.08f;
                 _hazardSlowColor *= 1.08f;
                 _hazardKnockbackColor *= 1.1f;
+                beaconCoreColor *= 1.18f;
             }
 
-            ApplyMaterialColor(_stripeMaterial, stripeColor, 0.42f);
-            ApplyMaterialColor(_railMaterial, railColor, 0.24f);
-            ApplyMaterialColor(_backdropMaterial, backdropColor, 0.08f);
-            ApplyMaterialColor(_cloudMaterial, cloudColor, 0.22f);
-            ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f);
+            ApplyMaterialColor(_stripeMaterial, stripeColor, 0.42f, 0.44f);
+            ApplyMaterialColor(_railMaterial, railColor, 0.24f, 0.1f);
+            ApplyMaterialColor(_backdropMaterial, backdropColor, 0.08f, 0.08f);
+            ApplyMaterialColor(_cloudMaterial, cloudColor, 0.22f, 0.2f);
+            ApplyMaterialColor(_beaconPoleMaterial, beaconPoleColor, 0.2f, 0.05f);
+            ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor, 0.66f, 0.9f);
+            ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f, 0.36f);
         }
 
-        private static void ApplyMaterialColor(Material material, Color color, float smoothness)
+        private static void ApplyMaterialColor(Material material, Color color, float smoothness, float emission)
         {
             if (material == null)
             {
@@ -983,6 +1221,12 @@ namespace MultiplyRush
             if (material.HasProperty("_Smoothness"))
             {
                 material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
+            }
+
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", color * Mathf.Clamp(emission, 0f, 2f));
             }
         }
 
@@ -1119,6 +1363,7 @@ namespace MultiplyRush
             ClearTrackDecor();
             ClearBackdrop();
             ClearClouds();
+            ClearBeacons();
             SetRailsActive(false);
 
             if (_activeFinish != null)

@@ -9,6 +9,8 @@ namespace MultiplyRush
         private static Material _skin;
         private static Material _helmet;
         private static Material _weapon;
+        private static Material _friendlyAccent;
+        private static Material _enemyAccent;
 
         public static void ApplySoldierVisual(Transform unitRoot, bool enemy)
         {
@@ -30,25 +32,37 @@ namespace MultiplyRush
             modelRoot.localScale = Vector3.one;
 
             var uniform = enemy ? GetEnemyUniformMaterial() : GetFriendlyUniformMaterial();
+            var accent = GetAccentMaterial(enemy);
 
             CreatePart(PrimitiveType.Capsule, "Torso", modelRoot, new Vector3(0f, 0.47f, 0f), new Vector3(0.22f, 0.3f, 0.15f), uniform);
+            CreatePart(PrimitiveType.Cube, "ChestPlate", modelRoot, new Vector3(0f, 0.53f, 0.08f), new Vector3(0.2f, 0.2f, 0.07f), accent);
+            CreatePart(PrimitiveType.Cube, "Backpack", modelRoot, new Vector3(0f, 0.53f, -0.11f), new Vector3(0.16f, 0.18f, 0.08f), accent);
             CreatePart(PrimitiveType.Sphere, "Head", modelRoot, new Vector3(0f, 0.86f, 0f), new Vector3(0.16f, 0.16f, 0.16f), GetSkinMaterial());
             CreatePart(PrimitiveType.Cube, "Helmet", modelRoot, new Vector3(0f, 0.93f, -0.01f), new Vector3(0.22f, 0.09f, 0.22f), GetHelmetMaterial());
-            CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.9f, 0.1f), new Vector3(0.12f, 0.04f, 0.02f), GetWeaponMaterial());
-            CreatePart(PrimitiveType.Cube, "Rifle", modelRoot, new Vector3(0f, 0.53f, 0.16f), new Vector3(0.26f, 0.05f, 0.05f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.9f, 0.1f), new Vector3(0.12f, 0.04f, 0.02f), accent);
+            CreatePart(PrimitiveType.Cube, "RifleBody", modelRoot, new Vector3(0f, 0.53f, 0.16f), new Vector3(0.26f, 0.05f, 0.05f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Cube, "RifleBarrel", modelRoot, new Vector3(0f, 0.54f, 0.27f), new Vector3(0.03f, 0.03f, 0.16f), GetWeaponMaterial());
             CreatePart(PrimitiveType.Cube, "LeftArm", modelRoot, new Vector3(-0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
             CreatePart(PrimitiveType.Cube, "RightArm", modelRoot, new Vector3(0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
             CreatePart(PrimitiveType.Cube, "Legs", modelRoot, new Vector3(0f, 0.18f, 0f), new Vector3(0.2f, 0.26f, 0.13f), uniform);
+            CreatePart(PrimitiveType.Cube, "KneePads", modelRoot, new Vector3(0f, 0.09f, 0.06f), new Vector3(0.2f, 0.05f, 0.05f), accent);
             CreatePart(PrimitiveType.Cube, "Boots", modelRoot, new Vector3(0f, 0.04f, 0.03f), new Vector3(0.2f, 0.06f, 0.12f), GetHelmetMaterial());
         }
 
-        private static void CreatePart(PrimitiveType type, string name, Transform parent, Vector3 localPosition, Vector3 localScale, Material material)
+        private static void CreatePart(
+            PrimitiveType type,
+            string name,
+            Transform parent,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Material material,
+            Vector3 localEuler = default)
         {
             var part = GameObject.CreatePrimitive(type);
             part.name = name;
             part.transform.SetParent(parent, false);
             part.transform.localPosition = localPosition;
-            part.transform.localRotation = Quaternion.identity;
+            part.transform.localRotation = Quaternion.Euler(localEuler);
             part.transform.localScale = localScale;
 
             var collider = part.GetComponent<Collider>();
@@ -119,6 +133,34 @@ namespace MultiplyRush
 
             _weapon = CreateRuntimeMaterial("SoldierWeapon", new Color(0.22f, 0.24f, 0.28f, 1f), 0.1f);
             return _weapon;
+        }
+
+        private static Material GetAccentMaterial(bool enemy)
+        {
+            if (enemy)
+            {
+                if (_enemyAccent != null)
+                {
+                    return _enemyAccent;
+                }
+
+                _enemyAccent = CreateRuntimeMaterial(
+                    "EnemyAccent",
+                    new Color(1f, 0.68f, 0.42f, 1f),
+                    0.38f);
+                return _enemyAccent;
+            }
+
+            if (_friendlyAccent != null)
+            {
+                return _friendlyAccent;
+            }
+
+            _friendlyAccent = CreateRuntimeMaterial(
+                "FriendlyAccent",
+                new Color(0.56f, 0.9f, 1f, 1f),
+                0.38f);
+            return _friendlyAccent;
         }
 
         private static Material CreateRuntimeMaterial(string name, Color color, float smoothness)

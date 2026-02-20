@@ -7,12 +7,16 @@ namespace MultiplyRush
     {
         public Text levelText;
         public Text countText;
+        public Text countDeltaText;
         public Text progressText;
         public Image progressFill;
         public float progressLerpSpeed = 10f;
         public float countLerpSpeed = 14f;
         public float countPulseScale = 0.1f;
         public float flashFadeSpeed = 6f;
+        public float deltaRiseDistance = 18f;
+        public float deltaLifetime = 0.5f;
+        public float deltaFadeSpeed = 5f;
 
         private int _lastProgressPercent = -1;
         private RectTransform _countRect;
@@ -30,6 +34,10 @@ namespace MultiplyRush
         private bool _isMiniBossLevel;
         private int _reinforcementKits;
         private int _shieldCharges;
+        private RectTransform _deltaRect;
+        private Vector2 _deltaBasePosition;
+        private Color _deltaBaseColor = Color.white;
+        private float _deltaTimer;
 
         private void Awake()
         {
@@ -43,12 +51,23 @@ namespace MultiplyRush
             ApplyTextStyle(levelText, 24, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
+            EnsureDeltaLabel();
+            ApplyTextStyle(countDeltaText, 28, FontStyle.Bold, Color.white);
+
+            if (countDeltaText != null)
+            {
+                _deltaRect = countDeltaText.rectTransform;
+                _deltaBasePosition = _deltaRect.anchoredPosition;
+                _deltaBaseColor = countDeltaText.color;
+                countDeltaText.gameObject.SetActive(false);
+            }
         }
 
         private void Update()
         {
             AnimateProgress(Time.deltaTime);
             AnimateCount(Time.deltaTime);
+            AnimateDeltaLabel(Time.deltaTime);
         }
 
         public void SetLevel(int levelIndex, string modifierName = null, bool isMiniBoss = false)
@@ -76,17 +95,19 @@ namespace MultiplyRush
                 _countInitialized = true;
                 if (countText != null)
                 {
-                    countText.text = "Count: " + safeCount;
+                    countText.text = "Count: " + NumberFormatter.ToCompact(safeCount);
                 }
                 return;
             }
 
             if (safeCount != _targetCount)
             {
+                var delta = safeCount - _targetCount;
                 _countFlash = 1f;
                 _countFlashColor = safeCount >= _targetCount
                     ? new Color(0.45f, 1f, 0.45f, 1f)
                     : new Color(1f, 0.45f, 0.45f, 1f);
+                ShowCountDelta(delta);
             }
 
             _targetCount = safeCount;
@@ -137,7 +158,7 @@ namespace MultiplyRush
             var shownCount = Mathf.RoundToInt(_displayCount);
             if (countText != null)
             {
-                countText.text = "Count: " + shownCount;
+                countText.text = "Count: " + NumberFormatter.ToCompact(shownCount);
             }
 
             _countFlash = Mathf.MoveTowards(_countFlash, 0f, flashFadeSpeed * deltaTime);
@@ -151,6 +172,85 @@ namespace MultiplyRush
             if (countText != null)
             {
                 countText.color = Color.Lerp(_countBaseColor, _countFlashColor, _countFlash);
+            }
+        }
+
+        private void EnsureDeltaLabel()
+        {
+            if (countDeltaText != null || countText == null)
+            {
+                return;
+            }
+
+            var deltaObject = new GameObject("CountDelta");
+            deltaObject.transform.SetParent(countText.transform.parent, false);
+            var deltaRect = deltaObject.AddComponent<RectTransform>();
+            deltaRect.anchorMin = countText.rectTransform.anchorMin;
+            deltaRect.anchorMax = countText.rectTransform.anchorMax;
+            deltaRect.pivot = countText.rectTransform.pivot;
+            deltaRect.sizeDelta = new Vector2(420f, 52f);
+            deltaRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -44f);
+
+            countDeltaText = deltaObject.AddComponent<Text>();
+            countDeltaText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            countDeltaText.alignment = TextAnchor.MiddleCenter;
+            countDeltaText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            countDeltaText.verticalOverflow = VerticalWrapMode.Overflow;
+            countDeltaText.text = string.Empty;
+        }
+
+        private void ShowCountDelta(int delta)
+        {
+            if (countDeltaText == null || delta == 0)
+            {
+                return;
+            }
+
+            _deltaTimer = Mathf.Max(0.08f, deltaLifetime);
+            countDeltaText.gameObject.SetActive(true);
+            countDeltaText.text = NumberFormatter.ToSignedCompact(delta);
+            _deltaBaseColor = delta > 0
+                ? new Color(0.4f, 1f, 0.5f, 1f)
+                : new Color(1f, 0.52f, 0.46f, 1f);
+            countDeltaText.color = _deltaBaseColor;
+
+            if (_deltaRect != null)
+            {
+                _deltaRect.anchoredPosition = _deltaBasePosition;
+                _deltaRect.localScale = Vector3.one;
+            }
+        }
+
+        private void AnimateDeltaLabel(float deltaTime)
+        {
+            if (countDeltaText == null || _deltaTimer <= 0f || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            _deltaTimer = Mathf.Max(0f, _deltaTimer - deltaTime);
+            var duration = Mathf.Max(0.08f, deltaLifetime);
+            var t = 1f - (_deltaTimer / duration);
+            var eased = 1f - Mathf.Pow(1f - t, 2f);
+
+            if (_deltaRect != null)
+            {
+                _deltaRect.anchoredPosition = _deltaBasePosition + new Vector2(0f, deltaRiseDistance * eased);
+                var scale = 1f + Mathf.Sin(eased * Mathf.PI) * 0.08f;
+                _deltaRect.localScale = new Vector3(scale, scale, 1f);
+            }
+
+            var alpha = Mathf.Clamp01(1f - (t * Mathf.Max(0.1f, deltaFadeSpeed / 8f)));
+            countDeltaText.color = new Color(_deltaBaseColor.r, _deltaBaseColor.g, _deltaBaseColor.b, alpha);
+
+            if (_deltaTimer <= 0f)
+            {
+                countDeltaText.gameObject.SetActive(false);
+                if (_deltaRect != null)
+                {
+                    _deltaRect.anchoredPosition = _deltaBasePosition;
+                    _deltaRect.localScale = Vector3.one;
+                }
             }
         }
 

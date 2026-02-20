@@ -12,12 +12,12 @@ namespace MultiplyRush
         public float baseFieldOfView = 58f;
         public float maxFieldOfView = 66f;
         public float speedForMaxFov = 14f;
-        public float rollByLateralVelocity = 0.16f;
-        public float maxRollDegrees = 1.15f;
-        public float speedLookAhead = 2.2f;
-        public float horizontalFollowFactor = 0.54f;
-        public float horizontalLookFactor = 0.36f;
-        public float maxHorizontalCameraOffset = 2.3f;
+        public float rollByLateralVelocity = 0.08f;
+        public float maxRollDegrees = 0.62f;
+        public float speedLookAhead = 1.8f;
+        public float horizontalFollowFactor = 0.44f;
+        public float horizontalLookFactor = 0.24f;
+        public float maxHorizontalCameraOffset = 1.6f;
 
         private Camera _camera;
         private Vector3 _smoothedLookOffset;
@@ -34,12 +34,12 @@ namespace MultiplyRush
             }
 
             _smoothedLookOffset = lookOffset;
-            rollByLateralVelocity = Mathf.Clamp(rollByLateralVelocity, 0.02f, 0.18f);
-            maxRollDegrees = Mathf.Clamp(maxRollDegrees, 0.4f, 1.2f);
-            speedLookAhead = Mathf.Clamp(speedLookAhead, 0.8f, 2.4f);
-            horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.3f, 0.58f);
-            horizontalLookFactor = Mathf.Clamp(horizontalLookFactor, 0.18f, 0.42f);
-            maxHorizontalCameraOffset = Mathf.Clamp(maxHorizontalCameraOffset, 1.2f, 2.6f);
+            rollByLateralVelocity = Mathf.Clamp(rollByLateralVelocity, 0.01f, 0.1f);
+            maxRollDegrees = Mathf.Clamp(maxRollDegrees, 0.2f, 0.9f);
+            speedLookAhead = Mathf.Clamp(speedLookAhead, 0.6f, 2f);
+            horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.26f, 0.5f);
+            horizontalLookFactor = Mathf.Clamp(horizontalLookFactor, 0.12f, 0.3f);
+            maxHorizontalCameraOffset = Mathf.Clamp(maxHorizontalCameraOffset, 0.9f, 1.9f);
         }
 
         private void LateUpdate()

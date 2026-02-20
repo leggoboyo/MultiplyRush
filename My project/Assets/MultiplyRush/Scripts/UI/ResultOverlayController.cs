@@ -134,10 +134,13 @@ namespace MultiplyRush
 
             if (detailText != null)
             {
-                var detail = "Level " + levelIndex + "\nYou: " + playerCount + "  Enemy: " + enemyCount;
+                var detail =
+                    "Level " + levelIndex +
+                    "\nYou: " + NumberFormatter.ToCompact(playerCount) +
+                    "  Enemy: " + NumberFormatter.ToCompact(enemyCount);
                 if (tankRequirement > 0)
                 {
-                    detail += "\nTank Burst: " + tankRequirement;
+                    detail += "\nTank Burst: " + NumberFormatter.ToCompact(tankRequirement);
                 }
 
                 if (!string.IsNullOrWhiteSpace(extraDetail))

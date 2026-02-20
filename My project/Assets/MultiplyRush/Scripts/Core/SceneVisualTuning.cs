@@ -8,6 +8,7 @@ namespace MultiplyRush
         private static readonly Color MenuBackground = new Color(0.06f, 0.08f, 0.14f, 1f);
         private static readonly Color GameBackground = new Color(0.59f, 0.74f, 0.92f, 1f);
         private static Material _runtimeSkybox;
+        private static bool _qualityConfigured;
 
         public static void ApplyMenuLook()
         {
@@ -21,6 +22,8 @@ namespace MultiplyRush
 
         public static void ApplyGameLook()
         {
+            ConfigureRuntimeQuality();
+
             var mainCamera = Camera.main;
             if (mainCamera != null)
             {
@@ -65,6 +68,25 @@ namespace MultiplyRush
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = new Color(0.69f, 0.79f, 0.9f, 1f);
             RenderSettings.fogDensity = 0.0058f;
+            RenderSettings.reflectionIntensity = 0.58f;
+        }
+
+        private static void ConfigureRuntimeQuality()
+        {
+            if (_qualityConfigured)
+            {
+                return;
+            }
+
+            var systemMemory = Mathf.Max(1, SystemInfo.systemMemorySize);
+            var graphicsMemory = SystemInfo.graphicsMemorySize > 0
+                ? SystemInfo.graphicsMemorySize
+                : systemMemory / 2;
+
+            var lowTier = graphicsMemory < 1600 || systemMemory < 3500;
+            QualitySettings.antiAliasing = lowTier ? 2 : 4;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
+            _qualityConfigured = true;
         }
 
         private static void EnsureStylizedSkybox()

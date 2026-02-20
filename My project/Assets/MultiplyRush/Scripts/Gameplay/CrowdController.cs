@@ -8,6 +8,9 @@ namespace MultiplyRush
     [RequireComponent(typeof(Rigidbody))]
     public sealed class CrowdController : MonoBehaviour
     {
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
+
         [Header("Movement")]
         public float dragSensitivity = 16f;
         public float xSmoothSpeed = 18f;
@@ -36,6 +39,15 @@ namespace MultiplyRush
         public float leaderStrafeTilt = 0.9f;
         public float gatePunchScale = 1.08f;
         public float gatePunchDuration = 0.16f;
+
+        [Header("Gate FX")]
+        public bool enableGateEffects = true;
+        [Range(4, 28)]
+        public int gateBurstCount = 12;
+        public float gateBurstSpeed = 3.8f;
+        public float gateAuraDuration = 0.22f;
+        public float gateAuraMaxScale = 2.2f;
+        public float gateAuraHeight = 0.03f;
 
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
@@ -74,6 +86,13 @@ namespace MultiplyRush
         private float _laneTimeLeft;
         private float _laneTimeCenter;
         private float _laneTimeRight;
+        private Transform _gateAura;
+        private MeshRenderer _gateAuraRenderer;
+        private MaterialPropertyBlock _gateAuraBlock;
+        private Vector3 _gateAuraBaseScale = new Vector3(0.65f, 0.018f, 0.65f);
+        private float _gateAuraTimer;
+        private Color _gateAuraColor = new Color(0.42f, 1f, 0.52f, 1f);
+        private ParticleSystem _gateBurstSystem;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -108,6 +127,8 @@ namespace MultiplyRush
                 _leaderBaseScale = _leaderVisual.localScale;
                 _leaderBaseLocalPosition = _leaderVisual.localPosition;
             }
+
+            EnsureGateEffects();
 
             maxVisibleUnits = Mathf.Min(maxVisibleUnits, 120);
 
@@ -177,6 +198,7 @@ namespace MultiplyRush
 
             AnimateFormation(deltaTime);
             AnimateLeader(deltaTime);
+            AnimateGateEffects(deltaTime);
         }
 
         private void OnTriggerEnter(Collider other)
@@ -249,7 +271,7 @@ namespace MultiplyRush
             if (IsNegativeGate(operation) && _shieldActive)
             {
                 _shieldActive = false;
-                TriggerGatePunch();
+                TriggerGatePunch(new Color(0.38f, 0.85f, 1f, 1f));
                 return;
             }
 
@@ -274,7 +296,9 @@ namespace MultiplyRush
             }
 
             SetCount(next);
-            TriggerGatePunch();
+            TriggerGatePunch(IsNegativeGate(operation)
+                ? new Color(1f, 0.52f, 0.44f, 1f)
+                : new Color(0.38f, 1f, 0.48f, 1f));
         }
 
         public void ApplySlow(float speedMultiplier, float duration)
@@ -297,7 +321,7 @@ namespace MultiplyRush
             }
 
             SetCount(_count + amount);
-            TriggerGatePunch();
+            TriggerGatePunch(new Color(0.34f, 1f, 0.66f, 1f));
         }
 
         public bool ActivateShield()
@@ -519,9 +543,25 @@ namespace MultiplyRush
             return operation == GateOperation.Subtract || operation == GateOperation.Divide;
         }
 
-        private void TriggerGatePunch()
+        private void TriggerGatePunch(Color auraColor)
         {
             _gatePunchTimer = Mathf.Max(_gatePunchTimer, Mathf.Max(0.02f, gatePunchDuration));
+            if (!enableGateEffects)
+            {
+                return;
+            }
+
+            _gateAuraTimer = Mathf.Max(_gateAuraTimer, Mathf.Max(0.08f, gateAuraDuration));
+            _gateAuraColor = auraColor;
+            if (_gateAura != null)
+            {
+                _gateAura.gameObject.SetActive(true);
+                _gateAura.localScale = _gateAuraBaseScale;
+                _gateAura.localPosition = new Vector3(0f, gateAuraHeight, 0.06f);
+                SetGateAuraColor(_gateAuraColor);
+            }
+
+            EmitGateBurst(_gateAuraColor);
         }
 
         private float EvaluateGatePunchScale()
@@ -533,6 +573,214 @@ namespace MultiplyRush
 
             var normalized = 1f - Mathf.Clamp01(_gatePunchTimer / gatePunchDuration);
             return Mathf.Lerp(1f, Mathf.Max(1f, gatePunchScale), Mathf.Sin(normalized * Mathf.PI));
+        }
+
+        private void EnsureGateEffects()
+        {
+            if (!enableGateEffects)
+            {
+                return;
+            }
+
+            if (_gateAura == null)
+            {
+                var auraObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                auraObject.name = "GateAura";
+                auraObject.transform.SetParent(transform, false);
+                auraObject.transform.localPosition = new Vector3(0f, gateAuraHeight, 0.06f);
+                auraObject.transform.localScale = _gateAuraBaseScale;
+                var auraCollider = auraObject.GetComponent<Collider>();
+                if (auraCollider != null)
+                {
+                    Destroy(auraCollider);
+                }
+
+                _gateAuraRenderer = auraObject.GetComponent<MeshRenderer>();
+                if (_gateAuraRenderer != null)
+                {
+                    _gateAuraRenderer.sharedMaterial = CreateEffectMaterial("GateAuraMaterial", _gateAuraColor, 0.5f, 0.7f);
+                    _gateAuraRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    _gateAuraRenderer.receiveShadows = false;
+                }
+
+                _gateAura = auraObject.transform;
+                _gateAura.gameObject.SetActive(false);
+            }
+
+            if (_gateBurstSystem == null)
+            {
+                var burstObject = new GameObject("GateBurstFX");
+                burstObject.transform.SetParent(transform, false);
+                burstObject.transform.localPosition = new Vector3(0f, 0.35f, 0.24f);
+                var particleSystem = burstObject.AddComponent<ParticleSystem>();
+                var renderer = burstObject.GetComponent<ParticleSystemRenderer>();
+                if (renderer != null)
+                {
+                    renderer.renderMode = ParticleSystemRenderMode.Billboard;
+                    renderer.material = CreateEffectMaterial("GateBurstMaterial", new Color(0.9f, 0.98f, 1f, 1f), 0.2f, 0.9f);
+                }
+
+                ConfigureGateBurstParticleSystem(particleSystem);
+                _gateBurstSystem = particleSystem;
+            }
+        }
+
+        private void ConfigureGateBurstParticleSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.28f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.18f, 0.3f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(Mathf.Max(1.2f, gateBurstSpeed * 0.7f), Mathf.Max(1.6f, gateBurstSpeed));
+            main.startSize = new ParticleSystem.MinMaxCurve(0.08f, 0.16f);
+            main.startColor = new ParticleSystem.MinMaxGradient(_gateAuraColor);
+            main.maxParticles = 120;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 42f;
+            shape.radius = 0.18f;
+            shape.length = 0.1f;
+
+            var velocityOverLifetime = particleSystem.velocityOverLifetime;
+            velocityOverLifetime.enabled = false;
+
+            var colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var colorGradient = new Gradient();
+            colorGradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(new Color(0.9f, 0.94f, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(colorGradient);
+
+            var sizeOverLifetime = particleSystem.sizeOverLifetime;
+            sizeOverLifetime.enabled = true;
+            var sizeCurve = new AnimationCurve();
+            sizeCurve.AddKey(0f, 0.45f);
+            sizeCurve.AddKey(0.35f, 1f);
+            sizeCurve.AddKey(1f, 0.2f);
+            sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
+            var noise = particleSystem.noise;
+            noise.enabled = true;
+            noise.strength = 0.3f;
+            noise.frequency = 0.45f;
+            noise.scrollSpeed = 0.32f;
+            noise.quality = ParticleSystemNoiseQuality.Low;
+        }
+
+        private void EmitGateBurst(Color color)
+        {
+            if (!enableGateEffects || _gateBurstSystem == null)
+            {
+                return;
+            }
+
+            var main = _gateBurstSystem.main;
+            main.startColor = new ParticleSystem.MinMaxGradient(color);
+            _gateBurstSystem.Emit(Mathf.Clamp(gateBurstCount, 4, 28));
+        }
+
+        private void AnimateGateEffects(float deltaTime)
+        {
+            if (!enableGateEffects || _gateAura == null)
+            {
+                return;
+            }
+
+            if (_gateAuraTimer <= 0f)
+            {
+                if (_gateAura.gameObject.activeSelf)
+                {
+                    _gateAura.gameObject.SetActive(false);
+                }
+
+                return;
+            }
+
+            _gateAuraTimer = Mathf.Max(0f, _gateAuraTimer - Mathf.Max(0f, deltaTime));
+            var duration = Mathf.Max(0.08f, gateAuraDuration);
+            var normalized = 1f - (_gateAuraTimer / duration);
+            var eased = 1f - Mathf.Pow(1f - normalized, 2f);
+            var scale = Mathf.Lerp(0.65f, Mathf.Max(0.7f, gateAuraMaxScale), eased);
+            _gateAura.localScale = new Vector3(scale, _gateAuraBaseScale.y, scale);
+            _gateAura.localPosition = new Vector3(0f, gateAuraHeight + Mathf.Sin(eased * Mathf.PI) * 0.03f, 0.06f);
+            var pulseStrength = 1f - normalized;
+            SetGateAuraColor(_gateAuraColor * (0.38f + (pulseStrength * 0.95f)));
+        }
+
+        private void SetGateAuraColor(Color color)
+        {
+            if (_gateAuraRenderer == null)
+            {
+                return;
+            }
+
+            if (_gateAuraBlock == null)
+            {
+                _gateAuraBlock = new MaterialPropertyBlock();
+            }
+
+            _gateAuraRenderer.GetPropertyBlock(_gateAuraBlock);
+            _gateAuraBlock.SetColor(BaseColorId, color);
+            _gateAuraBlock.SetColor(ColorId, color);
+            _gateAuraRenderer.SetPropertyBlock(_gateAuraBlock);
+        }
+
+        private static Material CreateEffectMaterial(string materialName, Color color, float smoothness, float emission)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            var material = new Material(shader)
+            {
+                name = materialName
+            };
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            if (material.HasProperty("_Smoothness"))
+            {
+                material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
+            }
+
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", color * Mathf.Clamp(emission, 0f, 2f));
+            }
+
+            return material;
         }
     }
 }
