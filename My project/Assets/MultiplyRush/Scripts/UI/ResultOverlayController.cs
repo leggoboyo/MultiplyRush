@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -41,6 +42,7 @@ namespace MultiplyRush
         private Image _headerGlow;
         private Image _dimImage;
         private ParticleSystem _winBurst;
+        private Color _scanlineBaseColor = new Color(0.58f, 0.95f, 1f, 0.09f);
         private bool _isVisible;
         private bool _isAnimatingIn;
         private bool _isAnimatingOut;
@@ -155,27 +157,37 @@ namespace MultiplyRush
 
             if (detailText != null)
             {
-                detailText.text = BuildDetailText(levelIndex, playerCount, enemyCount, tankRequirement, extraDetail);
+                detailText.text = BuildDetailText(
+                    didWin,
+                    levelIndex,
+                    playerCount,
+                    enemyCount,
+                    tankRequirement,
+                    extraDetail);
             }
 
             if (_panelImage != null)
             {
                 _panelImage.color = didWin
                     ? new Color(0.06f, 0.1f, 0.2f, 0.95f)
-                    : new Color(0.2f, 0.08f, 0.11f, 0.95f);
+                    : new Color(0.16f, 0.04f, 0.08f, 0.96f);
             }
 
             if (_headerGlow != null)
             {
                 _headerGlow.color = didWin
                     ? new Color(0.16f, 0.95f, 0.56f, 0.18f)
-                    : new Color(1f, 0.3f, 0.3f, 0.16f);
+                    : new Color(1f, 0.24f, 0.28f, 0.24f);
             }
 
             if (_dimImage != null)
             {
-                _dimImage.color = new Color(0f, 0f, 0f, didWin ? 0.72f : 0.8f);
+                _dimImage.color = new Color(0f, 0f, 0f, didWin ? 0.72f : 0.84f);
             }
+
+            _scanlineBaseColor = didWin
+                ? new Color(0.58f, 0.95f, 1f, 0.07f)
+                : new Color(1f, 0.32f, 0.42f, 0.08f);
 
             if (retryButton != null)
             {
@@ -249,24 +261,115 @@ namespace MultiplyRush
             }
         }
 
-        private static string BuildDetailText(int levelIndex, int playerCount, int enemyCount, int tankRequirement, string extraDetail)
+        private static string BuildDetailText(
+            bool didWin,
+            int levelIndex,
+            int playerCount,
+            int enemyCount,
+            int tankRequirement,
+            string extraDetail)
         {
-            var detail = "Level " + levelIndex +
-                         "\nYou: " + NumberFormatter.ToCompact(playerCount) +
-                         "  Enemy: " + NumberFormatter.ToCompact(enemyCount);
+            var builder = new StringBuilder(512);
+            builder.Append("<size=44><b>LEVEL ");
+            builder.Append(levelIndex);
+            builder.Append("</b></size>\n");
+            builder.Append("<size=33>YOU <b>");
+            builder.Append(NumberFormatter.ToCompact(playerCount));
+            builder.Append("</b>   VS   ENEMY <b>");
+            builder.Append(NumberFormatter.ToCompact(enemyCount));
+            builder.Append("</b></size>");
 
             if (tankRequirement > 0)
             {
-                detail += "\nTank Burst: " + NumberFormatter.ToCompact(tankRequirement);
+                builder.Append("\n<size=30><color=#FFC89A>TANK BURST REQUIRED: ");
+                builder.Append(NumberFormatter.ToCompact(tankRequirement));
+                builder.Append("</color></size>");
             }
 
             if (!string.IsNullOrWhiteSpace(extraDetail))
             {
-                var normalized = extraDetail.Trim().Replace(" • ", "\n");
-                detail += "\n" + normalized;
+                builder.Append("\n\n");
+                builder.Append(FormatObjectiveLines(extraDetail));
             }
 
-            return detail;
+            if (!didWin)
+            {
+                builder.Append("\n\n<size=27><color=#FFC0C9>Route tip: protect better gates and avoid any red gate.</color></size>");
+            }
+
+            return builder.ToString();
+        }
+
+        private static string FormatObjectiveLines(string extraDetail)
+        {
+            var normalized = extraDetail.Trim().Replace(" • ", "\n");
+            var lines = normalized.Split('\n');
+            var formatted = new StringBuilder(512);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith("Mode ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#CCE3FF><b>MODE:</b> ");
+                    formatted.Append(line.Substring(5).ToUpperInvariant());
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Gate Objective ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var isPass = line.IndexOf("PASS", StringComparison.OrdinalIgnoreCase) >= 0;
+                    var color = isPass ? "#6DFFA8" : "#FF6D88";
+                    formatted.Append("<size=33><color=");
+                    formatted.Append(color);
+                    formatted.Append("><b>");
+                    formatted.Append(line.ToUpperInvariant());
+                    formatted.Append("</b></color></size>");
+                }
+                else if (line.StartsWith("Better ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#8DFFC7>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Worse ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#FFD39B>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Red ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#FF909C>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Hit ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#C7DCFF>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.Equals("Gate objective not met.", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=28><color=#FFC6CE>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else
+                {
+                    formatted.Append("<size=29><color=#E4ECFF>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+
+                formatted.Append('\n');
+            }
+
+            return formatted.ToString().TrimEnd();
         }
 
         private void AnimateIn(float deltaTime)
@@ -363,7 +466,12 @@ namespace MultiplyRush
                 var scanlineImage = _scanlineRect.GetComponent<Image>();
                 if (scanlineImage != null)
                 {
-                    scanlineImage.color = new Color(0.62f, 0.92f, 1f, 0.08f + Mathf.Sin(runTime * 3f) * 0.03f);
+                    var alphaPulse = _scanlineBaseColor.a + Mathf.Sin(runTime * 3f) * (_lastDidWin ? 0.025f : 0.018f);
+                    scanlineImage.color = new Color(
+                        _scanlineBaseColor.r,
+                        _scanlineBaseColor.g,
+                        _scanlineBaseColor.b,
+                        Mathf.Clamp(alphaPulse, 0.01f, _lastDidWin ? 0.12f : 0.1f));
                 }
             }
 
@@ -408,10 +516,12 @@ namespace MultiplyRush
                 return;
             }
 
+            _panelRect.sizeDelta = new Vector2(860f, 690f);
+
             _panelImage = _panelRect.GetComponent<Image>();
             if (_panelImage != null)
             {
-                _panelImage.color = new Color(0.07f, 0.11f, 0.2f, 0.95f);
+                _panelImage.color = new Color(0.08f, 0.1f, 0.18f, 0.95f);
                 var outline = _panelImage.GetComponent<Outline>();
                 if (outline == null)
                 {
@@ -434,7 +544,7 @@ namespace MultiplyRush
             if (titleText != null)
             {
                 titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                titleText.fontSize = 112;
+                titleText.fontSize = 102;
                 titleText.fontStyle = FontStyle.Bold;
                 titleText.alignment = TextAnchor.MiddleCenter;
                 titleText.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -452,7 +562,7 @@ namespace MultiplyRush
                 outline.effectColor = new Color(0f, 0f, 0f, 0.84f);
                 outline.effectDistance = new Vector2(2.2f, -2.2f);
 
-                _titleRect.anchoredPosition = new Vector2(0f, -90f);
+                _titleRect.anchoredPosition = new Vector2(0f, -84f);
             }
 
             if (detailText == null)
@@ -467,19 +577,20 @@ namespace MultiplyRush
             if (detailText != null)
             {
                 detailText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                detailText.fontSize = 38;
+                detailText.fontSize = 33;
                 detailText.fontStyle = FontStyle.Normal;
-                detailText.alignment = TextAnchor.UpperCenter;
+                detailText.alignment = TextAnchor.UpperLeft;
                 detailText.horizontalOverflow = HorizontalWrapMode.Wrap;
                 detailText.verticalOverflow = VerticalWrapMode.Overflow;
                 detailText.lineSpacing = 1.08f;
                 detailText.color = new Color(0.91f, 0.95f, 1f, 1f);
+                detailText.supportRichText = true;
 
                 var rect = detailText.rectTransform;
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
-                rect.anchoredPosition = new Vector2(0f, 36f);
-                rect.sizeDelta = new Vector2(660f, 320f);
+                rect.anchoredPosition = new Vector2(0f, 14f);
+                rect.sizeDelta = new Vector2(724f, 390f);
 
                 var outline = detailText.GetComponent<Outline>();
                 if (outline == null)
@@ -497,8 +608,8 @@ namespace MultiplyRush
                 new Color(0.2f, 0.95f, 0.4f, 0.18f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -112f),
-                new Vector2(620f, 172f));
+                new Vector2(0f, -106f),
+                new Vector2(700f, 182f));
             _headerGlow.transform.SetAsFirstSibling();
 
             _scanlineRect = EnsureImage(
@@ -552,8 +663,8 @@ namespace MultiplyRush
             var rect = button.GetComponent<RectTransform>();
             if (rect != null)
             {
-                rect.sizeDelta = new Vector2(320f, 110f);
-                rect.anchoredPosition = new Vector2(0f, -178f);
+                rect.sizeDelta = new Vector2(360f, 112f);
+                rect.anchoredPosition = new Vector2(0f, -258f);
             }
 
             var image = button.GetComponent<Image>();

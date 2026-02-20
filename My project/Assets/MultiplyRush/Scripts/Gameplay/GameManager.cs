@@ -208,7 +208,7 @@ namespace MultiplyRush
 
             var didWin = playerCount >= requiredCount && gateObjectivePassed;
             var detailLine =
-                "Mode " + DifficultyRules.GetModeShortLabel(_difficultyMode) +
+                "Mode " + GetModeLabel(_difficultyMode) +
                 " • " + gateObjectiveLine;
 
             if (didWin)
@@ -380,6 +380,19 @@ namespace MultiplyRush
 
             pauseMenu.Initialize(this, levelGenerator, cameraFollower, safeAreaRoot);
             pauseMenu.SetPauseAvailable(false);
+        }
+
+        private static string GetModeLabel(DifficultyMode mode)
+        {
+            switch (mode)
+            {
+                case DifficultyMode.Easy:
+                    return "Easy";
+                case DifficultyMode.Hard:
+                    return "Hard";
+                default:
+                    return "Normal";
+            }
         }
     }
 }

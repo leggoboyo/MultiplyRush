@@ -49,9 +49,19 @@ namespace MultiplyRush
                 _countBaseColor = countText.color;
             }
 
-            ApplyTextStyle(levelText, 24, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
+            ApplyTextStyle(levelText, 22, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
+            if (levelText != null)
+            {
+                levelText.lineSpacing = 1.05f;
+                levelText.alignment = TextAnchor.UpperLeft;
+                levelText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                levelText.verticalOverflow = VerticalWrapMode.Overflow;
+                var levelRect = levelText.rectTransform;
+                levelRect.sizeDelta = new Vector2(980f, 132f);
+                levelRect.anchoredPosition = new Vector2(24f, -50f);
+            }
             SetNonInteractive(levelText);
             SetNonInteractive(countText);
             SetNonInteractive(progressText);
@@ -280,67 +290,45 @@ namespace MultiplyRush
             }
 
             var bossTag = _isMiniBossLevel ? " • Mini-Boss" : string.Empty;
+            var modeLabel = GetModeLabel(_difficultyMode);
             levelText.text =
-                "L" + Mathf.Max(1, _levelIndex) + bossTag +
-                " • " + AbbreviateModifier(_modifierName) +
-                " • " + DifficultyRules.GetModeShortLabel(_difficultyMode) +
-                " • K" + _reinforcementKits +
-                " S" + _shieldCharges;
+                "Level " + Mathf.Max(1, _levelIndex) + bossTag +
+                "\nMode: " + modeLabel +
+                " • " + CleanModifierName(_modifierName) +
+                " • Kits: " + _reinforcementKits +
+                " • Shields: " + _shieldCharges;
         }
 
-        private static string AbbreviateModifier(string modifierName)
+        private static string CleanModifierName(string modifierName)
         {
             if (string.IsNullOrWhiteSpace(modifierName))
             {
-                return "Core";
+                return "Core Rush";
             }
 
-            if (modifierName.Contains("•"))
+            var cleaned = modifierName.Trim();
+            if (cleaned.Contains("•"))
             {
-                var parts = modifierName.Split('•');
+                var parts = cleaned.Split('•');
                 if (parts.Length >= 2)
                 {
-                    return AbbreviateTheme(parts[0].Trim()) + "/" + AbbreviateModifier(parts[1].Trim());
+                    return parts[0].Trim() + " / " + parts[1].Trim();
                 }
             }
 
-            switch (modifierName.Trim())
-            {
-                case "Core Rush":
-                    return "Core";
-                case "Drift Gates":
-                    return "Drift";
-                case "Tempo Lock":
-                    return "Tempo";
-                case "Hazard Surge":
-                    return "Hazard";
-                case "Pressure AI":
-                    return "Pressure";
-                case "Tank Legion":
-                    return "Tank";
-                default:
-                    return modifierName;
-            }
+            return cleaned;
         }
 
-        private static string AbbreviateTheme(string themeName)
+        private static string GetModeLabel(DifficultyMode mode)
         {
-            switch (themeName)
+            switch (mode)
             {
-                case "Metro Dawn":
-                    return "Dawn";
-                case "Sunset Dunes":
-                    return "Dunes";
-                case "Aurora Ice":
-                    return "Ice";
-                case "Volcanic Rift":
-                    return "Rift";
-                case "Emerald Vista":
-                    return "Vista";
-                case "Neo Night":
-                    return "Neon";
+                case DifficultyMode.Easy:
+                    return "Easy";
+                case DifficultyMode.Hard:
+                    return "Hard";
                 default:
-                    return themeName;
+                    return "Normal";
             }
         }
 
