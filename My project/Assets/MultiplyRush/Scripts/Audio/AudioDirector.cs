@@ -634,7 +634,7 @@ namespace MultiplyRush
                 var body = Mathf.Sin(phase) * 0.84f +
                            Mathf.Sin(phase * 2f + 0.35f) * 0.12f +
                            EvaluateWaveform(Waveform.Sine, phase * 0.5f) * 0.04f;
-                var wave = Mathf.Tanh(body * 1.36f);
+                var wave = (float)Math.Tanh(body * 1.36f);
                 data[i] += wave * amplitude * env;
             }
         }

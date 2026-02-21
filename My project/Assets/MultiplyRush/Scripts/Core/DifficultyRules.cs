@@ -18,7 +18,6 @@ namespace MultiplyRush
             var rows = Mathf.Max(1, totalRows);
             float betterRatio;
             float worseRatio;
-            float redRatio;
 
             if (!isMiniBoss)
             {
@@ -28,19 +27,16 @@ namespace MultiplyRush
                         // Easy: can still win while taking roughly 7 red + 8 worse out of 15 rows.
                         betterRatio = 0f;
                         worseRatio = 8f / 15f;
-                        redRatio = 7f / 15f;
                         break;
                     case DifficultyMode.Hard:
                         // Hard: tuned around at least 10 better + up to 5 worse (scaled by row count).
                         betterRatio = 10f / 15f;
                         worseRatio = 5f / 15f;
-                        redRatio = 0f;
                         break;
                     default:
                         // Normal: tuned so taking the worse-green route each row can still beat the enemy count.
                         betterRatio = 0f;
                         worseRatio = 1f;
-                        redRatio = 0f;
                         break;
                 }
             }
@@ -52,19 +48,16 @@ namespace MultiplyRush
                         // Mini-boss easy: around 5 red + 10 worse out of 15 rows.
                         betterRatio = 0f;
                         worseRatio = 10f / 15f;
-                        redRatio = 5f / 15f;
                         break;
                     case DifficultyMode.Hard:
                         // Mini-boss hard: all better-route execution.
                         betterRatio = 1f;
                         worseRatio = 0f;
-                        redRatio = 0f;
                         break;
                     default:
                         // Mini-boss normal: around 13 better + 2 worse out of 15 rows.
                         betterRatio = 13f / 15f;
                         worseRatio = 2f / 15f;
-                        redRatio = 0f;
                         break;
                 }
             }

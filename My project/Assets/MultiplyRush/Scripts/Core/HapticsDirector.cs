@@ -15,7 +15,9 @@ namespace MultiplyRush
     {
         private static HapticsDirector _instance;
 
+#if UNITY_IOS || UNITY_ANDROID
         private float _lastHapticTime = -10f;
+#endif
         private bool _enabled = true;
 
         public static HapticsDirector Instance
