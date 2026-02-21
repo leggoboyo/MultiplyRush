@@ -42,6 +42,11 @@ namespace MultiplyRush
             CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.9f, 0.1f), new Vector3(0.12f, 0.04f, 0.02f), accent);
             CreatePart(PrimitiveType.Cube, "RifleBody", modelRoot, new Vector3(0f, 0.53f, 0.16f), new Vector3(0.26f, 0.05f, 0.05f), GetWeaponMaterial());
             CreatePart(PrimitiveType.Cube, "RifleBarrel", modelRoot, new Vector3(0f, 0.54f, 0.27f), new Vector3(0.03f, 0.03f, 0.16f), GetWeaponMaterial());
+            var muzzlePoint = new GameObject("MuzzlePoint").transform;
+            muzzlePoint.SetParent(modelRoot, false);
+            muzzlePoint.localPosition = new Vector3(0f, 0.54f, 0.36f);
+            muzzlePoint.localRotation = Quaternion.identity;
+            muzzlePoint.localScale = Vector3.one;
             CreatePart(PrimitiveType.Cube, "LeftArm", modelRoot, new Vector3(-0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
             CreatePart(PrimitiveType.Cube, "RightArm", modelRoot, new Vector3(0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
             CreatePart(PrimitiveType.Cube, "Legs", modelRoot, new Vector3(0f, 0.18f, 0f), new Vector3(0.2f, 0.26f, 0.13f), uniform);

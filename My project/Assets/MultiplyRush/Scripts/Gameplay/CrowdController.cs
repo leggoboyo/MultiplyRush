@@ -69,6 +69,7 @@ namespace MultiplyRush
         public TouchDragInput dragInput;
 
         private readonly List<Transform> _activeUnits = new List<Transform>(160);
+        private readonly List<Transform> _unitMuzzles = new List<Transform>(160);
         private readonly Stack<Transform> _unitPool = new Stack<Transform>(160);
         private readonly List<Vector3> _formationSlots = new List<Vector3>(160);
         private readonly List<float> _unitPhaseOffsets = new List<float>(160);
@@ -113,6 +114,7 @@ namespace MultiplyRush
         private int _worseGateHits;
         private int _redGateHits;
         private int _totalGateRows;
+        private int _nextShooterIndex;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -299,6 +301,7 @@ namespace MultiplyRush
             _laneTimeCenter = 0f;
             _laneTimeRight = 0f;
             _weaponShotAccumulator = 0f;
+            _nextShooterIndex = 0;
             _combatActive = false;
             _combatTarget = null;
             _betterGateHits = 0;
@@ -461,6 +464,7 @@ namespace MultiplyRush
                 unit.gameObject.SetActive(true);
                 unit.SetParent(formationRoot, false);
                 _activeUnits.Add(unit);
+                _unitMuzzles.Add(ResolveUnitMuzzle(unit));
                 _formationSlots.Add(Vector3.zero);
                 _unitPhaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
             }
@@ -470,9 +474,19 @@ namespace MultiplyRush
                 var lastIndex = _activeUnits.Count - 1;
                 var unit = _activeUnits[lastIndex];
                 _activeUnits.RemoveAt(lastIndex);
+                _unitMuzzles.RemoveAt(lastIndex);
                 _formationSlots.RemoveAt(lastIndex);
                 _unitPhaseOffsets.RemoveAt(lastIndex);
                 ReturnUnitToPool(unit);
+            }
+
+            if (_activeUnits.Count <= 0)
+            {
+                _nextShooterIndex = 0;
+            }
+            else
+            {
+                _nextShooterIndex %= _activeUnits.Count;
             }
 
             RelayoutFormation();
@@ -983,10 +997,14 @@ namespace MultiplyRush
             }
 
             var activeVisualUnits = Mathf.Max(1, _activeUnits.Count);
+            var perUnitFireRate = Mathf.Max(0.85f, shotsPerVisibleUnit);
+            var dynamicShotCap = Mathf.Max(
+                maxShotsPerSecond,
+                Mathf.Clamp(activeVisualUnits * 1.2f, 24f, 220f));
             var shotsPerSecond = Mathf.Clamp(
-                baseShotsPerSecond + (Mathf.Sqrt(Mathf.Max(1f, _count)) * Mathf.Max(0f, shotsPerVisibleUnit)) + (activeVisualUnits * 0.05f),
+                baseShotsPerSecond + (activeVisualUnits * perUnitFireRate),
                 1f,
-                Mathf.Max(1f, maxShotsPerSecond));
+                Mathf.Max(1f, dynamicShotCap));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
             var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, 32);
             if (shotCount <= 0)
@@ -1027,7 +1045,8 @@ namespace MultiplyRush
 
             if (_weaponFlashSystem != null)
             {
-                for (var i = 0; i < Mathf.Clamp(1 + (shotCount / 6), 1, 7); i++)
+                var flashCount = Mathf.Clamp(Mathf.CeilToInt(shotCount * 0.9f), 1, 28);
+                for (var i = 0; i < flashCount; i++)
                 {
                     if (!TryGetWeaponEmissionPose(out var flashPosition, out var flashDirection))
                     {
@@ -1057,13 +1076,33 @@ namespace MultiplyRush
 
             if (_activeUnits.Count > 0)
             {
-                var unit = _activeUnits[UnityEngine.Random.Range(0, _activeUnits.Count)];
+                if (_nextShooterIndex >= _activeUnits.Count)
+                {
+                    _nextShooterIndex = 0;
+                }
+
+                var shooterIndex = _nextShooterIndex;
+                _nextShooterIndex++;
+                var unit = _activeUnits[shooterIndex];
                 if (unit != null)
                 {
-                    position = unit.TransformPoint(new Vector3(
+                    var muzzle = shooterIndex < _unitMuzzles.Count ? _unitMuzzles[shooterIndex] : null;
+                    if (muzzle == null)
+                    {
+                        muzzle = ResolveUnitMuzzle(unit);
+                        if (shooterIndex < _unitMuzzles.Count)
+                        {
+                            _unitMuzzles[shooterIndex] = muzzle;
+                        }
+                    }
+
+                    position = muzzle != null
+                        ? muzzle.position
+                        : unit.position + (transform.forward * 0.2f) + new Vector3(0f, 0.52f, 0f);
+                    position += new Vector3(
                         UnityEngine.Random.Range(-0.03f, 0.03f),
-                        0.5f + UnityEngine.Random.Range(-0.03f, 0.08f),
-                        0.18f + UnityEngine.Random.Range(-0.02f, 0.05f)));
+                        UnityEngine.Random.Range(-0.03f, 0.06f),
+                        UnityEngine.Random.Range(-0.02f, 0.04f));
                     direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
                     return true;
                 }
@@ -1079,6 +1118,33 @@ namespace MultiplyRush
             position = transform.position + Vector3.up * 0.55f + transform.forward * 0.18f;
             direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
             return true;
+        }
+
+        private static Transform ResolveUnitMuzzle(Transform unit)
+        {
+            if (unit == null)
+            {
+                return null;
+            }
+
+            var muzzle = unit.Find("SoldierModel/MuzzlePoint");
+            if (muzzle != null)
+            {
+                return muzzle;
+            }
+
+            var model = unit.Find("SoldierModel");
+            if (model == null)
+            {
+                return null;
+            }
+
+            var runtimeMuzzle = new GameObject("MuzzlePoint").transform;
+            runtimeMuzzle.SetParent(model, false);
+            runtimeMuzzle.localPosition = new Vector3(0f, 0.54f, 0.36f);
+            runtimeMuzzle.localRotation = Quaternion.identity;
+            runtimeMuzzle.localScale = Vector3.one;
+            return runtimeMuzzle;
         }
 
         private void AnimateGateEffects(float deltaTime)
