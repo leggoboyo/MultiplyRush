@@ -58,6 +58,7 @@ namespace MultiplyRush
         public float tracerLifetime = 0.24f;
         public float tracerSpread = 0.1f;
         public float tracerMuzzleJitter = 0.07f;
+        public float tracerSpawnForwardOffset = 0.12f;
 
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
@@ -862,8 +863,8 @@ namespace MultiplyRush
                 if (tracerRenderer != null)
                 {
                     tracerRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-                    tracerRenderer.lengthScale = 4.2f;
-                    tracerRenderer.velocityScale = 0.55f;
+                    tracerRenderer.lengthScale = 1.15f;
+                    tracerRenderer.velocityScale = 1.05f;
                     tracerRenderer.material = CreateEffectMaterial("WeaponTracerMaterial", new Color(1f, 0.95f, 0.55f, 1f), 0.18f, 1.2f);
                 }
 
@@ -905,11 +906,11 @@ namespace MultiplyRush
             main.playOnAwake = false;
             main.loop = false;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.16f, 0.32f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(22f, 42f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.026f, 0.05f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.07f, 0.15f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(46f, 84f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.022f, 0.036f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.56f, 1f));
-            main.maxParticles = 320;
+            main.maxParticles = 520;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
             var emission = particleSystem.emission;
@@ -937,14 +938,7 @@ namespace MultiplyRush
             colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
 
             var trails = particleSystem.trails;
-            trails.enabled = true;
-            trails.mode = ParticleSystemTrailMode.PerParticle;
-            trails.ratio = 1f;
-            trails.dieWithParticles = true;
-            trails.lifetime = 0.08f;
-            trails.minVertexDistance = 0.03f;
-            trails.widthOverTrail = new ParticleSystem.MinMaxCurve(0.75f);
-            trails.colorOverTrail = new ParticleSystem.MinMaxGradient(new Color(1f, 0.84f, 0.36f, 1f));
+            trails.enabled = false;
         }
 
         private static void ConfigureWeaponFlashSystem(ParticleSystem particleSystem)
@@ -1029,14 +1023,15 @@ namespace MultiplyRush
                     UnityEngine.Random.Range(-tracerSpread, tracerSpread),
                     UnityEngine.Random.Range(-tracerSpread * 0.2f, tracerSpread * 0.2f),
                     0f)).normalized;
-                var emitVelocity = emitDirection * Mathf.Max(4f, tracerSpeed * UnityEngine.Random.Range(0.84f, 1.18f));
+                emitPosition += emitDirection * Mathf.Max(0f, tracerSpawnForwardOffset);
+                var emitVelocity = emitDirection * Mathf.Max(8f, tracerSpeed * UnityEngine.Random.Range(1.1f, 1.42f));
 
                 var emitParams = new ParticleSystem.EmitParams
                 {
                     position = emitPosition,
                     velocity = emitVelocity,
-                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.85f, tracerLifetime * 1.2f),
-                    startSize = UnityEngine.Random.Range(0.024f, 0.05f),
+                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.42f, tracerLifetime * 0.78f),
+                    startSize = UnityEngine.Random.Range(0.022f, 0.04f),
                     startColor = Color.Lerp(new Color(1f, 0.92f, 0.5f, 1f), new Color(1f, 0.62f, 0.2f, 1f), UnityEngine.Random.value)
                 };
 
