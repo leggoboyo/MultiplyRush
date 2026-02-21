@@ -63,12 +63,17 @@ namespace MultiplyRush
         public float baseShotsPerSecond = 2.1f;
         public float shotsPerVisibleUnit = 0.055f;
         public float maxShotsPerSecond = 16f;
+        public float combatBaseShotsPerSecond = 8.5f;
+        public float combatShotsPerVisibleUnit = 0.45f;
+        public float combatMaxShotsPerSecond = 58f;
         public float tracerSpeed = 35f;
         public float tracerLifetime = 0.11f;
         public float tracerSpread = 0.1f;
         public float tracerMuzzleJitter = 0.07f;
         public float tracerSpawnForwardOffset = 0.18f;
         public float gateShotRayDistance = 88f;
+        [Range(8, 80)]
+        public int maxCombatShotsPerFrame = 40;
 
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
@@ -194,6 +199,10 @@ namespace MultiplyRush
             baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 0.6f, 5f);
             shotsPerVisibleUnit = Mathf.Clamp(shotsPerVisibleUnit, 0.02f, 0.16f);
             maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 6f, 30f);
+            combatBaseShotsPerSecond = Mathf.Clamp(combatBaseShotsPerSecond, 4f, 22f);
+            combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.12f, 1.1f);
+            combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 20f, 100f);
+            maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 8, 80);
 
             PrewarmPool();
 
@@ -949,8 +958,8 @@ namespace MultiplyRush
                 if (tracerRenderer != null)
                 {
                     tracerRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-                    tracerRenderer.lengthScale = 0.08f;
-                    tracerRenderer.velocityScale = 0f;
+                    tracerRenderer.lengthScale = 1.65f;
+                    tracerRenderer.velocityScale = 0.42f;
                     tracerRenderer.material = CreateEffectMaterial("WeaponTracerMaterial", new Color(1f, 0.95f, 0.55f, 1f), 0.18f, 1.2f);
                 }
 
@@ -992,11 +1001,11 @@ namespace MultiplyRush
             main.playOnAwake = false;
             main.loop = false;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.011f, 0.024f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(72f, 112f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.014f, 0.024f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.07f, 0.16f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(24f, 52f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.024f, 0.046f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.56f, 1f));
-            main.maxParticles = 520;
+            main.maxParticles = 1500;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
 
             var emission = particleSystem.emission;
@@ -1077,17 +1086,27 @@ namespace MultiplyRush
             }
 
             RebuildFrontShooterIndices();
-            var activeShooters = Mathf.Max(1, _frontShooterIndices.Count);
-            var perUnitFireRate = Mathf.Max(0.01f, shotsPerVisibleUnit);
-            var dynamicShotCap = Mathf.Max(
-                maxShotsPerSecond,
-                Mathf.Clamp(activeShooters * 0.42f, 8f, 28f));
-            var shotsPerSecond = Mathf.Clamp(
-                baseShotsPerSecond + (activeShooters * perUnitFireRate),
-                1f,
-                Mathf.Max(1f, dynamicShotCap));
+            var activeShooters = _combatActive
+                ? Mathf.Max(1, _activeUnits.Count)
+                : Mathf.Max(1, _frontShooterIndices.Count);
+            var perUnitFireRate = _combatActive
+                ? Mathf.Max(0.01f, combatShotsPerVisibleUnit)
+                : Mathf.Max(0.01f, shotsPerVisibleUnit);
+            var baseRate = _combatActive
+                ? Mathf.Max(0.4f, combatBaseShotsPerSecond)
+                : Mathf.Max(0.2f, baseShotsPerSecond);
+            var maxRate = _combatActive
+                ? Mathf.Max(8f, combatMaxShotsPerSecond)
+                : Mathf.Max(2f, maxShotsPerSecond);
+            var dynamicShotCap = _combatActive
+                ? Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 1.3f, 12f, 120f))
+                : Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 0.42f, 8f, 28f));
+            var shotsPerSecond = Mathf.Clamp(baseRate + (activeShooters * perUnitFireRate), 1f, Mathf.Max(1f, dynamicShotCap));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
-            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, 12);
+            var maxShotsPerFrame = _combatActive
+                ? Mathf.Clamp(maxCombatShotsPerFrame, 8, 80)
+                : 16;
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, maxShotsPerFrame);
             if (shotCount <= 0)
             {
                 return;
@@ -1112,16 +1131,19 @@ namespace MultiplyRush
                     0f)).normalized;
                 emitPosition += emitDirection * Mathf.Max(0f, tracerSpawnForwardOffset);
                 emitPosition.z = Mathf.Max(emitPosition.z, transform.position.z + 0.06f);
-                var emitVelocity = emitDirection * Mathf.Max(24f, tracerSpeed * UnityEngine.Random.Range(1.2f, 1.65f));
+                var speedVariance = _combatActive
+                    ? UnityEngine.Random.Range(0.84f, 1.2f)
+                    : UnityEngine.Random.Range(0.96f, 1.28f);
+                var emitVelocity = emitDirection * Mathf.Max(11f, tracerSpeed * speedVariance);
 
                 var emitParams = new ParticleSystem.EmitParams
                 {
                     position = emitPosition,
                     velocity = emitVelocity,
                     startLifetime = UnityEngine.Random.Range(
-                        Mathf.Max(0.009f, tracerLifetime * 0.08f),
-                        Mathf.Max(0.014f, tracerLifetime * 0.16f)),
-                    startSize = UnityEngine.Random.Range(0.014f, 0.022f),
+                        Mathf.Max(0.05f, tracerLifetime * 0.65f),
+                        Mathf.Max(0.09f, tracerLifetime * 1.35f)),
+                    startSize = UnityEngine.Random.Range(0.024f, 0.046f),
                     startColor = Color.Lerp(new Color(1f, 0.92f, 0.5f, 1f), new Color(1f, 0.62f, 0.2f, 1f), UnityEngine.Random.value)
                 };
 
@@ -1162,12 +1184,12 @@ namespace MultiplyRush
 
             if (_activeUnits.Count > 0)
             {
-                if (_frontShooterIndices.Count <= 0)
+                if (!_combatActive && _frontShooterIndices.Count <= 0)
                 {
                     RebuildFrontShooterIndices();
                 }
 
-                var shooterCount = _frontShooterIndices.Count;
+                var shooterCount = _combatActive ? _activeUnits.Count : _frontShooterIndices.Count;
                 if (shooterCount <= 0)
                 {
                     shooterCount = _activeUnits.Count;
@@ -1180,7 +1202,7 @@ namespace MultiplyRush
 
                 var shooterListIndex = _nextShooterIndex;
                 _nextShooterIndex++;
-                var shooterIndex = _frontShooterIndices.Count > 0
+                var shooterIndex = !_combatActive && _frontShooterIndices.Count > 0
                     ? _frontShooterIndices[shooterListIndex]
                     : shooterListIndex;
                 var unit = _activeUnits[shooterIndex];

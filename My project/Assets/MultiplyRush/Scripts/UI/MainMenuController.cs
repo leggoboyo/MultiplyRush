@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -28,6 +29,8 @@ namespace MultiplyRush
         public float playTransitionDuration = 0.45f;
         public float playZoomScale = 1.12f;
         public Color transitionFlashColor = new Color(0.3f, 0.84f, 1f, 1f);
+        public float backdropStripDriftSpeed = 90f;
+        public float backdropStarDriftSpeed = 46f;
 
         [Header("Palette")]
         public Color backgroundTopColor = new Color(0.03f, 0.09f, 0.2f, 1f);
@@ -74,6 +77,18 @@ namespace MultiplyRush
         private RectTransform _badgeRect;
         private RectTransform _studioRect;
         private RectTransform _taglineRect;
+        private RectTransform _backdropLayerRect;
+        private RectTransform _backdropNebulaARect;
+        private RectTransform _backdropNebulaBRect;
+        private RectTransform _backdropHorizonRect;
+        private readonly List<RectTransform> _backdropStripRects = new List<RectTransform>(16);
+        private readonly List<float> _backdropStripSpeeds = new List<float>(16);
+        private readonly List<float> _backdropStripPhases = new List<float>(16);
+        private readonly List<float> _backdropStripBaseX = new List<float>(16);
+        private readonly List<RectTransform> _backdropStarRects = new List<RectTransform>(40);
+        private readonly List<float> _backdropStarSpeeds = new List<float>(40);
+        private readonly List<float> _backdropStarPhases = new List<float>(40);
+        private readonly List<float> _backdropStarBaseX = new List<float>(40);
         private Image _metaCardImage;
         private Text _titleText;
         private Text _taglineText;
@@ -224,7 +239,7 @@ namespace MultiplyRush
             {
                 var hasVideo = enableVideoBackground && menuBackgroundClip != null;
                 var tint = Color.Lerp(backgroundBottomColor, backgroundTopColor, 0.45f);
-                tint.a = hasVideo ? 0.58f : 0.96f;
+                tint.a = hasVideo ? 0.56f : 0.78f;
                 image.color = tint;
             }
         }
@@ -401,6 +416,8 @@ namespace MultiplyRush
                 return;
             }
 
+            EnsureProceduralBackdrop();
+
             if (_titleText != null)
             {
                 _titleText.text = "MULTIPLY RUSH";
@@ -560,11 +577,11 @@ namespace MultiplyRush
             _metaCardImage = FindOrCreateImage(
                 _safeAreaRoot,
                 "MetaCard",
-                new Color(0.06f, 0.14f, 0.27f, 0.78f),
+                new Color(0.08f, 0.17f, 0.31f, 0.88f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -20f),
-                new Vector2(760f, 292f));
+                new Vector2(792f, 362f));
             _metaCardRect = _metaCardImage != null ? _metaCardImage.rectTransform : null;
             if (_metaCardImage != null)
             {
@@ -582,7 +599,7 @@ namespace MultiplyRush
             _footerText = FindOrCreateText(
                 _safeAreaRoot,
                 "FooterText",
-                "No boosts. No timers. Just pure crowd-run chaos.",
+                string.Empty,
                 24,
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 0.12f),
@@ -590,11 +607,23 @@ namespace MultiplyRush
                 Vector2.zero,
                 new Vector2(900f, 56f));
             StyleBodyText(_footerText, 24, false);
-            _footerText.color = new Color(0.72f, 0.83f, 0.95f, 0.86f);
+            _footerText.color = new Color(0.72f, 0.83f, 0.95f, 0f);
+            _footerText.gameObject.SetActive(false);
 
-            _leftGlowRect.SetAsFirstSibling();
-            _rightGlowRect.SetAsFirstSibling();
-            _scanlineRect.SetAsFirstSibling();
+            if (_backdropLayerRect != null)
+            {
+                var backdropIndex = _backdropLayerRect.GetSiblingIndex();
+                var maxIndex = Mathf.Max(0, _safeAreaRoot.childCount - 1);
+                _leftGlowRect.SetSiblingIndex(Mathf.Clamp(backdropIndex + 1, 0, maxIndex));
+                _rightGlowRect.SetSiblingIndex(Mathf.Clamp(backdropIndex + 2, 0, maxIndex));
+                _scanlineRect.SetSiblingIndex(Mathf.Clamp(backdropIndex + 3, 0, maxIndex));
+            }
+            else
+            {
+                _leftGlowRect.SetAsFirstSibling();
+                _rightGlowRect.SetAsFirstSibling();
+                _scanlineRect.SetAsFirstSibling();
+            }
             EnsureTransitionFlash();
         }
 
@@ -662,6 +691,7 @@ namespace MultiplyRush
         private void AnimateMenu(float runTime)
         {
             var colorWave = 0.5f + Mathf.Sin(runTime * 0.45f) * 0.5f;
+            AnimateProceduralBackdrop(runTime);
 
             if (_titleRect != null)
             {
@@ -852,16 +882,16 @@ namespace MultiplyRush
             _musicLabel = EnsureDifficultyText(
                 _musicRow,
                 "MusicLabel",
-                "Gameplay Track",
+                "Music Tracks",
                 new Vector2(0f, 44f),
-                26);
+                28);
 
             _musicTrackLabel = EnsureDifficultyText(
                 _musicRow,
                 "MusicTrackLabel",
                 "Hyper Neon",
                 new Vector2(0f, -2f),
-                30);
+                33);
             if (_musicTrackLabel != null)
             {
                 _musicTrackLabel.color = new Color(0.88f, 0.98f, 1f, 1f);
@@ -935,7 +965,7 @@ namespace MultiplyRush
                 _taglineRect.sizeDelta = new Vector2(Mathf.Clamp(width - 120f, 420f, 980f), compact ? 66f : 76f);
                 if (_taglineText != null)
                 {
-                    _taglineText.fontSize = compact ? 30 : 34;
+                    _taglineText.fontSize = compact ? 31 : 36;
                 }
 
                 _taglineBasePosition = _taglineRect.anchoredPosition;
@@ -943,8 +973,8 @@ namespace MultiplyRush
 
             if (_metaCardRect != null)
             {
-                _metaCardRect.anchoredPosition = new Vector2(0f, compact ? -4f : 8f);
-                _metaCardRect.sizeDelta = new Vector2(Mathf.Clamp(width - 120f, 520f, 760f), compact ? 292f : 320f);
+                _metaCardRect.anchoredPosition = new Vector2(0f, compact ? -6f : 12f);
+                _metaCardRect.sizeDelta = new Vector2(Mathf.Clamp(width - 90f, 560f, 840f), compact ? 346f : 380f);
             }
 
             if (bestLevelText != null)
@@ -958,28 +988,30 @@ namespace MultiplyRush
                 _bestLevelRect.anchorMin = new Vector2(0.5f, 0.5f);
                 _bestLevelRect.anchorMax = new Vector2(0.5f, 0.5f);
                 _bestLevelRect.pivot = new Vector2(0.5f, 0.5f);
-                _bestLevelRect.anchoredPosition = new Vector2(0f, compact ? 100f : 112f);
-                _bestLevelRect.sizeDelta = new Vector2(420f, 54f);
+                _bestLevelRect.anchoredPosition = new Vector2(0f, compact ? 126f : 136f);
+                _bestLevelRect.sizeDelta = new Vector2(460f, 58f);
                 if (bestLevelText != null)
                 {
-                    bestLevelText.fontSize = compact ? 46 : 48;
+                    bestLevelText.fontSize = compact ? 52 : 56;
                 }
             }
 
             if (_musicRow != null)
             {
-                _musicRow.sizeDelta = new Vector2(Mathf.Clamp(width - 200f, 520f, 640f), compact ? 104f : 112f);
+                _musicRow.sizeDelta = new Vector2(Mathf.Clamp(width - 190f, 540f, 680f), compact ? 122f : 134f);
+                _musicRow.anchoredPosition = new Vector2(0f, compact ? 28f : 34f);
             }
 
             if (_difficultyRow != null)
             {
-                _difficultyRow.sizeDelta = new Vector2(Mathf.Clamp(width - 230f, 460f, 560f), compact ? 118f : 126f);
+                _difficultyRow.sizeDelta = new Vector2(Mathf.Clamp(width - 210f, 480f, 590f), compact ? 130f : 144f);
+                _difficultyRow.anchoredPosition = new Vector2(0f, compact ? -96f : -108f);
             }
 
             if (_playButtonRect != null)
             {
                 _playButtonRect.sizeDelta = new Vector2(Mathf.Clamp(width - 240f, 360f, 520f), compact ? 132f : 150f);
-                _buttonBasePosition = new Vector2(0f, compact ? -236f : -286f);
+                _buttonBasePosition = new Vector2(0f, compact ? -262f : -314f);
             }
 
             if (_playButtonLabel != null)
@@ -1016,7 +1048,235 @@ namespace MultiplyRush
                 _footerRect.anchorMax = new Vector2(0.5f, 0f);
                 _footerRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 460f, 920f), 56f);
                 _footerRect.anchoredPosition = new Vector2(0f, 34f);
+                _footerRect.gameObject.SetActive(false);
             }
+        }
+
+        private void EnsureProceduralBackdrop()
+        {
+            if (_safeAreaRoot == null)
+            {
+                return;
+            }
+
+            var existing = _safeAreaRoot.Find("MenuBackdropLayer");
+            GameObject backdropObject;
+            if (existing == null)
+            {
+                backdropObject = new GameObject("MenuBackdropLayer", typeof(RectTransform));
+                backdropObject.transform.SetParent(_safeAreaRoot, false);
+            }
+            else
+            {
+                backdropObject = existing.gameObject;
+            }
+
+            _backdropLayerRect = backdropObject.GetComponent<RectTransform>();
+            if (_backdropLayerRect == null)
+            {
+                _backdropLayerRect = backdropObject.AddComponent<RectTransform>();
+            }
+
+            _backdropLayerRect.anchorMin = Vector2.zero;
+            _backdropLayerRect.anchorMax = Vector2.one;
+            _backdropLayerRect.offsetMin = Vector2.zero;
+            _backdropLayerRect.offsetMax = Vector2.zero;
+            var background = _safeAreaRoot.Find("Background");
+            if (background != null)
+            {
+                var targetIndex = Mathf.Clamp(background.GetSiblingIndex() + 1, 0, Mathf.Max(0, _safeAreaRoot.childCount - 1));
+                _backdropLayerRect.SetSiblingIndex(targetIndex);
+            }
+            else
+            {
+                _backdropLayerRect.SetAsFirstSibling();
+            }
+
+            _backdropNebulaARect = FindOrCreateImage(
+                _backdropLayerRect,
+                "NebulaA",
+                new Color(0.24f, 0.55f, 1f, 0.2f),
+                new Vector2(0.16f, 0.77f),
+                new Vector2(0.16f, 0.77f),
+                Vector2.zero,
+                new Vector2(820f, 820f)).rectTransform;
+
+            _backdropNebulaBRect = FindOrCreateImage(
+                _backdropLayerRect,
+                "NebulaB",
+                new Color(0.04f, 0.82f, 0.96f, 0.14f),
+                new Vector2(0.82f, 0.28f),
+                new Vector2(0.82f, 0.28f),
+                Vector2.zero,
+                new Vector2(670f, 670f)).rectTransform;
+
+            _backdropHorizonRect = FindOrCreateImage(
+                _backdropLayerRect,
+                "HorizonGlow",
+                new Color(0.1f, 0.46f, 0.9f, 0.16f),
+                new Vector2(0.5f, 0.56f),
+                new Vector2(0.5f, 0.56f),
+                Vector2.zero,
+                new Vector2(1560f, 210f)).rectTransform;
+
+            const int stripCount = 12;
+            _backdropStripRects.Clear();
+            _backdropStripSpeeds.Clear();
+            _backdropStripPhases.Clear();
+            _backdropStripBaseX.Clear();
+            for (var i = 0; i < stripCount; i++)
+            {
+                var xHash = Hash01(i + 71);
+                var yHash = Hash01(i + 103);
+                var widthHash = Hash01(i + 149);
+                var speedHash = Hash01(i + 211);
+                var phaseHash = Hash01(i + 251);
+                var baseX = Mathf.Lerp(-460f, 460f, xHash);
+                var baseY = Mathf.Lerp(-620f, 620f, yHash);
+                var width = Mathf.Lerp(44f, 148f, widthHash);
+                var height = Mathf.Lerp(360f, 760f, 1f - widthHash);
+
+                var strip = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "DriftStrip_" + i,
+                    new Color(0.4f, 0.78f, 1f, Mathf.Lerp(0.07f, 0.19f, Hash01(i + 317))),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(baseX, baseY),
+                    new Vector2(width, height));
+                if (strip == null)
+                {
+                    continue;
+                }
+
+                strip.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-12f, 12f, Hash01(i + 347)));
+                strip.raycastTarget = false;
+                _backdropStripRects.Add(strip.rectTransform);
+                _backdropStripSpeeds.Add(Mathf.Lerp(0.68f, 1.28f, speedHash));
+                _backdropStripPhases.Add(phaseHash * 1000f);
+                _backdropStripBaseX.Add(baseX);
+            }
+
+            const int starCount = 28;
+            _backdropStarRects.Clear();
+            _backdropStarSpeeds.Clear();
+            _backdropStarPhases.Clear();
+            _backdropStarBaseX.Clear();
+            for (var i = 0; i < starCount; i++)
+            {
+                var xHash = Hash01(i + 401);
+                var yHash = Hash01(i + 463);
+                var sizeHash = Hash01(i + 509);
+                var speedHash = Hash01(i + 557);
+                var phaseHash = Hash01(i + 601);
+                var baseX = Mathf.Lerp(-520f, 520f, xHash);
+                var baseY = Mathf.Lerp(-660f, 660f, yHash);
+                var size = Mathf.Lerp(4f, 11f, sizeHash);
+
+                var star = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "Star_" + i,
+                    new Color(0.9f, 0.98f, 1f, Mathf.Lerp(0.35f, 0.9f, sizeHash)),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(baseX, baseY),
+                    new Vector2(size, size));
+                if (star == null)
+                {
+                    continue;
+                }
+
+                star.raycastTarget = false;
+                _backdropStarRects.Add(star.rectTransform);
+                _backdropStarSpeeds.Add(Mathf.Lerp(0.74f, 1.32f, speedHash));
+                _backdropStarPhases.Add(phaseHash * 1400f);
+                _backdropStarBaseX.Add(baseX);
+            }
+        }
+
+        private void AnimateProceduralBackdrop(float runTime)
+        {
+            if (_backdropLayerRect == null)
+            {
+                return;
+            }
+
+            if (_backdropNebulaARect != null)
+            {
+                _backdropNebulaARect.anchoredPosition = new Vector2(
+                    Mathf.Sin(runTime * 0.22f) * 160f,
+                    Mathf.Cos(runTime * 0.16f) * 72f);
+                var scale = 1f + Mathf.Sin(runTime * 0.64f) * 0.08f;
+                _backdropNebulaARect.localScale = new Vector3(scale, scale, 1f);
+            }
+
+            if (_backdropNebulaBRect != null)
+            {
+                _backdropNebulaBRect.anchoredPosition = new Vector2(
+                    Mathf.Cos(runTime * 0.19f) * 120f,
+                    Mathf.Sin(runTime * 0.24f) * 84f);
+                var scale = 1f + Mathf.Cos(runTime * 0.74f) * 0.1f;
+                _backdropNebulaBRect.localScale = new Vector3(scale, scale, 1f);
+            }
+
+            if (_backdropHorizonRect != null)
+            {
+                _backdropHorizonRect.anchoredPosition = new Vector2(0f, Mathf.Sin(runTime * 0.82f) * 30f);
+                var horizonImage = _backdropHorizonRect.GetComponent<Image>();
+                if (horizonImage != null)
+                {
+                    var alpha = 0.12f + Mathf.Abs(Mathf.Sin(runTime * 1.5f)) * 0.12f;
+                    horizonImage.color = new Color(0.12f, 0.54f, 0.98f, alpha);
+                }
+            }
+
+            var stripCount = Mathf.Min(_backdropStripRects.Count, Mathf.Min(_backdropStripSpeeds.Count, _backdropStripBaseX.Count));
+            for (var i = 0; i < stripCount; i++)
+            {
+                var rect = _backdropStripRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var phase = i < _backdropStripPhases.Count ? _backdropStripPhases[i] : 0f;
+                var y = Mathf.Repeat(phase + (runTime * backdropStripDriftSpeed * _backdropStripSpeeds[i]), 1560f) - 780f;
+                var x = _backdropStripBaseX[i] + Mathf.Sin(runTime * (0.55f + i * 0.06f)) * 26f;
+                rect.anchoredPosition = new Vector2(x, y);
+                var alphaPulse = 0.06f + Mathf.Abs(Mathf.Sin(runTime * (1.2f + i * 0.11f))) * 0.14f;
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    image.color = new Color(0.36f, 0.78f, 1f, alphaPulse);
+                }
+            }
+
+            var starCount = Mathf.Min(_backdropStarRects.Count, Mathf.Min(_backdropStarSpeeds.Count, _backdropStarBaseX.Count));
+            for (var i = 0; i < starCount; i++)
+            {
+                var rect = _backdropStarRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var phase = i < _backdropStarPhases.Count ? _backdropStarPhases[i] : 0f;
+                var y = Mathf.Repeat(phase + (runTime * backdropStarDriftSpeed * _backdropStarSpeeds[i]), 1540f) - 770f;
+                var x = _backdropStarBaseX[i] + Mathf.Sin(runTime * (0.9f + i * 0.2f)) * 8f;
+                rect.anchoredPosition = new Vector2(x, y);
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.35f + Mathf.Abs(Mathf.Sin(runTime * (2f + i * 0.09f))) * 0.45f;
+                    image.color = new Color(0.88f, 0.96f, 1f, alpha);
+                }
+            }
+        }
+
+        private static float Hash01(int seed)
+        {
+            var value = Mathf.Sin(seed * 12.9898f) * 43758.5453f;
+            return value - Mathf.Floor(value);
         }
 
         private void RefreshMusicTrackLabel()
