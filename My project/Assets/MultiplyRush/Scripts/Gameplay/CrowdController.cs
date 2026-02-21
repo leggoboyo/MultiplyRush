@@ -28,6 +28,10 @@ namespace MultiplyRush
         public float unitSpacingZ = 0.62f;
         public int maxColumns = 12;
         public float unitYOffset = 0f;
+        [Range(0.7f, 2f)]
+        public float unitVisualScale = 1.32f;
+        [Range(1, 8)]
+        public int shooterFrontRows = 3;
 
         [Header("Animation")]
         public float formationLerpSpeed = 18f;
@@ -39,6 +43,10 @@ namespace MultiplyRush
         public float leaderStrafeTilt = 0.9f;
         public float gatePunchScale = 1.08f;
         public float gatePunchDuration = 0.16f;
+        public bool enableUnitGainPopIn = true;
+        public float unitGainPopDuration = 0.28f;
+        public float unitGainPopOvershoot = 1.28f;
+        public float unitGainPopRise = 0.18f;
 
         [Header("Gate FX")]
         public bool enableGateEffects = true;
@@ -74,6 +82,8 @@ namespace MultiplyRush
         private readonly Stack<Transform> _unitPool = new Stack<Transform>(160);
         private readonly List<Vector3> _formationSlots = new List<Vector3>(160);
         private readonly List<float> _unitPhaseOffsets = new List<float>(160);
+        private readonly List<float> _unitGainPopTimers = new List<float>(160);
+        private readonly List<int> _frontShooterIndices = new List<int>(160);
 
         private Transform _poolRoot;
         private Transform _leaderVisual;
@@ -116,6 +126,7 @@ namespace MultiplyRush
         private int _redGateHits;
         private int _totalGateRows;
         private int _nextShooterIndex;
+        private bool _suppressUnitGainPop;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -152,7 +163,7 @@ namespace MultiplyRush
                 var leaderModel = _leaderVisual.Find("SoldierModel");
                 if (leaderModel != null)
                 {
-                    leaderModel.localScale = Vector3.one * 1.28f;
+                    leaderModel.localScale = Vector3.one * 1.54f;
                     leaderModel.localPosition = new Vector3(0f, -0.04f, 0.03f);
                 }
 
@@ -163,6 +174,9 @@ namespace MultiplyRush
             EnsureGateEffects();
             EnsureWeaponEffects();
 
+            unitVisualScale = Mathf.Max(1.28f, unitVisualScale);
+            unitSpacingX = Mathf.Max(0.62f, unitSpacingX);
+            unitSpacingZ = Mathf.Max(0.72f, unitSpacingZ);
             maxVisibleUnits = Mathf.Min(maxVisibleUnits, 120);
 
             PrewarmPool();
@@ -310,7 +324,9 @@ namespace MultiplyRush
             _redGateHits = 0;
             _totalGateRows = Mathf.Max(0, totalGateRows);
 
+            _suppressUnitGainPop = true;
             SetCount(initialCount);
+            _suppressUnitGainPop = false;
         }
 
         public void StopRun()
@@ -456,6 +472,8 @@ namespace MultiplyRush
 
         private void SetCount(int value, bool allowZero = false)
         {
+            var previousCount = _count;
+            var previousVisible = _activeUnits.Count;
             _count = allowZero ? Mathf.Max(0, value) : Mathf.Max(minCount, value);
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
 
@@ -468,6 +486,9 @@ namespace MultiplyRush
                 _unitMuzzles.Add(ResolveUnitMuzzle(unit));
                 _formationSlots.Add(Vector3.zero);
                 _unitPhaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
+                _unitGainPopTimers.Add(enableUnitGainPopIn && !_suppressUnitGainPop
+                    ? Mathf.Max(0f, unitGainPopDuration)
+                    : 0f);
             }
 
             while (_activeUnits.Count > targetVisible)
@@ -478,6 +499,7 @@ namespace MultiplyRush
                 _unitMuzzles.RemoveAt(lastIndex);
                 _formationSlots.RemoveAt(lastIndex);
                 _unitPhaseOffsets.RemoveAt(lastIndex);
+                _unitGainPopTimers.RemoveAt(lastIndex);
                 ReturnUnitToPool(unit);
             }
 
@@ -491,6 +513,10 @@ namespace MultiplyRush
             }
 
             RelayoutFormation();
+            if (!_suppressUnitGainPop && _count > previousCount && _activeUnits.Count > previousVisible)
+            {
+                TriggerGatePunch(new Color(0.45f, 1f, 0.64f, 1f));
+            }
             CountChanged?.Invoke(_count);
         }
 
@@ -596,7 +622,21 @@ namespace MultiplyRush
                     unit.localRotation = Quaternion.identity;
                 }
 
+                var popScale = 1f;
+                if (i < _unitGainPopTimers.Count && _unitGainPopTimers[i] > 0f)
+                {
+                    var duration = Mathf.Max(0.08f, unitGainPopDuration);
+                    var timer = Mathf.Max(0f, _unitGainPopTimers[i] - deltaTime);
+                    _unitGainPopTimers[i] = timer;
+                    var progress = 1f - (timer / duration);
+                    var eased = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(progress));
+                    var popCurve = 1f + Mathf.Sin(Mathf.Clamp01(progress) * Mathf.PI) * Mathf.Max(0f, unitGainPopOvershoot - 1f);
+                    popScale = Mathf.Lerp(0.32f, popCurve, eased);
+                    slot.y -= (1f - eased) * Mathf.Max(0f, unitGainPopRise);
+                }
+
                 unit.localPosition = Vector3.Lerp(unit.localPosition, slot, blend);
+                unit.localScale = Vector3.one * Mathf.Max(0.6f, unitVisualScale) * popScale;
             }
 
             formationRoot.localScale = Vector3.one * punchScale;
@@ -863,8 +903,8 @@ namespace MultiplyRush
                 if (tracerRenderer != null)
                 {
                     tracerRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-                    tracerRenderer.lengthScale = 1.15f;
-                    tracerRenderer.velocityScale = 1.05f;
+                    tracerRenderer.lengthScale = 0.38f;
+                    tracerRenderer.velocityScale = 0.24f;
                     tracerRenderer.material = CreateEffectMaterial("WeaponTracerMaterial", new Color(1f, 0.95f, 0.55f, 1f), 0.18f, 1.2f);
                 }
 
@@ -906,9 +946,9 @@ namespace MultiplyRush
             main.playOnAwake = false;
             main.loop = false;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.07f, 0.15f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(46f, 84f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.022f, 0.036f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.028f, 0.055f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(96f, 152f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.017f, 0.03f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.56f, 1f));
             main.maxParticles = 520;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -990,13 +1030,14 @@ namespace MultiplyRush
                 return;
             }
 
-            var activeVisualUnits = Mathf.Max(1, _activeUnits.Count);
+            RebuildFrontShooterIndices();
+            var activeShooters = Mathf.Max(1, _frontShooterIndices.Count);
             var perUnitFireRate = Mathf.Max(0.85f, shotsPerVisibleUnit);
             var dynamicShotCap = Mathf.Max(
                 maxShotsPerSecond,
-                Mathf.Clamp(activeVisualUnits * 1.2f, 24f, 220f));
+                Mathf.Clamp(activeShooters * 1.65f, 24f, 220f));
             var shotsPerSecond = Mathf.Clamp(
-                baseShotsPerSecond + (activeVisualUnits * perUnitFireRate),
+                baseShotsPerSecond + (activeShooters * perUnitFireRate),
                 1f,
                 Mathf.Max(1f, dynamicShotCap));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
@@ -1024,14 +1065,14 @@ namespace MultiplyRush
                     UnityEngine.Random.Range(-tracerSpread * 0.2f, tracerSpread * 0.2f),
                     0f)).normalized;
                 emitPosition += emitDirection * Mathf.Max(0f, tracerSpawnForwardOffset);
-                var emitVelocity = emitDirection * Mathf.Max(8f, tracerSpeed * UnityEngine.Random.Range(1.1f, 1.42f));
+                var emitVelocity = emitDirection * Mathf.Max(24f, tracerSpeed * UnityEngine.Random.Range(2.1f, 2.9f));
 
                 var emitParams = new ParticleSystem.EmitParams
                 {
                     position = emitPosition,
                     velocity = emitVelocity,
-                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.42f, tracerLifetime * 0.78f),
-                    startSize = UnityEngine.Random.Range(0.022f, 0.04f),
+                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.16f, tracerLifetime * 0.31f),
+                    startSize = UnityEngine.Random.Range(0.016f, 0.028f),
                     startColor = Color.Lerp(new Color(1f, 0.92f, 0.5f, 1f), new Color(1f, 0.62f, 0.2f, 1f), UnityEngine.Random.value)
                 };
 
@@ -1067,13 +1108,27 @@ namespace MultiplyRush
 
             if (_activeUnits.Count > 0)
             {
-                if (_nextShooterIndex >= _activeUnits.Count)
+                if (_frontShooterIndices.Count <= 0)
+                {
+                    RebuildFrontShooterIndices();
+                }
+
+                var shooterCount = _frontShooterIndices.Count;
+                if (shooterCount <= 0)
+                {
+                    shooterCount = _activeUnits.Count;
+                }
+
+                if (_nextShooterIndex >= shooterCount)
                 {
                     _nextShooterIndex = 0;
                 }
 
-                var shooterIndex = _nextShooterIndex;
+                var shooterListIndex = _nextShooterIndex;
                 _nextShooterIndex++;
+                var shooterIndex = _frontShooterIndices.Count > 0
+                    ? _frontShooterIndices[shooterListIndex]
+                    : shooterListIndex;
                 var unit = _activeUnits[shooterIndex];
                 if (unit != null)
                 {
@@ -1164,6 +1219,62 @@ namespace MultiplyRush
             runtimeMuzzle.localRotation = Quaternion.identity;
             runtimeMuzzle.localScale = Vector3.one;
             return runtimeMuzzle;
+        }
+
+        private void RebuildFrontShooterIndices()
+        {
+            _frontShooterIndices.Clear();
+            var count = _activeUnits.Count;
+            if (count <= 0)
+            {
+                _nextShooterIndex = 0;
+                return;
+            }
+
+            var frontMostZ = float.MinValue;
+            for (var i = 0; i < count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                if (unit.position.z > frontMostZ)
+                {
+                    frontMostZ = unit.position.z;
+                }
+            }
+
+            var rows = Mathf.Clamp(shooterFrontRows, 1, 8);
+            var allowedDepth = Mathf.Max(0.2f, (rows - 1) * Mathf.Max(0.2f, unitSpacingZ) + 0.08f);
+            var minShooterZ = frontMostZ - allowedDepth;
+            for (var i = 0; i < count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                if (unit.position.z >= minShooterZ)
+                {
+                    _frontShooterIndices.Add(i);
+                }
+            }
+
+            if (_frontShooterIndices.Count <= 0)
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    _frontShooterIndices.Add(i);
+                }
+            }
+
+            if (_nextShooterIndex >= _frontShooterIndices.Count)
+            {
+                _nextShooterIndex = 0;
+            }
         }
 
         private void AnimateGateEffects(float deltaTime)
