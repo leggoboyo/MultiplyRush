@@ -51,6 +51,11 @@ namespace MultiplyRush
         private Text _normalLabel;
         private Text _hardLabel;
         private Text _difficultyLabel;
+        private RectTransform _musicRow;
+        private Text _musicLabel;
+        private Text _musicTrackLabel;
+        private Button _musicPrevButton;
+        private Button _musicNextButton;
         private RectTransform _leftGlowRect;
         private RectTransform _rightGlowRect;
         private RectTransform _scanlineRect;
@@ -74,6 +79,7 @@ namespace MultiplyRush
 
             _selectedDifficulty = ProgressionStore.GetDifficultyMode(defaultDifficulty);
             EnsureDifficultySelector();
+            EnsureMusicSelector();
             ApplyDifficultySelectionVisuals();
             HapticsDirector.EnsureInstance();
             AppLifecycleController.EnsureInstance().SetPauseOnFocusLoss(true);
@@ -94,8 +100,10 @@ namespace MultiplyRush
             }
 
             var audio = AudioDirector.EnsureInstance();
+            audio.SetGameplayTrackIndex(ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount()), false);
             audio.RefreshMasterVolume();
             audio.SetMusicCue(AudioMusicCue.MainMenu, true);
+            RefreshMusicTrackLabel();
         }
 
         private void Update()
@@ -431,6 +439,12 @@ namespace MultiplyRush
                     var rowPosition = _buttonBasePosition + new Vector2(0f, 140f + Mathf.Sin(runTime * 1.7f) * 5f);
                     _difficultyRow.anchoredPosition = rowPosition;
                 }
+
+                if (_musicRow != null)
+                {
+                    var rowPosition = _buttonBasePosition + new Vector2(0f, 218f + Mathf.Sin(runTime * 1.5f + 0.4f) * 5f);
+                    _musicRow.anchoredPosition = rowPosition;
+                }
             }
 
             if (_playButtonImage != null)
@@ -551,6 +565,109 @@ namespace MultiplyRush
                 _hardButton.onClick.RemoveAllListeners();
                 _hardButton.onClick.AddListener(() => SelectDifficulty(DifficultyMode.Hard));
             }
+        }
+
+        private void EnsureMusicSelector()
+        {
+            if (_safeAreaRoot == null)
+            {
+                return;
+            }
+
+            var rowTransform = _safeAreaRoot.Find("MusicRow");
+            if (rowTransform == null)
+            {
+                var rowObject = new GameObject("MusicRow");
+                rowObject.transform.SetParent(_safeAreaRoot, false);
+                _musicRow = rowObject.AddComponent<RectTransform>();
+                _musicRow.anchorMin = new Vector2(0.5f, 0.5f);
+                _musicRow.anchorMax = new Vector2(0.5f, 0.5f);
+                _musicRow.pivot = new Vector2(0.5f, 0.5f);
+                _musicRow.sizeDelta = new Vector2(640f, 128f);
+            }
+            else
+            {
+                _musicRow = rowTransform.GetComponent<RectTransform>();
+            }
+
+            if (_musicRow == null)
+            {
+                return;
+            }
+
+            if (_playButtonRect != null)
+            {
+                _musicRow.anchoredPosition = _buttonBasePosition + new Vector2(0f, 218f);
+            }
+
+            _musicLabel = EnsureDifficultyText(
+                _musicRow,
+                "MusicLabel",
+                "Gameplay Track",
+                new Vector2(0f, 44f),
+                26);
+
+            _musicTrackLabel = EnsureDifficultyText(
+                _musicRow,
+                "MusicTrackLabel",
+                "Hyper Neon",
+                new Vector2(0f, -2f),
+                30);
+            if (_musicTrackLabel != null)
+            {
+                _musicTrackLabel.color = new Color(0.88f, 0.98f, 1f, 1f);
+            }
+
+            _musicPrevButton = EnsureMusicNavButton(_musicRow, "MusicPrevButton", "<", new Vector2(-258f, -2f));
+            _musicNextButton = EnsureMusicNavButton(_musicRow, "MusicNextButton", ">", new Vector2(258f, -2f));
+
+            if (_musicPrevButton != null)
+            {
+                _musicPrevButton.onClick.RemoveAllListeners();
+                _musicPrevButton.onClick.AddListener(() => CycleMusicTrack(-1));
+            }
+
+            if (_musicNextButton != null)
+            {
+                _musicNextButton.onClick.RemoveAllListeners();
+                _musicNextButton.onClick.AddListener(() => CycleMusicTrack(1));
+            }
+        }
+
+        private void CycleMusicTrack(int delta)
+        {
+            var audio = AudioDirector.Instance ?? AudioDirector.EnsureInstance();
+            var trackCount = Mathf.Max(1, audio.GetGameplayTrackCount());
+            var current = ProgressionStore.GetGameplayMusicTrack(0, trackCount);
+            var next = (current + delta) % trackCount;
+            if (next < 0)
+            {
+                next += trackCount;
+            }
+
+            audio.SetGameplayTrackIndex(next, false);
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
+            RefreshMusicTrackLabel();
+        }
+
+        private void RefreshMusicTrackLabel()
+        {
+            if (_musicTrackLabel == null)
+            {
+                return;
+            }
+
+            var audio = AudioDirector.Instance;
+            if (audio == null)
+            {
+                _musicTrackLabel.text = "Track";
+                return;
+            }
+
+            var index = ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount());
+            var trackName = audio.GetGameplayTrackName(index);
+            _musicTrackLabel.text = "#" + (index + 1) + "  " + trackName;
         }
 
         private void SelectDifficulty(DifficultyMode mode)
@@ -743,6 +860,25 @@ namespace MultiplyRush
 
             outline.effectColor = new Color(0f, 0f, 0f, 0.6f);
             outline.effectDistance = new Vector2(1.2f, -1.2f);
+            return button;
+        }
+
+        private static Button EnsureMusicNavButton(RectTransform parent, string objectName, string labelText, Vector2 anchoredPosition)
+        {
+            Text label;
+            var button = EnsureDifficultyButton(parent, objectName, labelText, anchoredPosition, out label);
+            var rect = button != null ? button.GetComponent<RectTransform>() : null;
+            if (rect != null)
+            {
+                rect.sizeDelta = new Vector2(92f, 52f);
+            }
+
+            if (label != null)
+            {
+                label.fontSize = 34;
+                label.fontStyle = FontStyle.Bold;
+            }
+
             return button;
         }
 

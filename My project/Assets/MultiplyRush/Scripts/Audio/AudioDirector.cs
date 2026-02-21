@@ -10,7 +10,8 @@ namespace MultiplyRush
         None = 0,
         MainMenu = 1,
         Gameplay = 2,
-        Pause = 3
+        Pause = 3,
+        Battle = 4
     }
 
     public enum AudioSfxCue
@@ -34,13 +35,24 @@ namespace MultiplyRush
         private const int SampleRate = 44100;
         private const float MusicBaseVolume = 0.62f;
         private const float SfxBaseVolume = 0.94f;
+        private const int GameplayMusicTrackCount = 6;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
+        private static readonly string[] GameplayTrackNames =
+        {
+            "Hyper Neon",
+            "Skyline Rush",
+            "Steel Pulse",
+            "Turbo Drift",
+            "Glass Horizon",
+            "Voltage Lane"
+        };
 
         private static AudioDirector _instance;
 
         private readonly Dictionary<AudioMusicCue, AudioClip> _musicClips = new Dictionary<AudioMusicCue, AudioClip>(4);
         private readonly Dictionary<AudioSfxCue, AudioClip> _sfxClips = new Dictionary<AudioSfxCue, AudioClip>(12);
+        private readonly AudioClip[] _gameplayTracks = new AudioClip[GameplayMusicTrackCount];
 
         private AudioSource _musicPrimary;
         private AudioSource _musicSecondary;
@@ -51,6 +63,7 @@ namespace MultiplyRush
         private float _musicBlend;
         private float _musicBlendDuration = 0.45f;
         private bool _isMusicBlending;
+        private int _selectedGameplayTrackIndex;
 
         public static AudioDirector Instance
         {
@@ -90,6 +103,7 @@ namespace MultiplyRush
 
             BuildAudioGraph();
             BuildProceduralLibrary();
+            _selectedGameplayTrackIndex = ProgressionStore.GetGameplayMusicTrack(0, GameplayMusicTrackCount);
             ApplyMasterVolume();
             SceneManager.sceneLoaded += HandleSceneLoaded;
         }
@@ -125,7 +139,29 @@ namespace MultiplyRush
                 return;
             }
 
-            if (!_musicClips.TryGetValue(cue, out var clip) || clip == null)
+            AudioClip clip = null;
+            if (cue == AudioMusicCue.Gameplay)
+            {
+                var safeTrack = Mathf.Clamp(_selectedGameplayTrackIndex, 0, GameplayMusicTrackCount - 1);
+                clip = _gameplayTracks[safeTrack];
+                if (clip == null)
+                {
+                    for (var i = 0; i < _gameplayTracks.Length; i++)
+                    {
+                        if (_gameplayTracks[i] != null)
+                        {
+                            clip = _gameplayTracks[i];
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (_musicClips.TryGetValue(cue, out var mappedClip))
+            {
+                clip = mappedClip;
+            }
+
+            if (clip == null)
             {
                 return;
             }
@@ -189,6 +225,43 @@ namespace MultiplyRush
             ApplyMasterVolume();
         }
 
+        public int GetGameplayTrackCount()
+        {
+            return GameplayMusicTrackCount;
+        }
+
+        public int GetSelectedGameplayTrackIndex()
+        {
+            return _selectedGameplayTrackIndex;
+        }
+
+        public string GetGameplayTrackName(int index)
+        {
+            if (GameplayTrackNames.Length == 0)
+            {
+                return "Track";
+            }
+
+            var safeIndex = Mathf.Clamp(index, 0, GameplayTrackNames.Length - 1);
+            return GameplayTrackNames[safeIndex];
+        }
+
+        public void SetGameplayTrackIndex(int index, bool refreshActiveCue = true)
+        {
+            var safeIndex = Mathf.Clamp(index, 0, GameplayMusicTrackCount - 1);
+            if (_selectedGameplayTrackIndex == safeIndex)
+            {
+                return;
+            }
+
+            _selectedGameplayTrackIndex = safeIndex;
+            ProgressionStore.SetGameplayMusicTrack(_selectedGameplayTrackIndex, GameplayMusicTrackCount);
+            if (refreshActiveCue && _currentCue == AudioMusicCue.Gameplay)
+            {
+                SetMusicCue(AudioMusicCue.Gameplay, false);
+            }
+        }
+
         private void BuildAudioGraph()
         {
             _musicPrimary = CreateChildSource("MusicA", true);
@@ -223,8 +296,18 @@ namespace MultiplyRush
             if (_musicClips.Count == 0)
             {
                 _musicClips[AudioMusicCue.MainMenu] = BuildMenuMusic();
-                _musicClips[AudioMusicCue.Gameplay] = BuildGameplayMusic();
                 _musicClips[AudioMusicCue.Pause] = BuildPauseMusic();
+                _musicClips[AudioMusicCue.Battle] = BuildBattleMusic();
+            }
+
+            if (_gameplayTracks[0] == null)
+            {
+                _gameplayTracks[0] = BuildGameplayTrackA();
+                _gameplayTracks[1] = BuildGameplayTrackB();
+                _gameplayTracks[2] = BuildGameplayTrackC();
+                _gameplayTracks[3] = BuildGameplayTrackD();
+                _gameplayTracks[4] = BuildGameplayTrackE();
+                _gameplayTracks[5] = BuildGameplayTrackF();
             }
 
             if (_sfxClips.Count == 0)
@@ -235,8 +318,8 @@ namespace MultiplyRush
                 _sfxClips[AudioSfxCue.GateNegative] = BuildDualToneSfx("Sfx_GateBad", 0.18f, 310f, 180f, 0.42f);
                 _sfxClips[AudioSfxCue.PauseOpen] = BuildSweepSfx("Sfx_PauseOpen", 0.19f, 300f, 180f, 0.35f, 0.03f);
                 _sfxClips[AudioSfxCue.PauseClose] = BuildSweepSfx("Sfx_PauseClose", 0.17f, 180f, 320f, 0.35f, 0.03f);
-                _sfxClips[AudioSfxCue.Win] = BuildChordSfx("Sfx_Win", 0.62f, new[] { 523.25f, 659.25f, 783.99f }, 0.33f);
-                _sfxClips[AudioSfxCue.Lose] = BuildChordSfx("Sfx_Lose", 0.54f, new[] { 329.63f, 246.94f, 196f }, 0.3f);
+                _sfxClips[AudioSfxCue.Win] = BuildVictoryStinger();
+                _sfxClips[AudioSfxCue.Lose] = BuildDefeatStinger();
                 _sfxClips[AudioSfxCue.Reinforcement] = BuildDualToneSfx("Sfx_Kit", 0.24f, 390f, 620f, 0.4f);
                 _sfxClips[AudioSfxCue.Shield] = BuildDualToneSfx("Sfx_Shield", 0.22f, 260f, 520f, 0.38f);
                 _sfxClips[AudioSfxCue.BattleHit] = BuildBurstSfx("Sfx_BattleHit", 0.08f, 0.24f);
@@ -328,16 +411,94 @@ namespace MultiplyRush
                 sparseLead: false);
         }
 
-        private static AudioClip BuildGameplayMusic()
+        private static AudioClip BuildGameplayTrackA()
         {
             return BuildModernLoop(
-                clipName: "Music_Gameplay",
+                clipName: "Music_Gameplay_01_HyperNeon",
                 bpm: 126f,
                 bars: 8,
                 chordRoots: new[] { 45, 48, 43, 50 },
                 minorKey: true,
-                energy: 0.86f,
+                energy: 0.88f,
                 atmosphere: 0.42f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackB()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_02_SkylineRush",
+                bpm: 122f,
+                bars: 8,
+                chordRoots: new[] { 50, 45, 47, 52 },
+                minorKey: false,
+                energy: 0.76f,
+                atmosphere: 0.5f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackC()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_03_SteelPulse",
+                bpm: 132f,
+                bars: 8,
+                chordRoots: new[] { 43, 47, 42, 50 },
+                minorKey: true,
+                energy: 0.92f,
+                atmosphere: 0.36f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackD()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_04_TurboDrift",
+                bpm: 128f,
+                bars: 8,
+                chordRoots: new[] { 55, 50, 48, 53 },
+                minorKey: false,
+                energy: 0.82f,
+                atmosphere: 0.44f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackE()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_05_GlassHorizon",
+                bpm: 118f,
+                bars: 8,
+                chordRoots: new[] { 48, 52, 45, 50 },
+                minorKey: true,
+                energy: 0.7f,
+                atmosphere: 0.66f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackF()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_06_VoltageLane",
+                bpm: 134f,
+                bars: 8,
+                chordRoots: new[] { 47, 52, 45, 54 },
+                minorKey: true,
+                energy: 0.94f,
+                atmosphere: 0.32f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildBattleMusic()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Battle",
+                bpm: 138f,
+                bars: 4,
+                chordRoots: new[] { 45, 43, 47, 50 },
+                minorKey: true,
+                energy: 0.97f,
+                atmosphere: 0.26f,
                 sparseLead: false);
         }
 
@@ -352,6 +513,18 @@ namespace MultiplyRush
                 energy: 0.3f,
                 atmosphere: 0.76f,
                 sparseLead: true);
+        }
+
+        private static AudioClip BuildVictoryStinger()
+        {
+            var chord = BuildChordSfx("Sfx_Win", 1.05f, new[] { 523.25f, 659.25f, 783.99f, 1046.5f }, 0.34f);
+            return chord;
+        }
+
+        private static AudioClip BuildDefeatStinger()
+        {
+            var chord = BuildChordSfx("Sfx_Lose", 0.86f, new[] { 392f, 293.66f, 246.94f }, 0.33f);
+            return chord;
         }
 
         private static AudioClip BuildModernLoop(

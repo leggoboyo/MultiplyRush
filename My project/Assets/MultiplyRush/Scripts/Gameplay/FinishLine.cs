@@ -11,8 +11,9 @@ namespace MultiplyRush
         public TextMesh tankRequirementLabel;
         public float labelPulseAmplitude = 0.08f;
         public float labelPulseSpeed = 2.5f;
-        public Vector3 enemyGroupLocalOffset = new Vector3(0f, 0f, 3.2f);
+        public Vector3 enemyGroupLocalOffset = new Vector3(0f, 0f, 6.6f);
         public Vector3 enemyGroupLocalScale = Vector3.one;
+        public float minEnemyDistanceBehindLine = 5.4f;
 
         private BoxCollider _trigger;
         private bool _isTriggered;
@@ -79,11 +80,17 @@ namespace MultiplyRush
             if (enemyGroup != null)
             {
                 var safeOffset = enemyGroupLocalOffset;
-                safeOffset.z = Mathf.Abs(safeOffset.z);
-                enemyGroup.transform.SetParent(transform, false);
-                enemyGroup.transform.localPosition = safeOffset;
-                enemyGroup.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-                enemyGroup.transform.localScale = enemyGroupLocalScale;
+                var formationDepth = enemyGroup.EstimateFormationDepth(_enemyCount);
+                var distanceBehindLine = Mathf.Max(Mathf.Abs(safeOffset.z), formationDepth * 0.7f + Mathf.Max(1f, minEnemyDistanceBehindLine));
+                var worldPosition = new Vector3(
+                    transform.position.x + safeOffset.x,
+                    transform.position.y + safeOffset.y,
+                    transform.position.z + distanceBehindLine);
+
+                enemyGroup.transform.SetParent(transform, true);
+                enemyGroup.transform.position = worldPosition;
+                enemyGroup.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                enemyGroup.transform.localScale = enemyGroupLocalScale * (isMiniBoss ? 1.16f : 1f);
                 enemyGroup.SetCount(_enemyCount);
             }
 

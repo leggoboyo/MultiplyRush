@@ -34,24 +34,28 @@ namespace MultiplyRush
             var uniform = enemy ? GetEnemyUniformMaterial() : GetFriendlyUniformMaterial();
             var accent = GetAccentMaterial(enemy);
 
-            CreatePart(PrimitiveType.Capsule, "Torso", modelRoot, new Vector3(0f, 0.47f, 0f), new Vector3(0.22f, 0.3f, 0.15f), uniform);
-            CreatePart(PrimitiveType.Cube, "ChestPlate", modelRoot, new Vector3(0f, 0.53f, 0.08f), new Vector3(0.2f, 0.2f, 0.07f), accent);
-            CreatePart(PrimitiveType.Cube, "Backpack", modelRoot, new Vector3(0f, 0.53f, -0.11f), new Vector3(0.16f, 0.18f, 0.08f), accent);
-            CreatePart(PrimitiveType.Sphere, "Head", modelRoot, new Vector3(0f, 0.86f, 0f), new Vector3(0.16f, 0.16f, 0.16f), GetSkinMaterial());
-            CreatePart(PrimitiveType.Cube, "Helmet", modelRoot, new Vector3(0f, 0.93f, -0.01f), new Vector3(0.22f, 0.09f, 0.22f), GetHelmetMaterial());
-            CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.9f, 0.1f), new Vector3(0.12f, 0.04f, 0.02f), accent);
-            CreatePart(PrimitiveType.Cube, "RifleBody", modelRoot, new Vector3(0f, 0.53f, 0.16f), new Vector3(0.26f, 0.05f, 0.05f), GetWeaponMaterial());
-            CreatePart(PrimitiveType.Cube, "RifleBarrel", modelRoot, new Vector3(0f, 0.54f, 0.27f), new Vector3(0.03f, 0.03f, 0.16f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Capsule, "Torso", modelRoot, new Vector3(0f, 0.5f, 0f), new Vector3(0.23f, 0.34f, 0.16f), uniform);
+            CreatePart(PrimitiveType.Cube, "ChestPlate", modelRoot, new Vector3(0f, 0.57f, 0.09f), new Vector3(0.22f, 0.22f, 0.08f), accent);
+            CreatePart(PrimitiveType.Cube, "ShoulderPadL", modelRoot, new Vector3(-0.16f, 0.65f, 0.05f), new Vector3(0.08f, 0.08f, 0.08f), accent);
+            CreatePart(PrimitiveType.Cube, "ShoulderPadR", modelRoot, new Vector3(0.16f, 0.65f, 0.05f), new Vector3(0.08f, 0.08f, 0.08f), accent);
+            CreatePart(PrimitiveType.Cube, "Backpack", modelRoot, new Vector3(0f, 0.56f, -0.12f), new Vector3(0.16f, 0.2f, 0.1f), GetHelmetMaterial());
+            CreatePart(PrimitiveType.Sphere, "Head", modelRoot, new Vector3(0f, 0.9f, 0f), new Vector3(0.16f, 0.16f, 0.16f), GetSkinMaterial());
+            CreatePart(PrimitiveType.Cube, "Helmet", modelRoot, new Vector3(0f, 0.98f, -0.01f), new Vector3(0.24f, 0.1f, 0.24f), GetHelmetMaterial());
+            CreatePart(PrimitiveType.Cube, "Visor", modelRoot, new Vector3(0f, 0.94f, 0.11f), new Vector3(0.13f, 0.04f, 0.02f), accent);
+            CreatePart(PrimitiveType.Cube, "RifleBody", modelRoot, new Vector3(0f, 0.54f, 0.18f), new Vector3(0.3f, 0.06f, 0.06f), GetWeaponMaterial());
+            CreatePart(PrimitiveType.Cube, "RifleBarrel", modelRoot, new Vector3(0f, 0.54f, 0.33f), new Vector3(0.035f, 0.035f, 0.21f), GetWeaponMaterial());
             var muzzlePoint = new GameObject("MuzzlePoint").transform;
             muzzlePoint.SetParent(modelRoot, false);
-            muzzlePoint.localPosition = new Vector3(0f, 0.54f, 0.36f);
+            muzzlePoint.localPosition = new Vector3(0f, 0.54f, 0.45f);
             muzzlePoint.localRotation = Quaternion.identity;
             muzzlePoint.localScale = Vector3.one;
-            CreatePart(PrimitiveType.Cube, "LeftArm", modelRoot, new Vector3(-0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
-            CreatePart(PrimitiveType.Cube, "RightArm", modelRoot, new Vector3(0.14f, 0.53f, 0.02f), new Vector3(0.05f, 0.16f, 0.05f), uniform);
-            CreatePart(PrimitiveType.Cube, "Legs", modelRoot, new Vector3(0f, 0.18f, 0f), new Vector3(0.2f, 0.26f, 0.13f), uniform);
-            CreatePart(PrimitiveType.Cube, "KneePads", modelRoot, new Vector3(0f, 0.09f, 0.06f), new Vector3(0.2f, 0.05f, 0.05f), accent);
-            CreatePart(PrimitiveType.Cube, "Boots", modelRoot, new Vector3(0f, 0.04f, 0.03f), new Vector3(0.2f, 0.06f, 0.12f), GetHelmetMaterial());
+            CreatePart(PrimitiveType.Cube, "LeftArm", modelRoot, new Vector3(-0.15f, 0.53f, 0.03f), new Vector3(0.055f, 0.18f, 0.055f), uniform);
+            CreatePart(PrimitiveType.Cube, "RightArm", modelRoot, new Vector3(0.15f, 0.53f, 0.03f), new Vector3(0.055f, 0.18f, 0.055f), uniform);
+            CreatePart(PrimitiveType.Cube, "Hip", modelRoot, new Vector3(0f, 0.3f, 0f), new Vector3(0.22f, 0.1f, 0.14f), uniform);
+            CreatePart(PrimitiveType.Cube, "LeftLeg", modelRoot, new Vector3(-0.07f, 0.16f, 0f), new Vector3(0.09f, 0.24f, 0.11f), uniform);
+            CreatePart(PrimitiveType.Cube, "RightLeg", modelRoot, new Vector3(0.07f, 0.16f, 0f), new Vector3(0.09f, 0.24f, 0.11f), uniform);
+            CreatePart(PrimitiveType.Cube, "LeftBoot", modelRoot, new Vector3(-0.07f, 0.03f, 0.03f), new Vector3(0.1f, 0.06f, 0.13f), GetHelmetMaterial());
+            CreatePart(PrimitiveType.Cube, "RightBoot", modelRoot, new Vector3(0.07f, 0.03f, 0.03f), new Vector3(0.1f, 0.06f, 0.13f), GetHelmetMaterial());
         }
 
         private static void CreatePart(

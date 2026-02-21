@@ -44,6 +44,9 @@ namespace MultiplyRush
         private Text _volumeValueText;
         private Slider _cameraMotionSlider;
         private Text _cameraMotionValueText;
+        private Text _musicTrackValueText;
+        private Button _musicPrevButton;
+        private Button _musicNextButton;
         private Text _qualityValueText;
         private Button _autoButton;
         private Button _lowButton;
@@ -415,6 +418,23 @@ namespace MultiplyRush
             RefreshCameraMotionLabel(safeValue);
         }
 
+        private void CycleGameplayMusicTrack(int delta)
+        {
+            var audio = AudioDirector.Instance ?? AudioDirector.EnsureInstance();
+            var trackCount = Mathf.Max(1, audio.GetGameplayTrackCount());
+            var current = ProgressionStore.GetGameplayMusicTrack(0, trackCount);
+            var next = (current + delta) % trackCount;
+            if (next < 0)
+            {
+                next += trackCount;
+            }
+
+            audio.SetGameplayTrackIndex(next, false);
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.62f, 1.06f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
+            RefreshMusicTrackUi();
+        }
+
         private void SelectGraphicsQuality(BackdropQuality quality)
         {
             if (_selectedQuality == quality)
@@ -483,6 +503,7 @@ namespace MultiplyRush
 
             RefreshVolumeLabel(volume);
             RefreshCameraMotionLabel(motion);
+            RefreshMusicTrackUi();
             RefreshQualityUi();
             RefreshHapticsUi();
         }
@@ -501,6 +522,24 @@ namespace MultiplyRush
             {
                 _cameraMotionValueText.text = Mathf.RoundToInt(Mathf.Clamp01(value) * 100f) + "%";
             }
+        }
+
+        private void RefreshMusicTrackUi()
+        {
+            if (_musicTrackValueText == null)
+            {
+                return;
+            }
+
+            var audio = AudioDirector.Instance;
+            if (audio == null)
+            {
+                _musicTrackValueText.text = "Track";
+                return;
+            }
+
+            var index = ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount());
+            _musicTrackValueText.text = "#" + (index + 1) + "  " + audio.GetGameplayTrackName(index);
         }
 
         private void RefreshQualityUi()
@@ -592,6 +631,18 @@ namespace MultiplyRush
             {
                 _cameraMotionSlider.onValueChanged.RemoveAllListeners();
                 _cameraMotionSlider.onValueChanged.AddListener(HandleCameraMotionChanged);
+            }
+
+            if (_musicPrevButton != null)
+            {
+                _musicPrevButton.onClick.RemoveAllListeners();
+                _musicPrevButton.onClick.AddListener(() => CycleGameplayMusicTrack(-1));
+            }
+
+            if (_musicNextButton != null)
+            {
+                _musicNextButton.onClick.RemoveAllListeners();
+                _musicNextButton.onClick.AddListener(() => CycleGameplayMusicTrack(1));
             }
 
             if (_autoButton != null)
@@ -827,7 +878,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -178f),
-                new Vector2(740f, 540f)).rectTransform;
+                new Vector2(740f, 620f)).rectTransform;
 
             var optionsOutline = optionsCard.GetComponent<Outline>();
             if (optionsOutline == null)
@@ -902,6 +953,34 @@ namespace MultiplyRush
                 true);
             _cameraMotionValueText.color = Color.white;
 
+            EnsureText(
+                optionsCard,
+                "MusicTrackLabel",
+                "Gameplay Music",
+                30,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(38f, -282f),
+                new Vector2(320f, 48f),
+                false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
+
+            var musicRow = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, 28f), new Vector2(664f, 56f));
+            _musicPrevButton = EnsureQualityButton(musicRow, "MusicPrevButton", "<", new Vector2(-252f, 0f));
+            _musicNextButton = EnsureQualityButton(musicRow, "MusicNextButton", ">", new Vector2(252f, 0f));
+            _musicTrackValueText = EnsureText(
+                musicRow,
+                "MusicTrackValue",
+                "Track",
+                28,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(420f, 52f),
+                true);
+            _musicTrackValueText.color = new Color(0.9f, 0.98f, 1f, 1f);
+
             _qualityValueText = EnsureText(
                 optionsCard,
                 "GraphicsLabel",
@@ -910,7 +989,7 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -352f),
+                new Vector2(38f, -426f),
                 new Vector2(420f, 48f),
                 false);
             _qualityValueText.color = new Color(0.82f, 0.9f, 0.98f, 1f);
@@ -923,17 +1002,17 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -282f),
+                new Vector2(38f, -352f),
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -12f));
+            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -44f));
             var hapticsLabel = _hapticsButton != null
                 ? _hapticsButton.GetComponentInChildren<Text>()
                 : null;
             _hapticsButtonText = hapticsLabel;
 
-            var row = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -126f), new Vector2(664f, 68f));
+            var row = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -188f), new Vector2(664f, 68f));
             _autoButton = EnsureQualityButton(row, "AutoQualityButton", "Auto", new Vector2(-252f, 0f));
             _lowButton = EnsureQualityButton(row, "LowQualityButton", "Low", new Vector2(-84f, 0f));
             _mediumButton = EnsureQualityButton(row, "MediumQualityButton", "Medium", new Vector2(84f, 0f));

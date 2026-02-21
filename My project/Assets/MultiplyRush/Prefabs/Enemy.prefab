@@ -153,11 +153,23 @@ MonoBehaviour:
   enemyUnitPrefab: {fileID: 6465471343340005610, guid: 01de4c7e3575243e1990f155e969e85d, type: 3}
   unitsRoot: {fileID: 7823185489591418032}
   countLabel: {fileID: 7821516125316693852}
-  maxVisibleUnits: 120
+  maxVisibleUnits: 100
   initialPoolSize: 70
   maxColumns: 10
   spacingX: 0.55
   spacingZ: 0.55
+  formationLerpSpeed: 14
+  bobAmplitude: 0.06
+  bobFrequency: 7.8
+  tiltDegrees: 5
+  enableWeaponVfx: 1
+  baseShotsPerSecond: 6
+  shotsPerUnit: 0.3
+  maxShotsPerSecond: 34
+  tracerSpeed: 31
+  tracerLifetime: 0.2
+  tracerSpread: 0.08
+  tracerColor: {r: 1, g: 0.5, b: 0.38, a: 1}
 --- !u!1 &4888222602296053463
 GameObject:
   m_ObjectHideFlags: 0

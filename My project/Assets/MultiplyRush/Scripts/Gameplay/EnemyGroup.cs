@@ -9,15 +9,17 @@ namespace MultiplyRush
         public GameObject enemyUnitPrefab;
         public Transform unitsRoot;
         public TextMesh countLabel;
-        public int maxVisibleUnits = 120;
+        public int maxVisibleUnits = 90;
         public int initialPoolSize = 70;
-        public int maxColumns = 10;
-        public float spacingX = 0.55f;
-        public float spacingZ = 0.55f;
+        public int maxColumns = 8;
+        public float spacingX = 0.74f;
+        public float spacingZ = 0.82f;
         public float formationLerpSpeed = 14f;
         public float bobAmplitude = 0.06f;
         public float bobFrequency = 7.8f;
         public float tiltDegrees = 5f;
+        [Range(0.8f, 2.5f)]
+        public float unitVisualScale = 1.9f;
 
         [Header("Weapon VFX")]
         public bool enableWeaponVfx = true;
@@ -38,6 +40,7 @@ namespace MultiplyRush
         private bool _combatActive;
         private Transform _combatTarget;
         private ParticleSystem _tracerSystem;
+        private ParticleSystem _lossBurstSystem;
         private float _shotAccumulator;
 
         public int Count => _count;
@@ -57,10 +60,14 @@ namespace MultiplyRush
                 _poolRoot.SetParent(transform, false);
             }
 
-            maxVisibleUnits = Mathf.Min(maxVisibleUnits, 100);
+            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 36, 90);
+            unitVisualScale = Mathf.Clamp(unitVisualScale, 1.35f, 2.35f);
+            spacingX = Mathf.Max(0.82f, spacingX);
+            spacingZ = Mathf.Max(0.86f, spacingZ);
 
             PrewarmPool();
             EnsureWeaponEffects();
+            EnsureLossBurstEffects();
         }
 
         private void Update()
@@ -93,6 +100,7 @@ namespace MultiplyRush
                 target.y += Mathf.Sin(phase) * bobAmplitude;
                 unit.localPosition = Vector3.Lerp(unit.localPosition, target, blend);
                 unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * tiltDegrees, 0f, 0f);
+                unit.localScale = Vector3.one * unitVisualScale;
             }
 
             UpdateWeaponEffects(deltaTime);
@@ -113,7 +121,9 @@ namespace MultiplyRush
 
             var before = _count;
             SetCountInternal(_count - safeAmount, true);
-            return before - _count;
+            var removed = before - _count;
+            EmitLossBurst(removed);
+            return removed;
         }
 
         public void BeginCombat(Transform target)
@@ -128,6 +138,15 @@ namespace MultiplyRush
             _combatTarget = null;
             _combatActive = false;
             _shotAccumulator = 0f;
+        }
+
+        public float EstimateFormationDepth(int count)
+        {
+            var safeCount = Mathf.Max(1, count);
+            var visibleCount = Mathf.Min(safeCount, Mathf.Max(1, maxVisibleUnits));
+            var columns = Mathf.Clamp(Mathf.CeilToInt(Mathf.Sqrt(visibleCount)), 1, Mathf.Max(1, maxColumns));
+            var rows = Mathf.CeilToInt(visibleCount / (float)columns);
+            return Mathf.Max(1.2f, rows * spacingZ + 1.4f);
         }
 
         private void SetCountInternal(int count, bool allowZero)
@@ -289,6 +308,80 @@ namespace MultiplyRush
                     new GradientAlphaKey(0f, 1f)
                 });
             colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+        }
+
+        private void EnsureLossBurstEffects()
+        {
+            if (_lossBurstSystem != null)
+            {
+                return;
+            }
+
+            var burstObject = new GameObject("EnemyLossBurstFX");
+            burstObject.transform.SetParent(transform, false);
+            burstObject.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+            burstObject.SetActive(false);
+            _lossBurstSystem = burstObject.AddComponent<ParticleSystem>();
+            var renderer = burstObject.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.renderMode = ParticleSystemRenderMode.Billboard;
+                renderer.material = CreateEffectMaterial("EnemyLossBurstMaterial", new Color(1f, 0.5f, 0.3f, 1f), 0.14f, 0.85f);
+            }
+
+            ConfigureLossBurstSystem(_lossBurstSystem);
+            burstObject.SetActive(true);
+        }
+
+        private static void ConfigureLossBurstSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.24f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.14f, 0.26f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.12f);
+            main.maxParticles = 48;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = false;
+        }
+
+        private void EmitLossBurst(int removedUnits)
+        {
+            if (removedUnits <= 0)
+            {
+                return;
+            }
+
+            EnsureLossBurstEffects();
+            if (_lossBurstSystem == null)
+            {
+                return;
+            }
+
+            var burstCount = Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(removedUnits) * 4f), 4, 28);
+            var emitParams = new ParticleSystem.EmitParams
+            {
+                position = transform.position + new Vector3(
+                    Random.Range(-0.6f, 0.6f),
+                    Random.Range(0.35f, 0.8f),
+                    Random.Range(-0.4f, 0.7f)),
+                startColor = Color.Lerp(new Color(1f, 0.8f, 0.55f, 1f), new Color(1f, 0.42f, 0.28f, 1f), Random.value)
+            };
+            _lossBurstSystem.Emit(emitParams, burstCount);
         }
 
         private void UpdateWeaponEffects(float deltaTime)

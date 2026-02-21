@@ -165,7 +165,8 @@ namespace MultiplyRush
                 _currentBuild.forwardSpeed,
                 _currentBuild.trackHalfWidth,
                 _currentBuild.finishZ,
-                _currentBuild.totalRows);
+                _currentBuild.totalRows,
+                _currentLevelIndex);
             playerCrowd.EndCombat();
             if (_pendingShieldCharge)
             {
@@ -271,6 +272,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
+            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Battle, false);
 
             var duration = _currentBuild.isMiniBoss ? battleDurationMiniBoss : battleDurationNormal;
             duration = Mathf.Max(1.8f, duration);
@@ -416,7 +418,7 @@ namespace MultiplyRush
 
             _resultShownAt = Time.unscaledTime;
             _state = GameFlowState.ShowingResult;
-            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
+            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.None, false);
         }
 
         private void RetryLevel()

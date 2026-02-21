@@ -356,6 +356,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MultiplyRush.Gate
   operation: 0
   value: 5
+  rowId: -1
+  pickTier: 1
   panelRenderer: {fileID: 7617271585275012776}
   labelText: {fileID: 7553205195217007771}
   positiveColor: {r: 0.2, g: 0.85, b: 0.35, a: 1}
@@ -370,6 +372,24 @@ MonoBehaviour:
   postHeight: 2
   labelScale: 0.12
   labelForwardOffset: -0.42
+  idleFloatAmplitude: 0.09
+  idleFloatFrequency: 2.6
+  idlePulseAmplitude: 0.05
+  consumeDuration: 0.12
+  consumeSpinDegrees: 220
+  enableHorizontalMotion: 0
+  horizontalAmplitude: 0.2
+  horizontalSpeed: 1
+  horizontalPhase: 0
+  laneCenterX: 0
+  laneMinX: 0
+  laneMaxX: 0
+  enableTempoWindow: 0
+  tempoCycleSeconds: 2.1
+  tempoOpenRatio: 0.55
+  tempoPhaseOffset: 0
+  tempoPanelPulseScale: 1.05
+  tempoLabelPulseScale: 1.08
 --- !u!1 &7789363151159868017
 GameObject:
   m_ObjectHideFlags: 0

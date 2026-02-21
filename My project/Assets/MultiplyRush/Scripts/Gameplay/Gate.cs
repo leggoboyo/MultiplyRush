@@ -60,6 +60,15 @@ namespace MultiplyRush
         [Range(1f, 1.25f)]
         public float tempoLabelPulseScale = 1.08f;
 
+        [Header("Shot Upgrade")]
+        public bool allowShotUpgrades = true;
+        public int shotsForFirstUpgrade = 12;
+        public int shotsPerUpgradeGrowth = 4;
+        public int addUpgradeMaxBonus = 8;
+        public int multiplierUpgradeTenthsCap = 30;
+        public float shotUpgradePulseDuration = 0.2f;
+        public float shotUpgradePulseScale = 1.18f;
+
         private BoxCollider _trigger;
         private MaterialPropertyBlock _materialBlock;
         private bool _isConsumed;
@@ -76,6 +85,14 @@ namespace MultiplyRush
         private Color _basePanelColor = Color.white;
         private float _tempoPanelScale = 1f;
         private float _tempoLabelScale = 1f;
+        private int _baseValue;
+        private int _runtimeAddValue;
+        private int _runtimeMultiplierTenths;
+        private int _baseMultiplierTenths;
+        private int _shotUpgradeCounter;
+        private int _shotUpgradeStep;
+        private int _nextShotUpgradeThreshold;
+        private float _shotUpgradePulseTimer;
 
         private void Awake()
         {
@@ -103,6 +120,7 @@ namespace MultiplyRush
             transform.rotation = Quaternion.identity;
             _tempoPanelScale = 1f;
             _tempoLabelScale = 1f;
+            ResetRuntimeGateValues();
             NormalizeLayout();
             RefreshVisuals();
         }
@@ -145,6 +163,7 @@ namespace MultiplyRush
             _baseY = transform.position.y;
             _tempoPanelScale = 1f;
             _tempoLabelScale = 1f;
+            ResetRuntimeGateValues();
 
             if (_trigger == null)
             {
@@ -153,6 +172,22 @@ namespace MultiplyRush
 
             _trigger.enabled = true;
             NormalizeLayout();
+            RefreshVisuals();
+        }
+
+        public void ConfigureShotUpgrade(
+            bool enabled,
+            int firstThreshold,
+            int growthPerUpgrade,
+            int maxAddBonus,
+            int multiplierTenthsCap)
+        {
+            allowShotUpgrades = enabled;
+            shotsForFirstUpgrade = Mathf.Max(1, firstThreshold);
+            shotsPerUpgradeGrowth = Mathf.Max(1, growthPerUpgrade);
+            addUpgradeMaxBonus = Mathf.Max(0, maxAddBonus);
+            multiplierUpgradeTenthsCap = Mathf.Max(10, multiplierTenthsCap);
+            ResetRuntimeGateValues();
             RefreshVisuals();
         }
 
@@ -169,7 +204,7 @@ namespace MultiplyRush
                 _trigger.enabled = false;
             }
 
-            crowd.ApplyGate(operation, value);
+            crowd.ApplyGate(operation, GetEffectiveIntValue(), GetEffectiveMultiplierValue());
             if (consumeDuration <= 0f)
             {
                 gameObject.SetActive(false);
@@ -179,6 +214,61 @@ namespace MultiplyRush
             _isConsuming = true;
             _consumeElapsed = 0f;
             return true;
+        }
+
+        public bool TryRegisterShotUpgrade(int levelIndex)
+        {
+            if (_isConsumed || !allowShotUpgrades || !IsPositive(operation))
+            {
+                return false;
+            }
+
+            if (_nextShotUpgradeThreshold <= 0)
+            {
+                var fallback = Mathf.Max(4, 8 + Mathf.FloorToInt(Mathf.Max(1, levelIndex) * 0.7f));
+                _nextShotUpgradeThreshold = fallback;
+            }
+
+            _shotUpgradeCounter++;
+            var upgraded = false;
+            var guard = 0;
+            while (_shotUpgradeCounter >= _nextShotUpgradeThreshold && guard < 6)
+            {
+                guard++;
+                if (operation == GateOperation.Add)
+                {
+                    var cap = _baseValue + Mathf.Max(0, addUpgradeMaxBonus);
+                    if (_runtimeAddValue >= cap)
+                    {
+                        break;
+                    }
+
+                    _runtimeAddValue++;
+                    upgraded = true;
+                }
+                else if (operation == GateOperation.Multiply)
+                {
+                    var capTenths = Mathf.Max(_baseMultiplierTenths, multiplierUpgradeTenthsCap);
+                    if (_runtimeMultiplierTenths >= capTenths)
+                    {
+                        break;
+                    }
+
+                    _runtimeMultiplierTenths++;
+                    upgraded = true;
+                }
+
+                _shotUpgradeStep++;
+                _nextShotUpgradeThreshold += Mathf.Max(1, shotsPerUpgradeGrowth + _shotUpgradeStep);
+            }
+
+            if (upgraded)
+            {
+                _shotUpgradePulseTimer = Mathf.Max(_shotUpgradePulseTimer, Mathf.Max(0.08f, shotUpgradePulseDuration));
+                RefreshVisuals();
+            }
+
+            return upgraded;
         }
 
         private void Update()
@@ -194,6 +284,11 @@ namespace MultiplyRush
                 return;
             }
 
+            if (_shotUpgradePulseTimer > 0f)
+            {
+                _shotUpgradePulseTimer = Mathf.Max(0f, _shotUpgradePulseTimer - Time.deltaTime);
+            }
+
             UpdateTempoWindow(Time.time);
             AnimateIdle(Time.time);
         }
@@ -202,7 +297,7 @@ namespace MultiplyRush
         {
             if (labelText != null)
             {
-                labelText.text = GetLabel(operation, value);
+                labelText.text = GetLabel(operation, GetEffectiveIntValue(), GetEffectiveMultiplierValue());
                 labelText.color = IsPositive(operation) ? new Color(0.05f, 0.05f, 0.05f) : Color.white;
                 labelText.fontStyle = FontStyle.Bold;
             }
@@ -311,12 +406,58 @@ namespace MultiplyRush
             panelRenderer.SetPropertyBlock(_materialBlock);
         }
 
+        private void ResetRuntimeGateValues()
+        {
+            _baseValue = Mathf.Max(1, value);
+            _runtimeAddValue = _baseValue;
+            _baseMultiplierTenths = Mathf.Max(10, Mathf.RoundToInt(_baseValue * 10f));
+            _runtimeMultiplierTenths = _baseMultiplierTenths;
+            _shotUpgradeCounter = 0;
+            _shotUpgradeStep = 0;
+            _nextShotUpgradeThreshold = Mathf.Max(1, shotsForFirstUpgrade);
+            _shotUpgradePulseTimer = 0f;
+        }
+
+        private int GetEffectiveIntValue()
+        {
+            switch (operation)
+            {
+                case GateOperation.Add:
+                    return Mathf.Max(1, _runtimeAddValue);
+                case GateOperation.Multiply:
+                    return Mathf.Max(1, Mathf.RoundToInt(GetEffectiveMultiplierValue()));
+                default:
+                    return Mathf.Max(1, value);
+            }
+        }
+
+        private float GetEffectiveMultiplierValue()
+        {
+            if (operation != GateOperation.Multiply)
+            {
+                return 0f;
+            }
+
+            return Mathf.Max(1f, _runtimeMultiplierTenths * 0.1f);
+        }
+
+        private float EvaluateShotUpgradePulse()
+        {
+            if (_shotUpgradePulseTimer <= 0f || shotUpgradePulseDuration <= 0f)
+            {
+                return 1f;
+            }
+
+            var normalized = 1f - Mathf.Clamp01(_shotUpgradePulseTimer / shotUpgradePulseDuration);
+            return Mathf.Lerp(1f, Mathf.Max(1f, shotUpgradePulseScale), Mathf.Sin(normalized * Mathf.PI));
+        }
+
         private static bool IsPositive(GateOperation gateOperation)
         {
             return gateOperation == GateOperation.Add || gateOperation == GateOperation.Multiply;
         }
 
-        private static string GetLabel(GateOperation gateOperation, int gateValue)
+        private static string GetLabel(GateOperation gateOperation, int gateValue, float multiplierValue)
         {
             switch (gateOperation)
             {
@@ -325,7 +466,13 @@ namespace MultiplyRush
                 case GateOperation.Subtract:
                     return "-" + gateValue;
                 case GateOperation.Multiply:
-                    return "x" + gateValue;
+                {
+                    var formatted = Mathf.Max(1f, multiplierValue);
+                    var roundedTenths = Mathf.RoundToInt(formatted * 10f);
+                    var whole = roundedTenths / 10;
+                    var tenths = roundedTenths % 10;
+                    return tenths == 0 ? "x" + whole : "x" + whole + "." + tenths;
+                }
                 case GateOperation.Divide:
                     return "/" + gateValue;
                 default:
@@ -337,6 +484,7 @@ namespace MultiplyRush
         {
             var phase = runTime * idleFloatFrequency + _phaseOffset;
             var pulse = 1f + Mathf.Sin(phase * 2.25f) * idlePulseAmplitude;
+            pulse *= EvaluateShotUpgradePulse();
 
             var position = transform.position;
             if (enableHorizontalMotion)

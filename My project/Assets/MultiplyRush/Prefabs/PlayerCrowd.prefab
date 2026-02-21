@@ -236,7 +236,7 @@ MonoBehaviour:
   xSmoothSpeed: 18
   trackHalfWidth: 4
   minCount: 1
-  maxVisibleUnits: 150
+  maxVisibleUnits: 120
   initialPoolSize: 60
   formationRoot: {fileID: 3112700058579953739}
   soldierUnitPrefab: {fileID: 8406282504723514312, guid: 12cde735bf4c2489696aff8de00e7fcf, type: 3}
@@ -244,4 +244,36 @@ MonoBehaviour:
   unitSpacingZ: 0.62
   maxColumns: 12
   unitYOffset: 0
+  unitVisualScale: 1.32
+  shooterFrontRows: 3
+  formationLerpSpeed: 18
+  runBobAmplitude: 0.08
+  runBobFrequency: 9.2
+  unitTiltDegrees: 6
+  leaderBobAmplitude: 0.1
+  leaderScalePulse: 0.04
+  leaderStrafeTilt: 0.9
+  gatePunchScale: 1.08
+  gatePunchDuration: 0.16
+  enableUnitGainPopIn: 1
+  unitGainPopDuration: 0.28
+  unitGainPopOvershoot: 1.28
+  unitGainPopRise: 0.18
+  enableGateEffects: 1
+  gateBurstCount: 12
+  gateBurstSpeed: 3.8
+  gateAuraDuration: 0.22
+  gateAuraMaxScale: 2.2
+  gateAuraHeight: 0.03
+  enableWeaponVfx: 1
+  baseShotsPerSecond: 8
+  shotsPerVisibleUnit: 0.34
+  maxShotsPerSecond: 38
+  tracerSpeed: 35
+  tracerLifetime: 0.24
+  tracerSpread: 0.1
+  tracerMuzzleJitter: 0.07
+  tracerSpawnForwardOffset: 0.12
+  allowOnlyOneGatePerRow: 1
+  minSpeedMultiplier: 0.55
   dragInput: {fileID: 7321350815742664562}

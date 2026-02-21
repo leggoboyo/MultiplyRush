@@ -454,7 +454,7 @@ public static class MultiplyRushReleaseTools
 
     private static ScriptingImplementation GetScriptingBackendIos()
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         return PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetScriptingBackend(BuildTargetGroup.iOS);
@@ -463,7 +463,7 @@ public static class MultiplyRushReleaseTools
 
     private static void SetScriptingBackendIos(ScriptingImplementation implementation)
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), implementation);
 #else
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, implementation);
@@ -472,7 +472,7 @@ public static class MultiplyRushReleaseTools
 
     private static ManagedStrippingLevel GetManagedStrippingLevelIos()
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         return PlayerSettings.GetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetManagedStrippingLevel(BuildTargetGroup.iOS);
@@ -481,7 +481,7 @@ public static class MultiplyRushReleaseTools
 
     private static void SetManagedStrippingLevelIos(ManagedStrippingLevel level)
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         PlayerSettings.SetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), level);
 #else
         PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, level);
@@ -490,7 +490,7 @@ public static class MultiplyRushReleaseTools
 
     private static void SetApiCompatibilityLevelIos(ApiCompatibilityLevel level)
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         PlayerSettings.SetApiCompatibilityLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), level);
 #else
         PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.iOS, level);
@@ -499,7 +499,7 @@ public static class MultiplyRushReleaseTools
 
     private static ApiCompatibilityLevel GetApiCompatibilityLevelIos()
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         return PlayerSettings.GetApiCompatibilityLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetApiCompatibilityLevel(BuildTargetGroup.iOS);
@@ -508,7 +508,7 @@ public static class MultiplyRushReleaseTools
 
     private static int GetArchitectureIos()
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         return PlayerSettings.GetArchitecture(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetArchitecture(BuildTargetGroup.iOS);
@@ -517,7 +517,7 @@ public static class MultiplyRushReleaseTools
 
     private static string GetApplicationIdentifierIos()
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         return PlayerSettings.GetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.iOS);
@@ -526,7 +526,7 @@ public static class MultiplyRushReleaseTools
 
     private static void SetArchitectureIos(int architecture)
     {
-#if UNITY_2021_2_OR_NEWER
+#if UNITY_6000_0_OR_NEWER || UNITY_2021_2_OR_NEWER
         PlayerSettings.SetArchitecture(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), architecture);
 #else
         PlayerSettings.SetArchitecture(BuildTargetGroup.iOS, architecture);

@@ -47,7 +47,9 @@ namespace MultiplyRush
         public float trackHalfWidth = 4.5f;
         public float rowSpacing = 12f;
         [Range(1f, 2f)]
-        public float levelLengthMultiplier = 1.5f;
+        public float levelLengthMultiplier = 1f;
+        [Range(0.3f, 1f)]
+        public float rowCountCompression = 0.5f;
         public float startZ = 18f;
         public float endPadding = 18f;
 
@@ -71,10 +73,10 @@ namespace MultiplyRush
         [Header("Gate Difficulty")]
         [Range(0f, 0.2f)]
         public float gateDifficultyRamp = 0.028f;
-        public float gateWidthAtStart = 2.15f;
-        public float gateWidthAtHighDifficulty = 1.3f;
-        public float panelWidthAtStart = 2.2f;
-        public float panelWidthAtHighDifficulty = 1.6f;
+        public float gateWidthAtStart = 2.5f;
+        public float gateWidthAtHighDifficulty = 2f;
+        public float panelWidthAtStart = 2.6f;
+        public float panelWidthAtHighDifficulty = 2.2f;
         [Range(0f, 1f)]
         public float movingGateChanceAtStart = 0f;
         [Range(0f, 1f)]
@@ -83,6 +85,18 @@ namespace MultiplyRush
         public float movingGateAmplitudeAtHighDifficulty = 1.05f;
         public float movingGateSpeedAtStart = 1.1f;
         public float movingGateSpeedAtHighDifficulty = 2.8f;
+
+        [Header("Gate Shot Upgrades")]
+        public bool enableGateShotUpgrades = true;
+        public int gateUpgradeShotsAtLevel1 = 11;
+        public float gateUpgradeShotsPerLevel = 0.65f;
+        public int gateUpgradeShotsGrowthPerStep = 4;
+        public int gateAddUpgradeBonusCapAtLevel1 = 7;
+        public int gateAddUpgradeBonusCapGrowthPer10Levels = 1;
+        [Range(2.1f, 3f)]
+        public float gateMultiplyUpgradeCapAtLevel1 = 2.6f;
+        [Range(0f, 0.4f)]
+        public float gateMultiplyUpgradeCapGrowthPer20Levels = 0.08f;
 
         [Header("Special Modes")]
         public int miniBossEveryLevels = 10;
@@ -1544,11 +1558,21 @@ namespace MultiplyRush
 
         private void SpawnGates(List<GateRow> rows, float gateDifficulty01)
         {
-            var hitboxWidth = Mathf.Lerp(gateWidthAtStart, gateWidthAtHighDifficulty, gateDifficulty01);
-            var panelWidth = Mathf.Lerp(panelWidthAtStart, panelWidthAtHighDifficulty, gateDifficulty01);
+            var hitboxWidth = Mathf.Max(2f, Mathf.Lerp(gateWidthAtStart, gateWidthAtHighDifficulty, gateDifficulty01));
+            var panelWidth = Mathf.Max(2.2f, Mathf.Lerp(panelWidthAtStart, panelWidthAtHighDifficulty, gateDifficulty01));
             var edgePadding = 0.95f;
             var trackMinX = -_effectiveTrackHalfWidth + edgePadding;
             var trackMaxX = _effectiveTrackHalfWidth - edgePadding;
+            var levelFactor = Mathf.Max(1, _activeLevelIndex);
+            var baseShotThreshold = Mathf.Max(3, Mathf.RoundToInt(gateUpgradeShotsAtLevel1 + (levelFactor - 1) * Mathf.Max(0f, gateUpgradeShotsPerLevel)));
+            var stepGrowth = Mathf.Max(1, gateUpgradeShotsGrowthPerStep + Mathf.FloorToInt((levelFactor - 1) * 0.12f));
+            var addCapGrowth = Mathf.Max(0, gateAddUpgradeBonusCapGrowthPer10Levels);
+            var addBonusCap = Mathf.Max(1, gateAddUpgradeBonusCapAtLevel1 + (((levelFactor - 1) / 10) * addCapGrowth));
+            var multiplierCap = Mathf.Clamp(
+                gateMultiplyUpgradeCapAtLevel1 + Mathf.Floor(levelFactor / 20f) * gateMultiplyUpgradeCapGrowthPer20Levels,
+                2.1f,
+                3f);
+            var multiplierCapTenths = Mathf.Max(21, Mathf.RoundToInt(multiplierCap * 10f));
 
             for (var i = 0; i < rows.Count; i++)
             {
@@ -1587,6 +1611,19 @@ namespace MultiplyRush
                         gateSpec.tempoCycle,
                         gateSpec.tempoOpenRatio,
                         gateSpec.tempoPhase);
+
+                    var tierMultiplier = gateSpec.pickTier == GatePickTier.BetterGood
+                        ? 1.1f
+                        : gateSpec.pickTier == GatePickTier.RedBad
+                            ? 1.35f
+                            : 1f;
+                    var firstThreshold = Mathf.Max(3, Mathf.RoundToInt(baseShotThreshold * tierMultiplier));
+                    gate.ConfigureShotUpgrade(
+                        enableGateShotUpgrades && (gateSpec.operation == GateOperation.Add || gateSpec.operation == GateOperation.Multiply),
+                        firstThreshold,
+                        stepGrowth,
+                        addBonusCap,
+                        multiplierCapTenths);
                     gate.gameObject.SetActive(true);
                     _activeGates.Add(gate);
                 }
@@ -1810,11 +1847,12 @@ namespace MultiplyRush
                 modifierName = themeName + " • " + modifier.label
             };
 
+            var compression = Mathf.Clamp(rowCountCompression, 0.3f, 1f);
             var rowCount = isMiniBoss
-                ? Mathf.Clamp(15 + (levelIndex / 4), 15, 46)
-                : Mathf.Clamp(8 + levelIndex, 8, 40);
+                ? Mathf.Clamp(Mathf.RoundToInt((15 + (levelIndex / 4)) * compression), 8, 28)
+                : Mathf.Clamp(Mathf.RoundToInt((8 + levelIndex) * compression), 4, 22);
             generated.totalRows = rowCount;
-            var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * (isMiniBoss ? 1.08f : 1f);
+            var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * 0.96f * (isMiniBoss ? 1.05f : 1f);
             var baseBadGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f + (isMiniBoss ? 0.05f : 0f));
             var addBase = 3 + Mathf.FloorToInt(levelIndex * 0.85f);
             var subtractBase = 2 + Mathf.FloorToInt(levelIndex * 0.65f);

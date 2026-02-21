@@ -265,6 +265,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MultiplyRush.FinishLine
   enemyGroup: {fileID: 918296167674019347}
   enemyCountLabel: {fileID: 4705881053121763441}
+  tankRequirementLabel: {fileID: 0}
+  labelPulseAmplitude: 0.08
+  labelPulseSpeed: 2.5
+  enemyGroupLocalOffset: {x: 0, y: 0, z: 3.2}
+  enemyGroupLocalScale: {x: 1, y: 1, z: 1}
 --- !u!1001 &9157961405732842069
 PrefabInstance:
   m_ObjectHideFlags: 0

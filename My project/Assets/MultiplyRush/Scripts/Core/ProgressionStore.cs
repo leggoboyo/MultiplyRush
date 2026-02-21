@@ -22,6 +22,7 @@ namespace MultiplyRush
         private const string GraphicsFidelityKey = "mr_graphics_fidelity";
         private const string CameraMotionKey = "mr_camera_motion";
         private const string HapticsEnabledKey = "mr_haptics_enabled";
+        private const string GameplayMusicTrackKey = "mr_gameplay_music_track";
 
         public static int GetUnlockedLevel()
         {
@@ -172,6 +173,20 @@ namespace MultiplyRush
         public static void SetHapticsEnabled(bool enabled)
         {
             PlayerPrefs.SetInt(HapticsEnabledKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public static int GetGameplayMusicTrack(int fallback = 0, int maxExclusive = 6)
+        {
+            var safeMax = Mathf.Max(1, maxExclusive);
+            var safeFallback = Mathf.Clamp(fallback, 0, safeMax - 1);
+            return Mathf.Clamp(PlayerPrefs.GetInt(GameplayMusicTrackKey, safeFallback), 0, safeMax - 1);
+        }
+
+        public static void SetGameplayMusicTrack(int index, int maxExclusive = 6)
+        {
+            var safeMax = Mathf.Max(1, maxExclusive);
+            PlayerPrefs.SetInt(GameplayMusicTrackKey, Mathf.Clamp(index, 0, safeMax - 1));
             PlayerPrefs.Save();
         }
 

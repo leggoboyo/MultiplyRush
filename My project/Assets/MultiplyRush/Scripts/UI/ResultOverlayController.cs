@@ -44,6 +44,8 @@ namespace MultiplyRush
         private Image _panelImage;
         private Image _headerGlow;
         private Image _dimImage;
+        private Image _winSweepImage;
+        private RectTransform _winSweepRect;
         private ParticleSystem _winBurst;
         private Color _scanlineBaseColor = new Color(0.58f, 0.95f, 1f, 0.09f);
         private bool _isVisible;
@@ -224,6 +226,14 @@ namespace MultiplyRush
             _scanlineBaseColor = didWin
                 ? new Color(0.58f, 0.95f, 1f, 0.07f)
                 : new Color(1f, 0.32f, 0.42f, 0.08f);
+
+            if (_winSweepImage != null)
+            {
+                _winSweepImage.gameObject.SetActive(didWin);
+                _winSweepImage.color = didWin
+                    ? new Color(0.72f, 0.98f, 1f, 0.22f)
+                    : new Color(1f, 0.42f, 0.42f, 0.14f);
+            }
 
             AudioDirector.Instance?.PlaySfx(didWin ? AudioSfxCue.Win : AudioSfxCue.Lose, 0.88f, 1f);
             HapticsDirector.Instance?.Play(didWin ? HapticCue.Success : HapticCue.Failure);
@@ -450,6 +460,23 @@ namespace MultiplyRush
                 }
             }
 
+            if (_winSweepRect != null && _winSweepImage != null)
+            {
+                if (_lastDidWin)
+                {
+                    var width = _panelRect != null ? _panelRect.rect.width : 860f;
+                    var x = Mathf.PingPong(runTime * 420f, width + 240f) - ((width * 0.5f) + 120f);
+                    _winSweepRect.anchoredPosition = new Vector2(x, 8f);
+                    _winSweepRect.localScale = new Vector3(1f, 1f + Mathf.Sin(runTime * 3.3f) * 0.08f, 1f);
+                    var alpha = 0.14f + Mathf.Abs(Mathf.Sin(runTime * 2.3f)) * 0.13f;
+                    _winSweepImage.color = new Color(0.72f, 0.98f, 1f, alpha);
+                }
+                else
+                {
+                    _winSweepRect.anchoredPosition = new Vector2(-1200f, 8f);
+                }
+            }
+
             var buttonPulse = 1f + Mathf.Sin(runTime * 4f) * 0.03f;
             ApplyButtonPulse(nextButton, buttonPulse, deltaTime);
             ApplyButtonPulse(retryButton, buttonPulse, deltaTime);
@@ -597,6 +624,20 @@ namespace MultiplyRush
                 Vector2.zero,
                 new Vector2(760f, 42f)).rectTransform;
             _scanlineRect.SetAsLastSibling();
+
+            _winSweepImage = EnsureImage(
+                _panelRect,
+                "WinSweep",
+                new Color(0.72f, 0.98f, 1f, 0.2f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(-1000f, 8f),
+                new Vector2(190f, 560f));
+            _winSweepRect = _winSweepImage.rectTransform;
+            _winSweepRect.localRotation = Quaternion.Euler(0f, 0f, 14f);
+            _winSweepImage.raycastTarget = false;
+            _winSweepImage.gameObject.SetActive(false);
+            _winSweepRect.SetAsLastSibling();
 
             if (nextButton != null)
             {
