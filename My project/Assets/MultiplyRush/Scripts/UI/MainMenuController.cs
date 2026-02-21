@@ -152,6 +152,10 @@ namespace MultiplyRush
             }
 
             UpdateVideoBackgroundState();
+            if (_musicTrackLabel != null && string.IsNullOrWhiteSpace(_musicTrackLabel.text))
+            {
+                RefreshMusicTrackLabel();
+            }
             RefreshResponsiveLayout();
             AnimateMenu(Time.unscaledTime);
         }
@@ -890,15 +894,15 @@ namespace MultiplyRush
                 _musicRow,
                 "MusicTrackLabel",
                 "Hyper Neon",
-                new Vector2(0f, -2f),
+                new Vector2(0f, 4f),
                 33);
             if (_musicTrackLabel != null)
             {
                 _musicTrackLabel.color = new Color(0.88f, 0.98f, 1f, 1f);
             }
 
-            _musicPrevButton = EnsureMusicNavButton(_musicRow, "MusicPrevButton", "<", new Vector2(-258f, -2f));
-            _musicNextButton = EnsureMusicNavButton(_musicRow, "MusicNextButton", ">", new Vector2(258f, -2f));
+            _musicPrevButton = EnsureMusicNavButton(_musicRow, "MusicPrevButton", "<", new Vector2(-258f, 4f));
+            _musicNextButton = EnsureMusicNavButton(_musicRow, "MusicNextButton", ">", new Vector2(258f, 4f));
 
             if (_musicPrevButton != null)
             {
@@ -1295,6 +1299,11 @@ namespace MultiplyRush
 
             var index = ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount());
             var trackName = audio.GetGameplayTrackName(index);
+            if (string.IsNullOrWhiteSpace(trackName))
+            {
+                trackName = "Track " + (index + 1);
+            }
+
             _musicTrackLabel.text = "#" + (index + 1) + "  " + trackName;
         }
 
@@ -1383,7 +1392,7 @@ namespace MultiplyRush
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(400f, 36f);
+            rect.sizeDelta = new Vector2(520f, 56f);
 
             var label = textObject.GetComponent<Text>();
             if (label == null)
@@ -1395,6 +1404,8 @@ namespace MultiplyRush
             label.fontSize = fontSize;
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
+            label.verticalOverflow = VerticalWrapMode.Overflow;
             label.color = new Color(0.9f, 0.96f, 1f, 1f);
             label.text = textValue;
 

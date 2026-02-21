@@ -1365,7 +1365,26 @@ namespace MultiplyRush
             var rect = textObject.GetComponent<RectTransform>();
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
-            rect.pivot = new Vector2(0.5f, 0.5f);
+            var pivot = new Vector2(0.5f, 0.5f);
+            if (alignment == TextAnchor.UpperLeft || alignment == TextAnchor.MiddleLeft || alignment == TextAnchor.LowerLeft)
+            {
+                pivot.x = 0f;
+            }
+            else if (alignment == TextAnchor.UpperRight || alignment == TextAnchor.MiddleRight || alignment == TextAnchor.LowerRight)
+            {
+                pivot.x = 1f;
+            }
+
+            if (alignment == TextAnchor.UpperLeft || alignment == TextAnchor.UpperCenter || alignment == TextAnchor.UpperRight)
+            {
+                pivot.y = 1f;
+            }
+            else if (alignment == TextAnchor.LowerLeft || alignment == TextAnchor.LowerCenter || alignment == TextAnchor.LowerRight)
+            {
+                pivot.y = 0f;
+            }
+
+            rect.pivot = pivot;
             rect.anchoredPosition = anchoredPosition;
             rect.sizeDelta = size;
 

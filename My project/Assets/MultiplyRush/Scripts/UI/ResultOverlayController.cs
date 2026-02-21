@@ -491,31 +491,31 @@ namespace MultiplyRush
             if (!_lastDidWin)
             {
                 _loseImpact = Mathf.MoveTowards(_loseImpact, 0f, deltaTime * 1.85f);
-                var shakeX = Mathf.Sin(runTime * 18f) * (5f + _loseImpact * 4f);
-                var shakeY = Mathf.Cos(runTime * 14f + 0.5f) * (2f + _loseImpact * 2.5f);
+                var shakeX = Mathf.Sin(runTime * 16f) * (2.2f + _loseImpact * 1.6f);
+                var shakeY = Mathf.Cos(runTime * 12f + 0.5f) * (1.1f + _loseImpact * 1.1f);
                 panelOffset = new Vector2(shakeX, shakeY);
 
                 if (_loseBandPrimaryRect != null && _loseBandPrimary != null)
                 {
                     var width = _panelRect != null ? _panelRect.rect.width : 860f;
                     var x = Mathf.PingPong(runTime * 220f, width + 280f) - (width * 0.5f + 140f);
-                    _loseBandPrimaryRect.anchoredPosition = new Vector2(x, 48f);
-                    _loseBandPrimary.color = new Color(1f, 0.36f, 0.44f, 0.18f + Mathf.Abs(Mathf.Sin(runTime * 3.8f)) * 0.14f);
+                    _loseBandPrimaryRect.anchoredPosition = new Vector2(x, 162f);
+                    _loseBandPrimary.color = new Color(1f, 0.36f, 0.44f, 0.06f + Mathf.Abs(Mathf.Sin(runTime * 3.8f)) * 0.05f);
                 }
 
                 if (_loseBandSecondaryRect != null && _loseBandSecondary != null)
                 {
                     var width = _panelRect != null ? _panelRect.rect.width : 860f;
                     var x = Mathf.PingPong(runTime * 175f + 120f, width + 260f) - (width * 0.5f + 130f);
-                    _loseBandSecondaryRect.anchoredPosition = new Vector2(x, -24f);
-                    _loseBandSecondary.color = new Color(1f, 0.24f, 0.3f, 0.14f + Mathf.Abs(Mathf.Sin(runTime * 2.9f + 0.9f)) * 0.12f);
+                    _loseBandSecondaryRect.anchoredPosition = new Vector2(x, -198f);
+                    _loseBandSecondary.color = new Color(1f, 0.24f, 0.3f, 0.05f + Mathf.Abs(Mathf.Sin(runTime * 2.9f + 0.9f)) * 0.04f);
                 }
 
                 if (_loseNoiseBandRect != null && _loseNoiseBand != null)
                 {
-                    var noiseY = Mathf.PingPong(runTime * 210f, 340f) - 170f;
+                    var noiseY = Mathf.PingPong(runTime * 160f, 420f) - 210f;
                     _loseNoiseBandRect.anchoredPosition = new Vector2(0f, noiseY);
-                    _loseNoiseBand.color = new Color(1f, 0.45f, 0.5f, 0.05f + Mathf.Abs(Mathf.Sin(runTime * 6.2f)) * 0.07f);
+                    _loseNoiseBand.color = new Color(1f, 0.45f, 0.5f, 0.02f + Mathf.Abs(Mathf.Sin(runTime * 5.2f)) * 0.03f);
                 }
             }
             else
@@ -583,7 +583,7 @@ namespace MultiplyRush
             }
 
             EnsureMainMenuButton();
-            _panelRect.sizeDelta = new Vector2(860f, 690f);
+            _panelRect.sizeDelta = new Vector2(900f, 780f);
 
             _panelImage = _panelRect.GetComponent<Image>();
             if (_panelImage != null)
@@ -682,40 +682,40 @@ namespace MultiplyRush
             _loseBandPrimary = EnsureImage(
                 _panelRect,
                 "LoseBandPrimary",
-                new Color(1f, 0.35f, 0.43f, 0.2f),
+                new Color(1f, 0.35f, 0.43f, 0.1f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(-1600f, 48f),
-                new Vector2(240f, 560f));
+                new Vector2(180f, 500f));
             _loseBandPrimaryRect = _loseBandPrimary.rectTransform;
             _loseBandPrimaryRect.localRotation = Quaternion.Euler(0f, 0f, 12f);
             _loseBandPrimary.raycastTarget = false;
-            _loseBandPrimaryRect.SetAsLastSibling();
+            _loseBandPrimaryRect.SetAsFirstSibling();
 
             _loseBandSecondary = EnsureImage(
                 _panelRect,
                 "LoseBandSecondary",
-                new Color(1f, 0.22f, 0.3f, 0.16f),
+                new Color(1f, 0.22f, 0.3f, 0.08f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(1600f, -24f),
-                new Vector2(210f, 560f));
+                new Vector2(160f, 480f));
             _loseBandSecondaryRect = _loseBandSecondary.rectTransform;
             _loseBandSecondaryRect.localRotation = Quaternion.Euler(0f, 0f, -9f);
             _loseBandSecondary.raycastTarget = false;
-            _loseBandSecondaryRect.SetAsLastSibling();
+            _loseBandSecondaryRect.SetAsFirstSibling();
 
             _loseNoiseBand = EnsureImage(
                 _panelRect,
                 "LoseNoiseBand",
-                new Color(1f, 0.45f, 0.5f, 0.08f),
+                new Color(1f, 0.45f, 0.5f, 0.04f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 1200f),
                 new Vector2(760f, 36f));
             _loseNoiseBandRect = _loseNoiseBand.rectTransform;
             _loseNoiseBand.raycastTarget = false;
-            _loseNoiseBandRect.SetAsLastSibling();
+            _loseNoiseBandRect.SetAsFirstSibling();
 
             _scanlineRect = EnsureImage(
                 _panelRect,
@@ -725,7 +725,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
                 new Vector2(760f, 42f)).rectTransform;
-            _scanlineRect.SetAsLastSibling();
+            _scanlineRect.SetAsFirstSibling();
 
             _winSweepImage = EnsureImage(
                 _panelRect,
@@ -739,7 +739,7 @@ namespace MultiplyRush
             _winSweepRect.localRotation = Quaternion.Euler(0f, 0f, 14f);
             _winSweepImage.raycastTarget = false;
             _winSweepImage.gameObject.SetActive(false);
-            _winSweepRect.SetAsLastSibling();
+            _winSweepRect.SetAsFirstSibling();
 
             if (nextButton != null)
             {
@@ -792,8 +792,8 @@ namespace MultiplyRush
             var rect = button.GetComponent<RectTransform>();
             if (rect != null)
             {
-                rect.sizeDelta = new Vector2(372f, 104f);
-                rect.anchoredPosition = new Vector2(0f, -246f);
+                rect.sizeDelta = new Vector2(330f, 86f);
+                rect.anchoredPosition = new Vector2(0f, -318f);
             }
 
             var image = button.GetComponent<Image>();
@@ -815,7 +815,7 @@ namespace MultiplyRush
             {
                 label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 label.text = labelText;
-                label.fontSize = 42;
+                label.fontSize = 38;
                 label.fontStyle = FontStyle.Bold;
                 label.alignment = TextAnchor.MiddleCenter;
                 label.color = Color.white;
@@ -840,8 +840,8 @@ namespace MultiplyRush
             var rect = button.GetComponent<RectTransform>();
             if (rect != null)
             {
-                rect.sizeDelta = new Vector2(300f, 82f);
-                rect.anchoredPosition = new Vector2(0f, -356f);
+                rect.sizeDelta = new Vector2(270f, 68f);
+                rect.anchoredPosition = new Vector2(0f, -398f);
             }
 
             var image = button.GetComponent<Image>();
@@ -855,7 +855,7 @@ namespace MultiplyRush
             {
                 label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 label.text = labelText;
-                label.fontSize = 34;
+                label.fontSize = 30;
                 label.fontStyle = FontStyle.Bold;
                 label.alignment = TextAnchor.MiddleCenter;
                 label.color = Color.white;
@@ -974,7 +974,7 @@ namespace MultiplyRush
             {
                 reinforcementButton = CreateBuffButton(
                     "UseReinforcementButton",
-                    new Vector2(-174f, -270f),
+                    new Vector2(-152f, -236f),
                     new Color(0.2f, 0.58f, 0.95f, 1f),
                     _panelRect,
                     out reinforcementButtonLabel);
@@ -988,7 +988,7 @@ namespace MultiplyRush
             {
                 shieldButton = CreateBuffButton(
                     "UseShieldButton",
-                    new Vector2(174f, -270f),
+                    new Vector2(152f, -236f),
                     new Color(0.25f, 0.75f, 0.4f, 1f),
                     _panelRect,
                     out shieldButtonLabel);
@@ -1032,7 +1032,7 @@ namespace MultiplyRush
             {
                 mainMenuButton = CreateBuffButton(
                     "MainMenuButton",
-                    new Vector2(0f, -346f),
+                    new Vector2(0f, -398f),
                     new Color(0.2f, 0.3f, 0.46f, 1f),
                     _panelRect,
                     out mainMenuButtonLabel);
@@ -1067,7 +1067,7 @@ namespace MultiplyRush
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = anchoredPosition;
-            rect.sizeDelta = new Vector2(288f, 76f);
+            rect.sizeDelta = new Vector2(248f, 64f);
 
             var image = buttonObject.AddComponent<Image>();
             image.color = color;
@@ -1090,7 +1090,7 @@ namespace MultiplyRush
             label = labelObject.AddComponent<Text>();
             label.alignment = TextAnchor.MiddleCenter;
             label.color = Color.white;
-            label.fontSize = 30;
+            label.fontSize = 28;
             label.fontStyle = FontStyle.Bold;
             label.text = objectName;
             label.horizontalOverflow = HorizontalWrapMode.Overflow;
