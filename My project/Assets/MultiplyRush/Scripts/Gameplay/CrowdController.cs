@@ -137,6 +137,7 @@ namespace MultiplyRush
         private int _nextShooterIndex;
         private bool _suppressUnitGainPop;
         private int _activeLevelIndex = 1;
+        private bool _frontShootersDirty = true;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -191,10 +192,14 @@ namespace MultiplyRush
             EnsureGateEffects();
             EnsureWeaponEffects();
 
-            unitVisualScale = Mathf.Clamp(unitVisualScale, 1.7f, 2.3f);
-            unitSpacingX = Mathf.Clamp(unitSpacingX, 0.82f, 1.12f);
-            unitSpacingZ = Mathf.Clamp(unitSpacingZ, 0.9f, 1.24f);
-            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 42, 96);
+            unitVisualScale = Mathf.Clamp(unitVisualScale, 1.45f, 2.2f);
+            unitSpacingX = Mathf.Clamp(unitSpacingX, 0.62f, 0.95f);
+            unitSpacingZ = Mathf.Clamp(unitSpacingZ, 0.68f, 1.05f);
+            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 60, 140);
+            unitVisualScale = Mathf.Min(unitVisualScale, 1.62f);
+            unitSpacingX = Mathf.Min(unitSpacingX, 0.78f);
+            unitSpacingZ = Mathf.Min(unitSpacingZ, 0.84f);
+            maxVisibleUnits = Mathf.Max(maxVisibleUnits, 96);
             shooterFrontRows = Mathf.Clamp(shooterFrontRows, 1, 4);
             baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 0.6f, 5f);
             shotsPerVisibleUnit = Mathf.Clamp(shotsPerVisibleUnit, 0.02f, 0.16f);
@@ -225,8 +230,11 @@ namespace MultiplyRush
 
             if (_isRunning)
             {
-                var dragDelta = dragInput != null ? dragInput.GetHorizontalDeltaNormalized() : 0f;
-                _targetX += dragDelta * dragSensitivity * trackHalfWidth;
+                if (dragInput != null && dragInput.TryGetPrimaryPointerNormalizedX(out var normalizedPointerX))
+                {
+                    _targetX = Mathf.Lerp(-trackHalfWidth, trackHalfWidth, normalizedPointerX);
+                }
+
                 _targetX = Mathf.Clamp(_targetX, -trackHalfWidth, trackHalfWidth);
 
                 if (_speedEffectTimer > 0f)
@@ -350,6 +358,7 @@ namespace MultiplyRush
             _worseGateHits = 0;
             _redGateHits = 0;
             _totalGateRows = Mathf.Max(0, totalGateRows);
+            _frontShootersDirty = true;
 
             _suppressUnitGainPop = true;
             SetCount(initialCount);
@@ -549,6 +558,7 @@ namespace MultiplyRush
             }
 
             RelayoutFormation();
+            _frontShootersDirty = true;
             if (!_suppressUnitGainPop && _count > previousCount && _activeUnits.Count > previousVisible)
             {
                 TriggerGatePunch(new Color(0.45f, 1f, 0.64f, 1f));
@@ -608,6 +618,7 @@ namespace MultiplyRush
             var count = _activeUnits.Count;
             if (count == 0)
             {
+                _frontShootersDirty = true;
                 return;
             }
 
@@ -622,6 +633,8 @@ namespace MultiplyRush
                 var z = -row * unitSpacingZ;
                 _formationSlots[i] = new Vector3(x, unitYOffset, z);
             }
+
+            _frontShootersDirty = true;
         }
 
         private void PrewarmPool()
@@ -1085,7 +1098,11 @@ namespace MultiplyRush
                 return;
             }
 
-            RebuildFrontShooterIndices();
+            if (!_combatActive && (_frontShootersDirty || _frontShooterIndices.Count <= 0))
+            {
+                RebuildFrontShooterIndices();
+            }
+
             var activeShooters = _combatActive
                 ? Mathf.Max(1, _activeUnits.Count)
                 : Mathf.Max(1, _frontShooterIndices.Count);
@@ -1184,7 +1201,7 @@ namespace MultiplyRush
 
             if (_activeUnits.Count > 0)
             {
-                if (!_combatActive && _frontShooterIndices.Count <= 0)
+                if (!_combatActive && (_frontShootersDirty || _frontShooterIndices.Count <= 0))
                 {
                     RebuildFrontShooterIndices();
                 }
@@ -1241,6 +1258,8 @@ namespace MultiplyRush
 
                     return true;
                 }
+
+                _frontShootersDirty = true;
             }
 
             if (_weaponMuzzle != null)
@@ -1389,6 +1408,7 @@ namespace MultiplyRush
             if (count <= 0)
             {
                 _nextShooterIndex = 0;
+                _frontShootersDirty = false;
                 return;
             }
 
@@ -1436,6 +1456,8 @@ namespace MultiplyRush
             {
                 _nextShooterIndex = 0;
             }
+
+            _frontShootersDirty = false;
         }
 
         private void AnimateGateEffects(float deltaTime)

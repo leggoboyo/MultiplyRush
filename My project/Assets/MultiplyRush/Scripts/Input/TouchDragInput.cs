@@ -15,6 +15,39 @@ namespace MultiplyRush
 
         public bool IsPointerDown => _wasPointerDownLastFrame;
 
+        public bool TryGetPrimaryPointerNormalizedX(out float normalizedX)
+        {
+            var hasPointer = TryGetPrimaryPointerX(out var pointerX);
+            if (!hasPointer)
+            {
+                if (_wasPointerDownLastFrame)
+                {
+                    DragEnded?.Invoke();
+                }
+
+                _wasPointerDownLastFrame = false;
+                _isDraggingFromCurrentPress = false;
+                normalizedX = 0f;
+                return false;
+            }
+
+            if (!_wasPointerDownLastFrame)
+            {
+                _wasPointerDownLastFrame = true;
+                _isDraggingFromCurrentPress = true;
+                _lastX = pointerX;
+                DragStarted?.Invoke();
+            }
+            else if (!_isDraggingFromCurrentPress)
+            {
+                _isDraggingFromCurrentPress = true;
+                _lastX = pointerX;
+            }
+
+            normalizedX = Mathf.Clamp01(pointerX / Mathf.Max(1f, Screen.width));
+            return true;
+        }
+
         public float GetHorizontalDeltaNormalized()
         {
             var hasPointer = TryGetPrimaryPointerX(out var pointerX);

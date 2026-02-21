@@ -66,6 +66,7 @@ namespace MultiplyRush
         private Text _hardLabel;
         private Text _difficultyLabel;
         private RectTransform _musicRow;
+        private RectTransform _musicTrackPlateRect;
         private Text _musicLabel;
         private Text _musicTrackLabel;
         private Button _musicPrevButton;
@@ -890,6 +891,28 @@ namespace MultiplyRush
                 new Vector2(0f, 44f),
                 28);
 
+            var musicTrackPlate = FindOrCreateImage(
+                _musicRow,
+                "MusicTrackPlate",
+                new Color(0.14f, 0.22f, 0.34f, 0.9f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 4f),
+                new Vector2(430f, 58f));
+            if (musicTrackPlate != null)
+            {
+                _musicTrackPlateRect = musicTrackPlate.rectTransform;
+                _musicTrackPlateRect.SetAsFirstSibling();
+                var plateOutline = musicTrackPlate.GetComponent<Outline>();
+                if (plateOutline == null)
+                {
+                    plateOutline = musicTrackPlate.gameObject.AddComponent<Outline>();
+                }
+
+                plateOutline.effectColor = new Color(0f, 0f, 0f, 0.56f);
+                plateOutline.effectDistance = new Vector2(1.4f, -1.4f);
+            }
+
             _musicTrackLabel = EnsureDifficultyText(
                 _musicRow,
                 "MusicTrackLabel",
@@ -899,6 +922,8 @@ namespace MultiplyRush
             if (_musicTrackLabel != null)
             {
                 _musicTrackLabel.color = new Color(0.88f, 0.98f, 1f, 1f);
+                _musicTrackLabel.fontStyle = FontStyle.Bold;
+                _musicTrackLabel.rectTransform.sizeDelta = new Vector2(620f, 62f);
             }
 
             _musicPrevButton = EnsureMusicNavButton(_musicRow, "MusicPrevButton", "<", new Vector2(-258f, 4f));
@@ -1004,6 +1029,11 @@ namespace MultiplyRush
             {
                 _musicRow.sizeDelta = new Vector2(Mathf.Clamp(width - 190f, 540f, 680f), compact ? 122f : 134f);
                 _musicRow.anchoredPosition = new Vector2(0f, compact ? 28f : 34f);
+            }
+
+            if (_musicTrackPlateRect != null)
+            {
+                _musicTrackPlateRect.sizeDelta = new Vector2(Mathf.Clamp(width - 350f, 360f, 460f), 58f);
             }
 
             if (_difficultyRow != null)
@@ -1290,10 +1320,10 @@ namespace MultiplyRush
                 return;
             }
 
-            var audio = AudioDirector.Instance;
+            var audio = AudioDirector.Instance ?? AudioDirector.EnsureInstance();
             if (audio == null)
             {
-                _musicTrackLabel.text = "Track";
+                _musicTrackLabel.text = "#1  Hyper Neon";
                 return;
             }
 
@@ -1305,6 +1335,13 @@ namespace MultiplyRush
             }
 
             _musicTrackLabel.text = "#" + (index + 1) + "  " + trackName;
+            if (string.IsNullOrWhiteSpace(_musicTrackLabel.text))
+            {
+                _musicTrackLabel.text = "#1  Hyper Neon";
+            }
+
+            _musicTrackLabel.enabled = true;
+            _musicTrackLabel.gameObject.SetActive(true);
         }
 
         private void OnDisable()

@@ -839,7 +839,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(760f, 1120f));
+                new Vector2(760f, 1180f));
             _panelRect = panelImage.rectTransform;
             _panelBaseScale = Vector3.one;
 
@@ -878,9 +878,9 @@ namespace MultiplyRush
                 false);
             subtitle.color = new Color(0.76f, 0.86f, 0.96f, 0.94f);
 
-            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 372f), accentColor);
-            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 268f), new Color(0.25f, 0.62f, 0.95f, 1f));
-            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 164f), new Color(0.2f, 0.3f, 0.46f, 1f));
+            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 394f), accentColor);
+            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 296f), new Color(0.25f, 0.62f, 0.95f, 1f));
+            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 198f), new Color(0.2f, 0.3f, 0.46f, 1f));
 
             var optionsCard = EnsureImage(
                 _panelRect,
@@ -888,8 +888,8 @@ namespace MultiplyRush
                 new Color(0.09f, 0.14f, 0.24f, 0.96f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -186f),
-                new Vector2(680f, 620f)).rectTransform;
+                new Vector2(0f, -238f),
+                new Vector2(700f, 660f)).rectTransform;
             _optionsCardRect = optionsCard;
 
             var optionsOutline = optionsCard.GetComponent<Outline>();
@@ -921,11 +921,11 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -110f),
+                new Vector2(38f, -112f),
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _volumeSlider = EnsureSlider(optionsCard, "VolumeSlider", new Vector2(0f, 186f), new Vector2(560f, 56f), new Color(0.22f, 0.76f, 1f, 1f));
+            _volumeSlider = EnsureSlider(optionsCard, "VolumeSlider", new Vector2(0f, 144f), new Vector2(560f, 56f), new Color(0.22f, 0.76f, 1f, 1f));
             _volumeValueText = EnsureText(
                 optionsCard,
                 "VolumeValue",
@@ -934,7 +934,7 @@ namespace MultiplyRush
                 TextAnchor.MiddleRight,
                 new Vector2(1f, 1f),
                 new Vector2(1f, 1f),
-                new Vector2(-32f, -110f),
+                new Vector2(-32f, -112f),
                 new Vector2(140f, 48f),
                 true);
             _volumeValueText.color = Color.white;
@@ -947,11 +947,11 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -196f),
+                new Vector2(38f, -204f),
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _cameraMotionSlider = EnsureSlider(optionsCard, "CameraMotionSlider", new Vector2(0f, 96f), new Vector2(560f, 56f), new Color(0.38f, 0.88f, 0.78f, 1f));
+            _cameraMotionSlider = EnsureSlider(optionsCard, "CameraMotionSlider", new Vector2(0f, 52f), new Vector2(560f, 56f), new Color(0.38f, 0.88f, 0.78f, 1f));
             _cameraMotionValueText = EnsureText(
                 optionsCard,
                 "CameraMotionValue",
@@ -960,7 +960,7 @@ namespace MultiplyRush
                 TextAnchor.MiddleRight,
                 new Vector2(1f, 1f),
                 new Vector2(1f, 1f),
-                new Vector2(-32f, -196f),
+                new Vector2(-32f, -204f),
                 new Vector2(140f, 48f),
                 true);
             _cameraMotionValueText.color = Color.white;
@@ -973,11 +973,11 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -282f),
+                new Vector2(38f, -296f),
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _musicRowRect = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, -8f), new Vector2(612f, 62f));
+            _musicRowRect = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, -54f), new Vector2(612f, 62f));
             _musicPrevButton = EnsureQualityButton(_musicRowRect, "MusicPrevButton", "<", new Vector2(-212f, 0f));
             _musicNextButton = EnsureQualityButton(_musicRowRect, "MusicNextButton", ">", new Vector2(212f, 0f));
             _musicTrackValueText = EnsureText(
@@ -1001,7 +1001,7 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -456f),
+                new Vector2(38f, -486f),
                 new Vector2(420f, 48f),
                 false);
             _qualityValueText.color = new Color(0.82f, 0.9f, 0.98f, 1f);
@@ -1014,17 +1014,17 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -370f),
+                new Vector2(38f, -394f),
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -70f));
+            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -100f));
             var hapticsLabel = _hapticsButton != null
                 ? _hapticsButton.GetComponentInChildren<Text>()
                 : null;
             _hapticsButtonText = hapticsLabel;
 
-            _graphicsRowRect = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -246f), new Vector2(612f, 72f));
+            _graphicsRowRect = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -292f), new Vector2(612f, 72f));
             _autoButton = EnsureQualityButton(_graphicsRowRect, "AutoQualityButton", "Auto", new Vector2(-198f, 0f));
             _lowButton = EnsureQualityButton(_graphicsRowRect, "LowQualityButton", "Low", new Vector2(-66f, 0f));
             _mediumButton = EnsureQualityButton(_graphicsRowRect, "MediumQualityButton", "Medium", new Vector2(66f, 0f));
@@ -1079,20 +1079,20 @@ namespace MultiplyRush
             _pauseButtonRect.sizeDelta = new Vector2(buttonSize, buttonSize);
             _pauseButtonRect.anchoredPosition = new Vector2(-marginX, -marginY);
 
-            var panelScaleX = (width - 20f) / 760f;
-            var panelScaleY = (height - 26f) / 1120f;
+            var panelScaleX = (width - 24f) / 760f;
+            var panelScaleY = (height - 32f) / 1180f;
             var panelScale = Mathf.Clamp(Mathf.Min(1f, panelScaleX, panelScaleY), 0.52f, 1f);
             _panelBaseScale = Vector3.one * panelScale;
 
-            var compact = panelScale < 0.72f;
-            var ultraCompact = panelScale < 0.62f;
+            var compact = panelScale < 0.74f;
+            var ultraCompact = panelScale < 0.64f;
 
             if (_resumeButton != null)
             {
                 var rect = _resumeButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 346f : 372f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 360f : 394f);
                 }
             }
 
@@ -1101,7 +1101,7 @@ namespace MultiplyRush
                 var rect = _restartButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 250f : 268f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 270f : 296f);
                 }
             }
 
@@ -1110,24 +1110,24 @@ namespace MultiplyRush
                 var rect = _mainMenuButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 154f : 164f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 180f : 198f);
                 }
             }
 
             if (_optionsCardRect != null)
             {
-                _optionsCardRect.sizeDelta = new Vector2(ultraCompact ? 630f : 680f, ultraCompact ? 590f : 620f);
-                _optionsCardRect.anchoredPosition = new Vector2(0f, compact ? -198f : -186f);
+                _optionsCardRect.sizeDelta = new Vector2(ultraCompact ? 620f : 700f, ultraCompact ? 600f : 660f);
+                _optionsCardRect.anchoredPosition = new Vector2(0f, compact ? -226f : -238f);
             }
 
             if (_musicRowRect != null)
             {
-                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 560f : 612f, 62f);
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 540f : 612f, 62f);
             }
 
             if (_graphicsRowRect != null)
             {
-                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 560f : 612f, 72f);
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 540f : 612f, 72f);
             }
 
             if (_isPaused)

@@ -265,6 +265,7 @@ namespace MultiplyRush
 
             SetBuffOptions(0, 0);
             RefreshPrimaryButtonStyles();
+            ApplyResultLayout();
             TriggerWinBurst(didWin);
         }
 
@@ -323,6 +324,8 @@ namespace MultiplyRush
             {
                 shieldButtonLabel.text = "Use Shield (" + shieldCount + ")";
             }
+
+            ApplyResultLayout();
         }
 
         private static string BuildDetailText(
@@ -491,43 +494,43 @@ namespace MultiplyRush
             if (!_lastDidWin)
             {
                 _loseImpact = Mathf.MoveTowards(_loseImpact, 0f, deltaTime * 1.85f);
-                var shakeX = Mathf.Sin(runTime * 16f) * (2.2f + _loseImpact * 1.6f);
-                var shakeY = Mathf.Cos(runTime * 12f + 0.5f) * (1.1f + _loseImpact * 1.1f);
+                var shakeX = Mathf.Sin(runTime * 15f) * (1.2f + _loseImpact * 0.8f);
+                var shakeY = Mathf.Cos(runTime * 11f + 0.5f) * (0.65f + _loseImpact * 0.55f);
                 panelOffset = new Vector2(shakeX, shakeY);
 
                 if (_loseBandPrimaryRect != null && _loseBandPrimary != null)
                 {
                     var width = _panelRect != null ? _panelRect.rect.width : 860f;
                     var x = Mathf.PingPong(runTime * 220f, width + 280f) - (width * 0.5f + 140f);
-                    _loseBandPrimaryRect.anchoredPosition = new Vector2(x, 162f);
-                    _loseBandPrimary.color = new Color(1f, 0.36f, 0.44f, 0.06f + Mathf.Abs(Mathf.Sin(runTime * 3.8f)) * 0.05f);
+                    _loseBandPrimaryRect.anchoredPosition = new Vector2(x, 286f);
+                    _loseBandPrimary.color = new Color(1f, 0.36f, 0.44f, 0.025f + Mathf.Abs(Mathf.Sin(runTime * 3.8f)) * 0.02f);
                 }
 
                 if (_loseBandSecondaryRect != null && _loseBandSecondary != null)
                 {
                     var width = _panelRect != null ? _panelRect.rect.width : 860f;
                     var x = Mathf.PingPong(runTime * 175f + 120f, width + 260f) - (width * 0.5f + 130f);
-                    _loseBandSecondaryRect.anchoredPosition = new Vector2(x, -198f);
-                    _loseBandSecondary.color = new Color(1f, 0.24f, 0.3f, 0.05f + Mathf.Abs(Mathf.Sin(runTime * 2.9f + 0.9f)) * 0.04f);
+                    _loseBandSecondaryRect.anchoredPosition = new Vector2(x, -300f);
+                    _loseBandSecondary.color = new Color(1f, 0.24f, 0.3f, 0.02f + Mathf.Abs(Mathf.Sin(runTime * 2.9f + 0.9f)) * 0.02f);
                 }
 
                 if (_loseNoiseBandRect != null && _loseNoiseBand != null)
                 {
                     var noiseY = Mathf.PingPong(runTime * 160f, 420f) - 210f;
                     _loseNoiseBandRect.anchoredPosition = new Vector2(0f, noiseY);
-                    _loseNoiseBand.color = new Color(1f, 0.45f, 0.5f, 0.02f + Mathf.Abs(Mathf.Sin(runTime * 5.2f)) * 0.03f);
+                    _loseNoiseBand.color = new Color(1f, 0.45f, 0.5f, 0.01f + Mathf.Abs(Mathf.Sin(runTime * 5.2f)) * 0.012f);
                 }
             }
             else
             {
                 if (_loseBandPrimaryRect != null)
                 {
-                    _loseBandPrimaryRect.anchoredPosition = new Vector2(-1600f, 48f);
+                    _loseBandPrimaryRect.anchoredPosition = new Vector2(-1800f, 48f);
                 }
 
                 if (_loseBandSecondaryRect != null)
                 {
-                    _loseBandSecondaryRect.anchoredPosition = new Vector2(1600f, -24f);
+                    _loseBandSecondaryRect.anchoredPosition = new Vector2(1800f, -24f);
                 }
 
                 if (_loseNoiseBandRect != null)
@@ -583,7 +586,7 @@ namespace MultiplyRush
             }
 
             EnsureMainMenuButton();
-            _panelRect.sizeDelta = new Vector2(900f, 780f);
+            _panelRect.sizeDelta = new Vector2(920f, 900f);
 
             _panelImage = _panelRect.GetComponent<Image>();
             if (_panelImage != null)
@@ -629,7 +632,7 @@ namespace MultiplyRush
                 outline.effectColor = new Color(0f, 0f, 0f, 0.84f);
                 outline.effectDistance = new Vector2(2.2f, -2.2f);
 
-                _titleRect.anchoredPosition = new Vector2(0f, -84f);
+                _titleRect.anchoredPosition = new Vector2(0f, -96f);
             }
 
             if (detailText == null)
@@ -656,8 +659,8 @@ namespace MultiplyRush
                 var rect = detailText.rectTransform;
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
-                rect.anchoredPosition = new Vector2(0f, -8f);
-                rect.sizeDelta = new Vector2(724f, 288f);
+                rect.anchoredPosition = new Vector2(0f, 20f);
+                rect.sizeDelta = new Vector2(736f, 330f);
 
                 var outline = detailText.GetComponent<Outline>();
                 if (outline == null)
@@ -682,11 +685,11 @@ namespace MultiplyRush
             _loseBandPrimary = EnsureImage(
                 _panelRect,
                 "LoseBandPrimary",
-                new Color(1f, 0.35f, 0.43f, 0.1f),
+                new Color(1f, 0.35f, 0.43f, 0.06f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(-1600f, 48f),
-                new Vector2(180f, 500f));
+                new Vector2(-1800f, 48f),
+                new Vector2(120f, 360f));
             _loseBandPrimaryRect = _loseBandPrimary.rectTransform;
             _loseBandPrimaryRect.localRotation = Quaternion.Euler(0f, 0f, 12f);
             _loseBandPrimary.raycastTarget = false;
@@ -695,11 +698,11 @@ namespace MultiplyRush
             _loseBandSecondary = EnsureImage(
                 _panelRect,
                 "LoseBandSecondary",
-                new Color(1f, 0.22f, 0.3f, 0.08f),
+                new Color(1f, 0.22f, 0.3f, 0.05f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(1600f, -24f),
-                new Vector2(160f, 480f));
+                new Vector2(1800f, -24f),
+                new Vector2(110f, 340f));
             _loseBandSecondaryRect = _loseBandSecondary.rectTransform;
             _loseBandSecondaryRect.localRotation = Quaternion.Euler(0f, 0f, -9f);
             _loseBandSecondary.raycastTarget = false;
@@ -708,7 +711,7 @@ namespace MultiplyRush
             _loseNoiseBand = EnsureImage(
                 _panelRect,
                 "LoseNoiseBand",
-                new Color(1f, 0.45f, 0.5f, 0.04f),
+                new Color(1f, 0.45f, 0.5f, 0.02f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 1200f),
@@ -782,6 +785,49 @@ namespace MultiplyRush
             }
         }
 
+        private void ApplyResultLayout()
+        {
+            var showBuffButtons = !_lastDidWin &&
+                                  ((reinforcementButton != null && reinforcementButton.gameObject.activeSelf) ||
+                                   (shieldButton != null && shieldButton.gameObject.activeSelf));
+
+            if (_lastDidWin)
+            {
+                ApplyButtonRect(nextButton, new Vector2(330f, 86f), new Vector2(0f, -344f));
+                ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -426f));
+                return;
+            }
+
+            if (showBuffButtons)
+            {
+                ApplyButtonRect(reinforcementButton, new Vector2(248f, 64f), new Vector2(-152f, -264f));
+                ApplyButtonRect(shieldButton, new Vector2(248f, 64f), new Vector2(152f, -264f));
+                ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -352f));
+                ApplyButtonRect(retryButton, new Vector2(330f, 84f), new Vector2(0f, -430f));
+                return;
+            }
+
+            ApplyButtonRect(retryButton, new Vector2(330f, 86f), new Vector2(0f, -350f));
+            ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -430f));
+        }
+
+        private static void ApplyButtonRect(Button button, Vector2 size, Vector2 anchoredPosition)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var rect = button.GetComponent<RectTransform>();
+            if (rect == null)
+            {
+                return;
+            }
+
+            rect.sizeDelta = size;
+            rect.anchoredPosition = anchoredPosition;
+        }
+
         private static void StylePrimaryButton(Button button, Color color, string labelText)
         {
             if (button == null)
@@ -793,7 +839,6 @@ namespace MultiplyRush
             if (rect != null)
             {
                 rect.sizeDelta = new Vector2(330f, 86f);
-                rect.anchoredPosition = new Vector2(0f, -318f);
             }
 
             var image = button.GetComponent<Image>();
@@ -841,7 +886,6 @@ namespace MultiplyRush
             if (rect != null)
             {
                 rect.sizeDelta = new Vector2(270f, 68f);
-                rect.anchoredPosition = new Vector2(0f, -398f);
             }
 
             var image = button.GetComponent<Image>();
