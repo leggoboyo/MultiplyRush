@@ -1063,11 +1063,7 @@ namespace MultiplyRush
 
         private bool TryGetWeaponEmissionPose(out Vector3 position, out Vector3 direction)
         {
-            direction = transform.forward;
-            if (_combatTarget != null)
-            {
-                direction = (_combatTarget.position + Vector3.up * 0.55f) - transform.position;
-            }
+            direction = Vector3.forward;
 
             if (_activeUnits.Count > 0)
             {
@@ -1093,12 +1089,20 @@ namespace MultiplyRush
 
                     position = muzzle != null
                         ? muzzle.position
-                        : unit.position + (transform.forward * 0.2f) + new Vector3(0f, 0.52f, 0f);
+                        : unit.position + (Vector3.forward * 0.2f) + new Vector3(0f, 0.52f, 0f);
+
+                    // The runner always advances on world +Z, so force tracer spawn to never sit behind a unit.
+                    var minForwardZ = unit.position.z + 0.14f;
+                    if (position.z < minForwardZ)
+                    {
+                        position.z = minForwardZ;
+                    }
+
                     position += new Vector3(
                         UnityEngine.Random.Range(-0.03f, 0.03f),
                         UnityEngine.Random.Range(-0.03f, 0.06f),
                         UnityEngine.Random.Range(-0.02f, 0.04f));
-                    direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
+                    direction = ResolveFireDirection(position);
                     return true;
                 }
             }
@@ -1106,13 +1110,33 @@ namespace MultiplyRush
             if (_weaponMuzzle != null)
             {
                 position = _weaponMuzzle.position;
-                direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
+                var minForwardZ = transform.position.z + 0.14f;
+                if (position.z < minForwardZ)
+                {
+                    position.z = minForwardZ;
+                }
+
+                direction = ResolveFireDirection(position);
                 return true;
             }
 
-            position = transform.position + Vector3.up * 0.55f + transform.forward * 0.18f;
-            direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+            position = transform.position + Vector3.up * 0.55f + Vector3.forward * 0.18f;
+            direction = ResolveFireDirection(position);
             return true;
+        }
+
+        private Vector3 ResolveFireDirection(Vector3 emitPosition)
+        {
+            if (_combatTarget != null)
+            {
+                var targetDirection = (_combatTarget.position + Vector3.up * 0.55f) - emitPosition;
+                if (targetDirection.sqrMagnitude > 0.0001f)
+                {
+                    return targetDirection.normalized;
+                }
+            }
+
+            return Vector3.forward;
         }
 
         private static Transform ResolveUnitMuzzle(Transform unit)
