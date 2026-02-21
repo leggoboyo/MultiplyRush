@@ -34,6 +34,8 @@ namespace MultiplyRush
         private const int SampleRate = 44100;
         private const float MusicBaseVolume = 0.62f;
         private const float SfxBaseVolume = 0.94f;
+        private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
+        private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
 
         private static AudioDirector _instance;
 
@@ -315,97 +317,643 @@ namespace MultiplyRush
 
         private static AudioClip BuildMenuMusic()
         {
-            var clip = BuildRhythmLoop(
-                "Music_Menu",
-                bpm: 104f,
-                bars: 4,
-                melodyMidi: new[] { 72, -1, 76, -1, 79, -1, 76, -1, 74, -1, 76, -1, 79, -1, 83, -1 },
-                bassMidi: new[] { 48, 48, 50, 50, 53, 53, 50, 50 },
-                brightness: 0.54f,
-                kickGain: 0.32f,
-                hatGain: 0.16f);
-            return clip;
+            return BuildModernLoop(
+                clipName: "Music_Menu",
+                bpm: 112f,
+                bars: 8,
+                chordRoots: new[] { 57, 53, 55, 60 },
+                minorKey: false,
+                energy: 0.52f,
+                atmosphere: 0.58f,
+                sparseLead: false);
         }
 
         private static AudioClip BuildGameplayMusic()
         {
-            var clip = BuildRhythmLoop(
-                "Music_Gameplay",
-                bpm: 128f,
-                bars: 4,
-                melodyMidi: new[] { 74, 79, 81, 79, 76, 79, 83, 81, 74, 79, 81, 79, 76, 74, 72, -1 },
-                bassMidi: new[] { 45, 45, 47, 47, 50, 50, 47, 47 },
-                brightness: 0.68f,
-                kickGain: 0.38f,
-                hatGain: 0.2f);
-            return clip;
+            return BuildModernLoop(
+                clipName: "Music_Gameplay",
+                bpm: 126f,
+                bars: 8,
+                chordRoots: new[] { 45, 48, 43, 50 },
+                minorKey: true,
+                energy: 0.86f,
+                atmosphere: 0.42f,
+                sparseLead: false);
         }
 
         private static AudioClip BuildPauseMusic()
         {
-            var clip = BuildRhythmLoop(
-                "Music_Pause",
-                bpm: 78f,
-                bars: 4,
-                melodyMidi: new[] { 69, -1, 71, -1, 74, -1, 71, -1, 67, -1, 69, -1, 71, -1, 69, -1 },
-                bassMidi: new[] { 43, 43, 45, 45, 48, 48, 45, 45 },
-                brightness: 0.32f,
-                kickGain: 0.2f,
-                hatGain: 0.1f);
-            return clip;
+            return BuildModernLoop(
+                clipName: "Music_Pause",
+                bpm: 84f,
+                bars: 8,
+                chordRoots: new[] { 50, 47, 45, 52 },
+                minorKey: true,
+                energy: 0.3f,
+                atmosphere: 0.76f,
+                sparseLead: true);
         }
 
-        private static AudioClip BuildRhythmLoop(
+        private static AudioClip BuildModernLoop(
             string clipName,
             float bpm,
             int bars,
-            int[] melodyMidi,
-            int[] bassMidi,
-            float brightness,
-            float kickGain,
-            float hatGain)
+            int[] chordRoots,
+            bool minorKey,
+            float energy,
+            float atmosphere,
+            bool sparseLead)
         {
             var safeBpm = Mathf.Clamp(bpm, 52f, 170f);
             var stepDuration = (60f / safeBpm) * 0.25f;
             var totalSteps = Mathf.Max(8, bars * 16);
             var totalSamples = Mathf.CeilToInt(totalSteps * stepDuration * SampleRate);
-            var data = new float[totalSamples];
-
-            for (var step = 0; step < totalSteps; step++)
+            var musicLayer = new float[totalSamples];
+            var drumLayer = new float[totalSamples];
+            var sidechain = new float[totalSamples];
+            var barSamples = Mathf.RoundToInt(stepDuration * 16f * SampleRate);
+            var leadPattern = sparseLead
+                ? new[] { 0, -1, 2, -1, 4, -1, 5, -1, 4, -1, 2, -1, 1, -1, 0, -1 }
+                : new[] { 0, 2, 4, 5, 4, 2, 1, -1, 0, 2, 4, 6, 5, 4, 2, -1 };
+            var leadRhythm = sparseLead
+                ? new[] { true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false }
+                : new[] { true, false, true, false, true, true, false, false, true, false, true, false, true, true, false, false };
+            var bassPattern = new[] { 0, -1, 0, -1, 4, -1, 2, -1, 0, -1, 0, -1, 5, -1, 2, -1 };
+            var stabPattern = new[] { false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, false };
+            var safeEnergy = Mathf.Clamp01(energy);
+            var safeAtmosphere = Mathf.Clamp01(atmosphere);
+            var kickDuckDepth = Mathf.Lerp(0.08f, 0.24f, safeEnergy);
+            for (var i = 0; i < sidechain.Length; i++)
             {
-                var stepStart = Mathf.FloorToInt(step * stepDuration * SampleRate);
-                var envLength = Mathf.FloorToInt(stepDuration * SampleRate * 0.92f);
+                sidechain[i] = 1f;
+            }
 
-                var melodyNote = melodyMidi[step % melodyMidi.Length];
-                if (melodyNote >= 0)
-                {
-                    var melodyFrequency = MidiToFrequency(melodyNote);
-                    AddTone(data, stepStart, envLength, melodyFrequency, 0.18f + brightness * 0.15f, Waveform.Saw);
-                    AddTone(data, stepStart, envLength, melodyFrequency * 2f, 0.06f + brightness * 0.05f, Waveform.Triangle);
-                }
+            for (var bar = 0; bar < Mathf.Max(1, bars); bar++)
+            {
+                var barStart = Mathf.RoundToInt(bar * stepDuration * 16f * SampleRate);
+                var rootMidi = chordRoots[bar % chordRoots.Length];
+                AddWarmPadChord(
+                    musicLayer,
+                    barStart,
+                    Mathf.RoundToInt(barSamples * 0.98f),
+                    rootMidi,
+                    minorKey,
+                    0.1f + safeAtmosphere * 0.14f,
+                    0.22f + safeAtmosphere * 0.35f);
 
-                if (step % 2 == 0)
+                for (var step = 0; step < 16; step++)
                 {
-                    var bassNote = bassMidi[(step / 2) % bassMidi.Length];
-                    var bassFrequency = MidiToFrequency(bassNote);
-                    AddTone(data, stepStart, Mathf.FloorToInt(envLength * 0.95f), bassFrequency, 0.2f, Waveform.Square);
-                }
+                    var globalStep = bar * 16 + step;
+                    var swingSamples = step % 2 == 1
+                        ? Mathf.RoundToInt(stepDuration * SampleRate * (0.012f + safeEnergy * 0.03f))
+                        : 0;
+                    var stepStart = Mathf.FloorToInt(globalStep * stepDuration * SampleRate) + swingSamples;
+                    stepStart = Mathf.Clamp(stepStart, 0, totalSamples - 1);
+                    var stepSamples = Mathf.FloorToInt(stepDuration * SampleRate);
+                    var sixteenth = step % 4;
 
-                if (step % 4 == 0)
-                {
-                    AddKick(data, stepStart, Mathf.FloorToInt(stepDuration * SampleRate * 1.2f), kickGain);
-                }
+                    var kick = step == 0 || step == 8 ||
+                               (safeEnergy > 0.62f && (step == 6 || step == 12)) ||
+                               (safeEnergy > 0.8f && bar % 2 == 1 && step == 14);
+                    if (kick)
+                    {
+                        AddDeepKick(drumLayer, stepStart, Mathf.RoundToInt(stepSamples * 1.35f), 0.22f + safeEnergy * 0.26f);
+                        ApplySidechainDuck(
+                            sidechain,
+                            stepStart,
+                            Mathf.RoundToInt(stepSamples * (1.8f + safeAtmosphere * 0.6f)),
+                            kickDuckDepth);
+                    }
 
-                if (step % 2 == 1)
-                {
-                    AddHat(data, stepStart, Mathf.FloorToInt(stepDuration * SampleRate * 0.45f), hatGain + brightness * 0.06f);
+                    if (step == 4 || step == 12)
+                    {
+                        AddSnare(drumLayer, stepStart, Mathf.RoundToInt(stepSamples * 1.1f), 0.11f + safeEnergy * 0.16f);
+                        AddClap(drumLayer, stepStart + Mathf.RoundToInt(stepSamples * 0.02f), Mathf.RoundToInt(stepSamples * 0.8f), 0.08f + safeEnergy * 0.1f);
+                    }
+
+                    var hat = step % 2 == 1 || (safeEnergy > 0.72f && sixteenth == 0) || (safeEnergy > 0.86f && sixteenth == 2);
+                    if (hat)
+                    {
+                        var hatGain = (sixteenth == 0 ? 0.048f : 0.032f) + safeEnergy * 0.034f;
+                        AddClosedHat(drumLayer, stepStart, Mathf.RoundToInt(stepSamples * 0.45f), hatGain);
+                    }
+
+                    if (safeEnergy > 0.45f && (step == 3 || step == 11))
+                    {
+                        AddOpenHat(
+                            drumLayer,
+                            stepStart + Mathf.RoundToInt(stepSamples * 0.08f),
+                            Mathf.RoundToInt(stepSamples * (1.6f + safeEnergy * 0.5f)),
+                            0.035f + safeEnergy * 0.05f);
+                    }
+
+                    var bassDegree = bassPattern[(globalStep + 8) % bassPattern.Length];
+                    if (bassDegree >= 0 && (sixteenth == 0 || sixteenth == 2))
+                    {
+                        var bassMidi = BuildScaleMidi(rootMidi - 12, minorKey, bassDegree, 0);
+                        var bassFrequency = MidiToFrequency(bassMidi);
+                        var bassLength = sixteenth == 0
+                            ? Mathf.RoundToInt(stepSamples * (1.45f + safeEnergy * 0.2f))
+                            : Mathf.RoundToInt(stepSamples * 0.8f);
+                        AddSubBass(musicLayer, stepStart, bassLength, bassFrequency, 0.11f + safeEnergy * 0.12f);
+                    }
+
+                    if (stabPattern[step] && !sparseLead)
+                    {
+                        AddChordStab(
+                            musicLayer,
+                            stepStart,
+                            Mathf.RoundToInt(stepSamples * (0.95f + safeAtmosphere * 0.25f)),
+                            rootMidi + (bar % 2 == 0 ? 0 : 12),
+                            minorKey,
+                            0.05f + safeEnergy * 0.06f);
+                    }
+
+                    var leadDegree = leadPattern[(globalStep + (bar % 2 == 0 ? 0 : 5)) % leadPattern.Length];
+                    if (leadDegree >= 0 && leadRhythm[step])
+                    {
+                        var allowLead = !sparseLead || sixteenth == 0 || (sixteenth == 2 && (bar % 2 == 0 || safeEnergy > 0.6f));
+                        if (allowLead)
+                        {
+                            var leadMidi = BuildScaleMidi(rootMidi + 12, minorKey, leadDegree, 0);
+                            if (!sparseLead && bar % 4 == 3 && (step == 10 || step == 14))
+                            {
+                                leadMidi += 12;
+                            }
+
+                            var leadFrequency = MidiToFrequency(leadMidi);
+                            var leadLength = Mathf.RoundToInt(stepSamples * (sparseLead ? 1.7f : 1.1f));
+                            AddLeadPluck(musicLayer, stepStart, leadLength, leadFrequency, 0.04f + safeEnergy * 0.055f);
+                        }
+                    }
                 }
             }
 
-            SoftClip(data, 0.75f);
+            var data = new float[totalSamples];
+            for (var i = 0; i < totalSamples; i++)
+            {
+                data[i] = drumLayer[i] + (musicLayer[i] * sidechain[i]);
+            }
+
+            var delaySamples = Mathf.Clamp(Mathf.RoundToInt(stepDuration * SampleRate * 3f), 2205, 22050);
+            ApplyFeedbackDelay(
+                data,
+                delaySamples,
+                feedback: 0.14f + safeAtmosphere * 0.24f,
+                mix: 0.08f + safeAtmosphere * 0.1f);
+            ApplyChorus(
+                data,
+                depthSamples: Mathf.Lerp(8f, 22f, safeAtmosphere),
+                rateHz: Mathf.Lerp(0.09f, 0.24f, safeAtmosphere),
+                mix: Mathf.Lerp(0.07f, 0.16f, safeAtmosphere));
+            ApplyOnePoleLowPass(data, Mathf.Lerp(6900f, 11800f, safeAtmosphere));
+            ApplyOnePoleHighPass(data, Mathf.Lerp(34f, 72f, safeEnergy));
+            NormalizePeak(data, 0.82f);
+            SoftClip(data, 0.95f);
+
             var clip = AudioClip.Create(clipName, totalSamples, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
+        }
+
+        private static int BuildScaleMidi(int rootMidi, bool minorKey, int degree, int octaveOffset)
+        {
+            if (degree < 0)
+            {
+                return rootMidi + (octaveOffset * 12);
+            }
+
+            var intervals = minorKey ? MinorScaleIntervals : MajorScaleIntervals;
+            var scaleLength = intervals.Length;
+            var octave = degree / scaleLength;
+            var index = degree % scaleLength;
+            return rootMidi + intervals[index] + (12 * (octave + octaveOffset));
+        }
+
+        private static void AddWarmPadChord(
+            float[] data,
+            int startSample,
+            int lengthSamples,
+            int rootMidi,
+            bool minor,
+            float amplitude,
+            float width)
+        {
+            var third = rootMidi + (minor ? 3 : 4);
+            var fifth = rootMidi + 7;
+            var octave = rootMidi + 12;
+            var ninth = rootMidi + 14;
+            AddPadVoice(data, startSample, lengthSamples, MidiToFrequency(rootMidi), amplitude * 0.38f, width);
+            AddPadVoice(data, startSample, lengthSamples, MidiToFrequency(third), amplitude * 0.3f, width * 0.95f);
+            AddPadVoice(data, startSample, lengthSamples, MidiToFrequency(fifth), amplitude * 0.2f, width * 0.82f);
+            AddPadVoice(data, startSample, lengthSamples, MidiToFrequency(octave), amplitude * 0.16f, width * 0.72f);
+            AddPadVoice(data, startSample, lengthSamples, MidiToFrequency(ninth), amplitude * 0.08f, width * 0.64f);
+        }
+
+        private static void AddPadVoice(float[] data, int startSample, int lengthSamples, float frequency, float amplitude, float width)
+        {
+            if (data == null || lengthSamples <= 0 || frequency <= 0f)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            var safeWidth = Mathf.Clamp(width, 0f, 1f);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var attack = Mathf.Clamp01(t * 4f);
+                var release = Mathf.Pow(1f - t, 1.1f);
+                var env = attack * release;
+                var phaseA = 2f * Mathf.PI * frequency * local / SampleRate;
+                var phaseB = 2f * Mathf.PI * frequency * (1f + safeWidth * 0.0036f) * local / SampleRate;
+                var phaseC = 2f * Mathf.PI * frequency * (1f - safeWidth * 0.0028f) * local / SampleRate;
+                var wave = EvaluateWaveform(Waveform.Triangle, phaseA) * 0.4f +
+                           EvaluateWaveform(Waveform.Sine, phaseB) * 0.36f +
+                           EvaluateWaveform(Waveform.Saw, phaseC) * 0.24f;
+                data[i] += wave * amplitude * env;
+            }
+        }
+
+        private static void AddChordStab(float[] data, int startSample, int lengthSamples, int rootMidi, bool minor, float amplitude)
+        {
+            var third = rootMidi + (minor ? 3 : 4);
+            var fifth = rootMidi + 7;
+            AddStabVoice(data, startSample, lengthSamples, MidiToFrequency(rootMidi), amplitude * 0.38f);
+            AddStabVoice(data, startSample, lengthSamples, MidiToFrequency(third), amplitude * 0.34f);
+            AddStabVoice(data, startSample, lengthSamples, MidiToFrequency(fifth), amplitude * 0.28f);
+        }
+
+        private static void AddStabVoice(float[] data, int startSample, int lengthSamples, float frequency, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0 || frequency <= 0f)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var attack = Mathf.Clamp01(t * 24f);
+                var decay = Mathf.Exp(-4.8f * t);
+                var env = attack * decay;
+                var drift = 1f + Mathf.Sin(local * 0.00021f) * 0.0018f;
+                var phaseA = 2f * Mathf.PI * frequency * drift * local / SampleRate;
+                var phaseB = 2f * Mathf.PI * frequency * (drift + 0.0032f) * local / SampleRate;
+                var phaseC = 2f * Mathf.PI * frequency * (drift - 0.0026f) * local / SampleRate;
+                var wave = EvaluateWaveform(Waveform.Saw, phaseA) * 0.44f +
+                           EvaluateWaveform(Waveform.Triangle, phaseB) * 0.32f +
+                           Mathf.Sin(phaseC) * 0.24f;
+                data[i] += wave * amplitude * env;
+            }
+        }
+
+        private static void AddSubBass(float[] data, int startSample, int lengthSamples, float frequency, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0 || frequency <= 0f)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var attack = Mathf.Clamp01(t * 18f);
+                var release = Mathf.Pow(1f - t, 1.45f);
+                var env = attack * release;
+                var glideFrequency = Mathf.Lerp(frequency * 1.05f, frequency, Mathf.Clamp01(t * 3f));
+                var phase = 2f * Mathf.PI * glideFrequency * local / SampleRate;
+                var body = Mathf.Sin(phase) * 0.84f +
+                           Mathf.Sin(phase * 2f + 0.35f) * 0.12f +
+                           EvaluateWaveform(Waveform.Sine, phase * 0.5f) * 0.04f;
+                var wave = Mathf.Tanh(body * 1.36f);
+                data[i] += wave * amplitude * env;
+            }
+        }
+
+        private static void AddLeadPluck(float[] data, int startSample, int lengthSamples, float frequency, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0 || frequency <= 0f)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var attack = Mathf.Clamp01(t * 24f);
+                var decay = Mathf.Exp(-4.9f * t);
+                var env = attack * decay;
+                var vibrato = 1f + Mathf.Sin(local * 0.00055f) * 0.0022f;
+                var phase = 2f * Mathf.PI * frequency * vibrato * local / SampleRate;
+                var wave = EvaluateWaveform(Waveform.Saw, phase) * 0.38f +
+                           EvaluateWaveform(Waveform.Triangle, phase * 1.01f) * 0.34f +
+                           EvaluateWaveform(Waveform.Sine, phase * 0.5f) * 0.28f;
+                var transient = Mathf.Exp(-72f * t) * Mathf.Sin(phase * 3.05f) * 0.23f;
+                data[i] += (wave + transient) * amplitude * env;
+            }
+        }
+
+        private static void AddDeepKick(float[] data, int startSample, int lengthSamples, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var frequency = Mathf.Lerp(152f, 46f, Mathf.Pow(t, 0.42f));
+                var env = Mathf.Pow(1f - t, 3.3f);
+                var body = Mathf.Sin(2f * Mathf.PI * frequency * local / SampleRate);
+                var click = Mathf.Exp(-48f * t) * Mathf.Sin(2f * Mathf.PI * 2200f * local / SampleRate);
+                var punch = Mathf.Sin(2f * Mathf.PI * 96f * local / SampleRate) * Mathf.Exp(-14f * t);
+                data[i] += (body * 0.74f + punch * 0.2f + click * 0.14f) * amplitude * env;
+            }
+        }
+
+        private static void AddSnare(float[] data, int startSample, int lengthSamples, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            var noiseState = (uint)(startSample + 9176);
+            var lowpass = 0f;
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var noise = NextNoise(ref noiseState);
+                lowpass += (noise - lowpass) * 0.17f;
+                var highNoise = noise - lowpass;
+                var noiseEnv = Mathf.Pow(1f - t, 2.4f);
+                var toneEnv = Mathf.Pow(1f - t, 4.5f);
+                var tone = Mathf.Sin(2f * Mathf.PI * 196f * local / SampleRate) * toneEnv;
+                data[i] += (highNoise * noiseEnv * 0.78f + tone * 0.22f) * amplitude;
+            }
+        }
+
+        private static void AddClap(float[] data, int startSample, int lengthSamples, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var offsets = new[] { 0, 210, 470 };
+            for (var i = 0; i < offsets.Length; i++)
+            {
+                AddNoiseBurst(data, startSample + offsets[i], Mathf.RoundToInt(lengthSamples * 0.62f), amplitude * (0.92f - i * 0.18f), 0.12f);
+            }
+        }
+
+        private static void AddOpenHat(float[] data, int startSample, int lengthSamples, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            var noiseState = (uint)(startSample + 18041);
+            var lowpass = 0f;
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var noise = NextNoise(ref noiseState);
+                lowpass += (noise - lowpass) * 0.045f;
+                var highNoise = noise - lowpass;
+                var env = Mathf.Pow(1f - t, 2.35f);
+                var metallic = Mathf.Sin(2f * Mathf.PI * 6320f * local / SampleRate) * 0.16f +
+                               Mathf.Sin(2f * Mathf.PI * 9120f * local / SampleRate) * 0.08f;
+                data[i] += (highNoise * 0.8f + metallic * 0.2f) * amplitude * env;
+            }
+        }
+
+        private static void AddClosedHat(float[] data, int startSample, int lengthSamples, float amplitude)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            var noiseState = (uint)(startSample + 12031);
+            var lowpass = 0f;
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var noise = NextNoise(ref noiseState);
+                lowpass += (noise - lowpass) * 0.08f;
+                var highNoise = noise - lowpass;
+                var env = Mathf.Pow(1f - t, 3.4f);
+                var metallic = Mathf.Sin(2f * Mathf.PI * 7900f * local / SampleRate) * 0.17f +
+                               Mathf.Sin(2f * Mathf.PI * 10200f * local / SampleRate) * 0.09f;
+                data[i] += (highNoise * 0.82f + metallic * 0.18f) * amplitude * env;
+            }
+        }
+
+        private static void AddNoiseBurst(float[] data, int startSample, int lengthSamples, float amplitude, float lowpassAlpha)
+        {
+            if (data == null || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var start = Mathf.Clamp(startSample, 0, data.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, data.Length);
+            var noiseState = (uint)(startSample + 32471);
+            var lowpass = 0f;
+            var alpha = Mathf.Clamp(lowpassAlpha, 0.01f, 0.8f);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                var t = local / (float)Mathf.Max(1, lengthSamples - 1);
+                var noise = NextNoise(ref noiseState);
+                lowpass += (noise - lowpass) * alpha;
+                var bright = noise - lowpass;
+                var env = Mathf.Pow(1f - t, 2.6f);
+                data[i] += bright * amplitude * env;
+            }
+        }
+
+        private static float NextNoise(ref uint state)
+        {
+            state = state * 1664525u + 1013904223u;
+            return (state / (float)uint.MaxValue) * 2f - 1f;
+        }
+
+        private static void ApplySidechainDuck(float[] samples, int startSample, int lengthSamples, float depth)
+        {
+            if (samples == null || samples.Length == 0 || lengthSamples <= 0)
+            {
+                return;
+            }
+
+            var safeDepth = Mathf.Clamp(depth, 0f, 0.72f);
+            var start = Mathf.Clamp(startSample, 0, samples.Length - 1);
+            var end = Mathf.Clamp(start + lengthSamples, 0, samples.Length);
+            var dropSamples = Mathf.Max(1, Mathf.RoundToInt(lengthSamples * 0.1f));
+            var releaseSamples = Mathf.Max(1, lengthSamples - dropSamples);
+            for (var i = start; i < end; i++)
+            {
+                var local = i - start;
+                float duckValue;
+                if (local <= dropSamples)
+                {
+                    var t = local / (float)dropSamples;
+                    duckValue = Mathf.Lerp(1f, 1f - safeDepth, t);
+                }
+                else
+                {
+                    var t = (local - dropSamples) / (float)releaseSamples;
+                    duckValue = Mathf.Lerp(1f - safeDepth, 1f, Mathf.Pow(t, 0.8f));
+                }
+
+                samples[i] = Mathf.Min(samples[i], duckValue);
+            }
+        }
+
+        private static void ApplyChorus(float[] samples, float depthSamples, float rateHz, float mix)
+        {
+            if (samples == null || samples.Length == 0)
+            {
+                return;
+            }
+
+            var safeDepth = Mathf.Clamp(depthSamples, 1f, 35f);
+            var safeRate = Mathf.Clamp(rateHz, 0.03f, 1.2f);
+            var safeMix = Mathf.Clamp01(mix);
+            var dry = new float[samples.Length];
+            Array.Copy(samples, dry, samples.Length);
+
+            for (var i = 0; i < samples.Length; i++)
+            {
+                var lfo = Mathf.Sin(2f * Mathf.PI * safeRate * i / SampleRate) * 0.5f + 0.5f;
+                var delay = 8f + safeDepth * lfo;
+                var read = i - delay;
+                if (read <= 1f)
+                {
+                    continue;
+                }
+
+                var readIndex = Mathf.FloorToInt(read);
+                var frac = read - readIndex;
+                var a = dry[Mathf.Clamp(readIndex, 0, dry.Length - 1)];
+                var b = dry[Mathf.Clamp(readIndex + 1, 0, dry.Length - 1)];
+                var delayed = Mathf.Lerp(a, b, frac);
+                samples[i] = Mathf.Lerp(dry[i], (dry[i] * 0.74f) + (delayed * 0.58f), safeMix);
+            }
+        }
+
+        private static void ApplyFeedbackDelay(float[] samples, int delaySamples, float feedback, float mix)
+        {
+            if (samples == null || samples.Length == 0 || delaySamples <= 0 || delaySamples >= samples.Length)
+            {
+                return;
+            }
+
+            var safeFeedback = Mathf.Clamp(feedback, 0f, 0.86f);
+            var safeMix = Mathf.Clamp(mix, 0f, 0.45f);
+            for (var i = delaySamples; i < samples.Length; i++)
+            {
+                var delayed = samples[i - delaySamples];
+                samples[i] += delayed * safeFeedback * safeMix;
+            }
+        }
+
+        private static void ApplyOnePoleLowPass(float[] samples, float cutoffHz)
+        {
+            if (samples == null || samples.Length == 0)
+            {
+                return;
+            }
+
+            var clampedCutoff = Mathf.Clamp(cutoffHz, 60f, SampleRate * 0.45f);
+            var dt = 1f / SampleRate;
+            var rc = 1f / (2f * Mathf.PI * clampedCutoff);
+            var alpha = dt / (rc + dt);
+            var y = 0f;
+            for (var i = 0; i < samples.Length; i++)
+            {
+                y += alpha * (samples[i] - y);
+                samples[i] = y;
+            }
+        }
+
+        private static void ApplyOnePoleHighPass(float[] samples, float cutoffHz)
+        {
+            if (samples == null || samples.Length == 0)
+            {
+                return;
+            }
+
+            var clampedCutoff = Mathf.Clamp(cutoffHz, 20f, SampleRate * 0.45f);
+            var dt = 1f / SampleRate;
+            var rc = 1f / (2f * Mathf.PI * clampedCutoff);
+            var alpha = rc / (rc + dt);
+            var prevInput = samples[0];
+            var prevOutput = 0f;
+            for (var i = 1; i < samples.Length; i++)
+            {
+                var input = samples[i];
+                var output = alpha * (prevOutput + input - prevInput);
+                samples[i] = output;
+                prevOutput = output;
+                prevInput = input;
+            }
+        }
+
+        private static void NormalizePeak(float[] samples, float targetPeak)
+        {
+            if (samples == null || samples.Length == 0)
+            {
+                return;
+            }
+
+            var peak = 0f;
+            for (var i = 0; i < samples.Length; i++)
+            {
+                var magnitude = Mathf.Abs(samples[i]);
+                if (magnitude > peak)
+                {
+                    peak = magnitude;
+                }
+            }
+
+            if (peak <= 0.0001f)
+            {
+                return;
+            }
+
+            var scale = Mathf.Clamp(targetPeak, 0.2f, 1f) / peak;
+            for (var i = 0; i < samples.Length; i++)
+            {
+                samples[i] *= scale;
+            }
         }
 
         private static AudioClip BuildSweepSfx(string name, float duration, float startFrequency, float endFrequency, float amplitude, float noiseMix)
