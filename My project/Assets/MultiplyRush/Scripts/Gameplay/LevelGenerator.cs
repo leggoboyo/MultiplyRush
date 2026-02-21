@@ -233,10 +233,15 @@ namespace MultiplyRush
 
         public LevelBuildResult Generate(int levelIndex)
         {
-            return Generate(levelIndex, ProgressionStore.GetDifficultyMode(DifficultyMode.Normal));
+            return Generate(levelIndex, ProgressionStore.GetDifficultyMode(DifficultyMode.Normal), -1);
         }
 
         public LevelBuildResult Generate(int levelIndex, DifficultyMode difficultyMode)
+        {
+            return Generate(levelIndex, difficultyMode, -1);
+        }
+
+        public LevelBuildResult Generate(int levelIndex, DifficultyMode difficultyMode, int forcedStartCount)
         {
             var safeLevel = Mathf.Max(1, levelIndex);
             _activeLevelIndex = safeLevel;
@@ -247,7 +252,7 @@ namespace MultiplyRush
             EnsureRoots();
             PrewarmGatePool();
             PrewarmHazardPool();
-            var generated = BuildDefinition(safeLevel, difficultyMode);
+            var generated = BuildDefinition(safeLevel, difficultyMode, forcedStartCount);
             UpdateDynamicPalette(safeLevel, generated.isMiniBoss);
 
             ClearGeneratedObjects();
@@ -1787,7 +1792,7 @@ namespace MultiplyRush
             }
         }
 
-        private GeneratedLevel BuildDefinition(int levelIndex, DifficultyMode difficultyMode)
+        private GeneratedLevel BuildDefinition(int levelIndex, DifficultyMode difficultyMode, int forcedStartCount)
         {
             var random = new System.Random(9143 + levelIndex * 101);
             var gateDifficulty01 = EvaluateGateDifficulty(levelIndex);
@@ -1797,7 +1802,9 @@ namespace MultiplyRush
 
             var generated = new GeneratedLevel
             {
-                startCount = BuildStartCount(levelIndex, difficultyMode, isMiniBoss),
+                startCount = forcedStartCount > 0
+                    ? Mathf.Clamp(forcedStartCount, 1, CountClamp)
+                    : BuildStartCount(levelIndex, difficultyMode, isMiniBoss),
                 forwardSpeed = CalculateForwardSpeed(levelIndex),
                 isMiniBoss = isMiniBoss,
                 modifierName = themeName + " • " + modifier.label
@@ -1809,8 +1816,8 @@ namespace MultiplyRush
             generated.totalRows = rowCount;
             var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * (isMiniBoss ? 1.08f : 1f);
             var baseBadGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f + (isMiniBoss ? 0.05f : 0f));
-            var addBase = 4 + Mathf.FloorToInt(levelIndex * 1.6f);
-            var subtractBase = 3 + Mathf.FloorToInt(levelIndex * 1.2f);
+            var addBase = 3 + Mathf.FloorToInt(levelIndex * 0.85f);
+            var subtractBase = 2 + Mathf.FloorToInt(levelIndex * 0.65f);
 
             var moveChance = Mathf.Lerp(movingGateChanceAtStart, movingGateChanceAtHighDifficulty, gateDifficulty01);
             if (modifier.forceMovingGates)
@@ -2210,10 +2217,10 @@ namespace MultiplyRush
                 int value;
                 if (lane == safeLane)
                 {
-                    operation = random.NextDouble() < 0.16 && levelIndex > 12 ? GateOperation.Multiply : GateOperation.Add;
+                    operation = random.NextDouble() < 0.06 && levelIndex > 20 ? GateOperation.Multiply : GateOperation.Add;
                     value = operation == GateOperation.Multiply
                         ? 2
-                        : Mathf.Max(2, addBase / 2 + random.Next(0, Mathf.Max(2, addBase / 3)));
+                        : Mathf.Max(2, addBase / 2 + random.Next(0, Mathf.Max(2, addBase / 4)));
                 }
                 else
                 {
@@ -2260,10 +2267,10 @@ namespace MultiplyRush
             {
                 if (lane == jackpotLane)
                 {
-                    var multiplier = 3;
-                    if (levelIndex > 20 && random.NextDouble() < 0.26)
+                    var multiplier = 2;
+                    if (levelIndex > 28 && random.NextDouble() < 0.08)
                     {
-                        multiplier = 4;
+                        multiplier = 3;
                     }
 
                     var tempoCycle = Mathf.Lerp(tempoCycleAtStart, tempoCycleAtHighDifficulty, gateDifficulty01) * 0.9f;
@@ -2303,7 +2310,7 @@ namespace MultiplyRush
                     continue;
                 }
 
-                var safeValue = Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1)));
+                var safeValue = Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 4 + 1)));
                 gates.Add(CreateGateSpec(
                     safeLane,
                     GateOperation.Add,
@@ -2385,7 +2392,7 @@ namespace MultiplyRush
                     }
                     else
                     {
-                        gate.value = levelIndex > 18 && random.NextDouble() < 0.28 ? 3 : 2;
+                        gate.value = levelIndex > 32 && random.NextDouble() < 0.08 ? 3 : 2;
                     }
 
                     gate.pickTier = GatePickTier.RedBad;
@@ -2402,11 +2409,11 @@ namespace MultiplyRush
 
                 if (gate.operation == GateOperation.Add)
                 {
-                    gate.value = Mathf.Max(2, Mathf.Max(gate.value, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1))));
+                    gate.value = Mathf.Max(2, Mathf.Max(gate.value, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 4 + 1))));
                 }
                 else if (gate.operation == GateOperation.Multiply)
                 {
-                    gate.value = Mathf.Clamp(gate.value, 2, levelIndex > 24 && random.NextDouble() < 0.14 ? 3 : 2);
+                    gate.value = Mathf.Clamp(gate.value, 2, levelIndex > 34 && random.NextDouble() < 0.05 ? 3 : 2);
                 }
 
                 gate.pickTier = GatePickTier.WorseGood;
@@ -2454,18 +2461,18 @@ namespace MultiplyRush
             }
 
             var betterGate = gates[betterIndex];
-            if (betterGate.operation == GateOperation.Add && random.NextDouble() < 0.35 + Mathf.Clamp01(levelIndex / 60f) * 0.3f)
+            if (betterGate.operation == GateOperation.Add && random.NextDouble() < 0.06f + Mathf.Clamp01(levelIndex / 100f) * 0.08f)
             {
                 betterGate.operation = GateOperation.Multiply;
-                betterGate.value = levelIndex > 26 && random.NextDouble() < 0.2 ? 3 : 2;
+                betterGate.value = levelIndex > 36 && random.NextDouble() < 0.08 ? 3 : 2;
             }
             else if (betterGate.operation == GateOperation.Add)
             {
-                betterGate.value = Mathf.Max(betterGate.value, addBase + random.Next(4, Mathf.Max(6, addBase / 2 + 6)));
+                betterGate.value = Mathf.Max(betterGate.value, addBase + random.Next(2, Mathf.Max(4, addBase / 3 + 4)));
             }
             else if (betterGate.operation == GateOperation.Multiply)
             {
-                betterGate.value = Mathf.Clamp(betterGate.value, 2, levelIndex > 26 && random.NextDouble() < 0.2 ? 3 : 2);
+                betterGate.value = Mathf.Clamp(betterGate.value, 2, levelIndex > 36 && random.NextDouble() < 0.08 ? 3 : 2);
             }
 
             betterGate.pickTier = GatePickTier.BetterGood;
@@ -2568,7 +2575,7 @@ namespace MultiplyRush
                 gates.Add(CreateGateSpec(
                     lane,
                     GateOperation.Add,
-                    Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 3 + 1))),
+                    Mathf.Max(2, addBase / 2 + random.Next(1, Mathf.Max(3, addBase / 4 + 1))),
                     false,
                     0f,
                     0f,
@@ -2643,7 +2650,7 @@ namespace MultiplyRush
                 return random.NextDouble() < 0.55 ? GateOperation.Subtract : GateOperation.Divide;
             }
 
-            var multiplyChance = Mathf.Clamp01(0.2f + levelIndex * 0.005f);
+            var multiplyChance = Mathf.Clamp01(0.04f + levelIndex * 0.0015f);
             return random.NextDouble() < multiplyChance ? GateOperation.Multiply : GateOperation.Add;
         }
 
@@ -2665,7 +2672,7 @@ namespace MultiplyRush
                 }
                 case GateOperation.Multiply:
                 {
-                    if (levelIndex > 20 && random.NextDouble() < 0.18)
+                    if (levelIndex > 36 && random.NextDouble() < 0.06)
                     {
                         return 3;
                     }
@@ -2674,7 +2681,7 @@ namespace MultiplyRush
                 }
                 case GateOperation.Divide:
                 {
-                    if (levelIndex > 15 && random.NextDouble() < (biasHarder ? 0.2 : 0.1))
+                    if (levelIndex > 24 && random.NextDouble() < (biasHarder ? 0.12 : 0.06))
                     {
                         return 3;
                     }

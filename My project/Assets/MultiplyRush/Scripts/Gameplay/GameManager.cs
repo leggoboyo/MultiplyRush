@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MultiplyRush
 {
@@ -18,8 +19,8 @@ namespace MultiplyRush
         public float resultInputDelaySeconds = 0.2f;
 
         [Header("Finish Battle")]
-        public float battleDurationNormal = 3f;
-        public float battleDurationMiniBoss = 4.6f;
+        public float battleDurationNormal = 4f;
+        public float battleDurationMiniBoss = 4.8f;
         public float postBattleDelay = 0.24f;
         public float playerBattlePowerPerUnit = 0.055f;
         public float enemyBattlePowerPerUnit = 0.05f;
@@ -48,6 +49,8 @@ namespace MultiplyRush
         private DifficultyMode _difficultyMode = DifficultyMode.Normal;
         private Coroutine _battleRoutine;
         private float _battleHitSfxTimer;
+        private int _pendingCarryoverStartCount;
+        private int _carryoverFromLastWin;
 
         private void Awake()
         {
@@ -63,6 +66,7 @@ namespace MultiplyRush
                 resultsOverlay.OnNextRequested += NextLevel;
                 resultsOverlay.OnUseReinforcementRequested += UseReinforcementAndRetry;
                 resultsOverlay.OnUseShieldRequested += UseShieldAndRetry;
+                resultsOverlay.OnMainMenuRequested += ReturnToMainMenuFromResult;
             }
 
             if (playerCrowd != null)
@@ -100,6 +104,7 @@ namespace MultiplyRush
                 resultsOverlay.OnNextRequested -= NextLevel;
                 resultsOverlay.OnUseReinforcementRequested -= UseReinforcementAndRetry;
                 resultsOverlay.OnUseShieldRequested -= UseShieldAndRetry;
+                resultsOverlay.OnMainMenuRequested -= ReturnToMainMenuFromResult;
             }
 
             if (playerCrowd != null)
@@ -137,7 +142,8 @@ namespace MultiplyRush
             _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
             _difficultyMode = ProgressionStore.GetDifficultyMode(_difficultyMode);
-            _currentBuild = levelGenerator.Generate(_currentLevelIndex, _difficultyMode);
+            _currentBuild = levelGenerator.Generate(_currentLevelIndex, _difficultyMode, _pendingCarryoverStartCount);
+            _pendingCarryoverStartCount = 0;
 
             var finishLine = levelGenerator.GetActiveFinishLine();
             if (finishLine != null && finishLine.enemyGroup != null)
@@ -229,37 +235,28 @@ namespace MultiplyRush
             var enemyBaseCount = Mathf.Max(_currentBuild.enemyCount, Mathf.Max(1, enemyCount));
             _currentBuild.enemyCount = enemyBaseCount;
 
-            var betterHits = 0;
-            var worseHits = 0;
-            var redHits = 0;
-            var totalRows = _currentBuild.totalRows;
-            if (playerCrowd != null)
+            if (playerCount < enemyBaseCount)
             {
-                playerCrowd.GetGateHitStats(out betterHits, out worseHits, out redHits, out totalRows);
+                _carryoverFromLastWin = 0;
+                _pendingCarryoverStartCount = 0;
             }
 
-            var routeProfile = DifficultyRules.BuildRouteProfile(
-                _difficultyMode,
-                _currentBuild.isMiniBoss,
-                Mathf.Max(_currentBuild.totalRows, totalRows));
-            var didWin = playerCount >= enemyBaseCount;
-            var detailLine =
-                "Mode " + GetModeLabel(_difficultyMode) +
-                " • " + DifficultyRules.BuildRoutePlanLabel(routeProfile) +
-                " • " + DifficultyRules.BuildRouteHitLabel(betterHits, worseHits, redHits) +
-                " • Route Ref " + NumberFormatter.ToCompact(_currentBuild.referenceRouteCount);
-
-            _battleRoutine = StartCoroutine(RunFinishBattle(didWin, detailLine, enemyBaseCount));
+            _battleRoutine = StartCoroutine(RunFinishBattle(enemyBaseCount));
         }
 
-        private IEnumerator RunFinishBattle(bool expectedWin, string detailLine, int enemyCount)
+        private IEnumerator RunFinishBattle(int enemyCount)
         {
             var finishLine = levelGenerator != null ? levelGenerator.GetActiveFinishLine() : null;
             var enemyGroup = finishLine != null ? finishLine.enemyGroup : null;
+            var battleStartPlayer = playerCrowd != null ? Mathf.Max(0, playerCrowd.Count) : 0;
+            var battleStartEnemy = Mathf.Max(0, enemyCount);
+            var didWin = battleStartPlayer >= battleStartEnemy;
+            var targetPlayerRemaining = Mathf.Max(0, battleStartPlayer - battleStartEnemy);
+            var targetEnemyRemaining = Mathf.Max(0, battleStartEnemy - battleStartPlayer);
 
             if (enemyGroup != null)
             {
-                enemyGroup.SetCount(enemyCount);
+                enemyGroup.SetCount(battleStartEnemy);
                 enemyGroup.BeginCombat(playerCrowd != null ? playerCrowd.transform : null);
             }
 
@@ -276,10 +273,8 @@ namespace MultiplyRush
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
 
             var duration = _currentBuild.isMiniBoss ? battleDurationMiniBoss : battleDurationNormal;
-            duration = Mathf.Max(0.8f, duration);
+            duration = Mathf.Max(1.8f, duration);
             var elapsed = 0f;
-            var enemyDamageCarry = 0f;
-            var playerDamageCarry = 0f;
             _battleHitSfxTimer = 0f;
 
             while (elapsed < duration)
@@ -301,36 +296,17 @@ namespace MultiplyRush
                     break;
                 }
 
-                var playerPower = (playerAlive * Mathf.Max(0.01f, playerBattlePowerPerUnit)) +
-                                  (Mathf.Sqrt(playerAlive) * Mathf.Max(0.01f, playerBattlePowerSqrt));
-                var enemyPower = (enemyAlive * Mathf.Max(0.01f, enemyBattlePowerPerUnit)) +
-                                 (Mathf.Sqrt(enemyAlive) * Mathf.Max(0.01f, enemyBattlePowerSqrt));
+                var progress = Mathf.Clamp01(elapsed / duration);
+                var eased = 1f - Mathf.Pow(1f - progress, 2.2f);
+                var desiredPlayer = Mathf.RoundToInt(Mathf.Lerp(battleStartPlayer, targetPlayerRemaining, eased));
+                var desiredEnemy = Mathf.RoundToInt(Mathf.Lerp(battleStartEnemy, targetEnemyRemaining, eased));
+                desiredPlayer = Mathf.Clamp(desiredPlayer, targetPlayerRemaining, battleStartPlayer);
+                desiredEnemy = Mathf.Clamp(desiredEnemy, targetEnemyRemaining, battleStartEnemy);
 
-                if (expectedWin)
-                {
-                    playerPower *= Mathf.Max(1f, winnerPowerBias);
-                    enemyPower *= Mathf.Clamp(loserPowerBias, 0.2f, 1f);
-                }
-                else
-                {
-                    playerPower *= Mathf.Clamp(loserPowerBias, 0.2f, 1f);
-                    enemyPower *= Mathf.Max(1f, winnerPowerBias);
-                }
-
-                if (_currentBuild.isMiniBoss)
-                {
-                    enemyPower *= 1.08f;
-                    playerPower *= 1.02f;
-                }
-
-                enemyDamageCarry += playerPower * deltaTime;
-                playerDamageCarry += enemyPower * deltaTime;
-
-                var enemyLoss = Mathf.FloorToInt(enemyDamageCarry);
-                var playerLoss = Mathf.FloorToInt(playerDamageCarry);
+                var playerLoss = Mathf.Max(0, playerAlive - desiredPlayer);
+                var enemyLoss = Mathf.Max(0, enemyAlive - desiredEnemy);
                 if (enemyLoss > 0)
                 {
-                    enemyDamageCarry -= enemyLoss;
                     if (enemyGroup != null)
                     {
                         enemyGroup.ApplyBattleLosses(enemyLoss);
@@ -339,7 +315,6 @@ namespace MultiplyRush
 
                 if (playerLoss > 0)
                 {
-                    playerDamageCarry -= playerLoss;
                     if (playerCrowd != null)
                     {
                         playerCrowd.ApplyBattleLosses(playerLoss);
@@ -355,16 +330,16 @@ namespace MultiplyRush
                 yield return null;
             }
 
-            if (expectedWin)
+            if (enemyGroup != null)
             {
-                if (enemyGroup != null)
-                {
-                    enemyGroup.ApplyBattleLosses(enemyGroup.Count);
-                }
+                var correction = Mathf.Max(0, enemyGroup.Count - targetEnemyRemaining);
+                enemyGroup.ApplyBattleLosses(correction);
             }
-            else if (playerCrowd != null)
+
+            if (playerCrowd != null)
             {
-                playerCrowd.ApplyBattleLosses(playerCrowd.Count);
+                var correction = Mathf.Max(0, playerCrowd.Count - targetPlayerRemaining);
+                playerCrowd.ApplyBattleLosses(correction);
             }
 
             if (playerCrowd != null)
@@ -382,31 +357,37 @@ namespace MultiplyRush
                 yield return new WaitForSeconds(postBattleDelay);
             }
 
-            ShowResultAfterBattle(expectedWin, detailLine, enemyCount, enemyGroup);
+            ShowResultAfterBattle(didWin, battleStartPlayer, battleStartEnemy);
             _battleRoutine = null;
         }
 
-        private void ShowResultAfterBattle(bool didWin, string detailLine, int enemyCount, EnemyGroup enemyGroup)
+        private void ShowResultAfterBattle(bool didWin, int battleStartPlayer, int enemyCount)
         {
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
-            var enemyRemaining = enemyGroup != null ? enemyGroup.Count : 0;
-            detailLine += "\nBattle End: You " + NumberFormatter.ToCompact(playerCount) + " • Enemy " + NumberFormatter.ToCompact(enemyRemaining);
+            var detailLine = string.Empty;
 
             if (didWin)
             {
                 ProgressionStore.MarkLevelWon(_currentLevelIndex);
+                _carryoverFromLastWin = Mathf.Max(0, playerCount);
                 if (_currentBuild.isMiniBoss)
                 {
                     var reward = ProgressionStore.GrantMiniBossReward(_currentLevelIndex);
                     if (!reward.IsEmpty)
                     {
-                        detailLine += "\nMini-Boss Reward: +" + reward.reinforcementKits + " Kit";
+                        detailLine = "Mini-Boss Reward: +" + reward.reinforcementKits + " Kit";
                         if (reward.shieldCharges > 0)
                         {
                             detailLine += "  +" + reward.shieldCharges + " Shield";
                         }
                     }
                 }
+            }
+            else
+            {
+                _carryoverFromLastWin = 0;
+                var needed = Mathf.Max(1, enemyCount - battleStartPlayer + 1);
+                detailLine = "Need " + NumberFormatter.ToCompact(needed) + " more units.";
             }
 
             RefreshInventoryHud();
@@ -418,8 +399,8 @@ namespace MultiplyRush
                     _currentLevelIndex,
                     playerCount,
                     enemyCount,
-                    _currentBuild.tankRequirement,
-                    detailLine);
+                    0,
+                    string.IsNullOrWhiteSpace(detailLine) ? null : detailLine);
 
                 if (didWin)
                 {
@@ -445,6 +426,7 @@ namespace MultiplyRush
                 return;
             }
 
+            _pendingCarryoverStartCount = 0;
             StartLevel(_currentLevelIndex);
         }
 
@@ -455,6 +437,8 @@ namespace MultiplyRush
                 return;
             }
 
+            _pendingCarryoverStartCount = Mathf.Max(0, _carryoverFromLastWin);
+            _carryoverFromLastWin = 0;
             StartLevel(_currentLevelIndex + 1);
         }
 
@@ -483,6 +467,7 @@ namespace MultiplyRush
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.Reinforcement, 0.8f, 1f);
             _pendingReinforcementKit = true;
+            _pendingCarryoverStartCount = 0;
             RefreshInventoryHud();
             StartLevel(_currentLevelIndex);
         }
@@ -501,8 +486,21 @@ namespace MultiplyRush
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.Shield, 0.82f, 1.05f);
             _pendingShieldCharge = true;
+            _pendingCarryoverStartCount = 0;
             RefreshInventoryHud();
             StartLevel(_currentLevelIndex);
+        }
+
+        private void ReturnToMainMenuFromResult()
+        {
+            if (!CanAcceptResultInput())
+            {
+                return;
+            }
+
+            _pendingCarryoverStartCount = 0;
+            _carryoverFromLastWin = 0;
+            SceneManager.LoadScene("MainMenu");
         }
 
         private int CalculateReinforcementBonus(LevelBuildResult build)
@@ -562,17 +560,5 @@ namespace MultiplyRush
             pauseMenu.SetPauseAvailable(false);
         }
 
-        private static string GetModeLabel(DifficultyMode mode)
-        {
-            switch (mode)
-            {
-                case DifficultyMode.Easy:
-                    return "Easy";
-                case DifficultyMode.Hard:
-                    return "Hard";
-                default:
-                    return "Normal";
-            }
-        }
     }
 }

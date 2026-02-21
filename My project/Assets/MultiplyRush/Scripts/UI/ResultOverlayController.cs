@@ -13,8 +13,10 @@ namespace MultiplyRush
         public Text detailText;
         public Button retryButton;
         public Button nextButton;
+        public Button mainMenuButton;
         public Button reinforcementButton;
         public Button shieldButton;
+        public Text mainMenuButtonLabel;
         public Text reinforcementButtonLabel;
         public Text shieldButtonLabel;
 
@@ -29,6 +31,7 @@ namespace MultiplyRush
 
         public event Action OnRetryRequested;
         public event Action OnNextRequested;
+        public event Action OnMainMenuRequested;
         public event Action OnUseReinforcementRequested;
         public event Action OnUseShieldRequested;
 
@@ -235,6 +238,11 @@ namespace MultiplyRush
                 nextButton.gameObject.SetActive(didWin);
             }
 
+            if (mainMenuButton != null)
+            {
+                mainMenuButton.gameObject.SetActive(true);
+            }
+
             SetBuffOptions(0, 0);
             RefreshPrimaryButtonStyles();
             TriggerWinBurst(didWin);
@@ -305,7 +313,7 @@ namespace MultiplyRush
             int tankRequirement,
             string extraDetail)
         {
-            var builder = new StringBuilder(512);
+            var builder = new StringBuilder(256);
             builder.Append("<size=44><b>LEVEL ");
             builder.Append(levelIndex);
             builder.Append("</b></size>\n");
@@ -315,115 +323,28 @@ namespace MultiplyRush
             builder.Append(NumberFormatter.ToCompact(enemyCount));
             builder.Append("</b></size>");
 
-            if (tankRequirement > 0)
+            if (didWin)
             {
-                builder.Append("\n<size=30><color=#FFC89A>TANK BURST TARGET: ");
-                builder.Append(NumberFormatter.ToCompact(tankRequirement));
+                builder.Append("\n<size=30><color=#90FFB6>Survivors ");
+                builder.Append(NumberFormatter.ToCompact(Mathf.Max(0, playerCount)));
                 builder.Append("</color></size>");
+            }
+            else
+            {
+                var needed = Mathf.Max(1, enemyCount - playerCount + 1);
+                builder.Append("\n<size=30><color=#FFC0C9>Need ");
+                builder.Append(NumberFormatter.ToCompact(needed));
+                builder.Append(" more units</color></size>");
             }
 
             if (!string.IsNullOrWhiteSpace(extraDetail))
             {
-                builder.Append("\n\n");
-                builder.Append(FormatObjectiveLines(extraDetail));
-            }
-
-            if (!didWin)
-            {
-                builder.Append("\n\n<size=27><color=#FFC0C9>Route tip: follow the route plan while keeping your count above enemy total.</color></size>");
+                builder.Append("\n\n<size=29><color=#E4ECFF>");
+                builder.Append(extraDetail.Trim());
+                builder.Append("</color></size>");
             }
 
             return builder.ToString();
-        }
-
-        private static string FormatObjectiveLines(string extraDetail)
-        {
-            var normalized = extraDetail.Trim().Replace(" • ", "\n");
-            var lines = normalized.Split('\n');
-            var formatted = new StringBuilder(512);
-            for (var i = 0; i < lines.Length; i++)
-            {
-                var line = lines[i].Trim();
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                if (line.StartsWith("Mode ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#CCE3FF><b>MODE:</b> ");
-                    formatted.Append(line.Substring(5).ToUpperInvariant());
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Gate Objective ", StringComparison.OrdinalIgnoreCase))
-                {
-                    var isPass = line.IndexOf("PASS", StringComparison.OrdinalIgnoreCase) >= 0;
-                    var color = isPass ? "#6DFFA8" : "#FF6D88";
-                    formatted.Append("<size=33><color=");
-                    formatted.Append(color);
-                    formatted.Append("><b>");
-                    formatted.Append(line.ToUpperInvariant());
-                    formatted.Append("</b></color></size>");
-                }
-                else if (line.StartsWith("Route Plan ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#8DFFC7>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Route Hits ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#C7DCFF>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Route Ref ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#FFD39B>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Better ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#8DFFC7>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Worse ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#FFD39B>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Red ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#FF909C>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.StartsWith("Hit ", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=30><color=#C7DCFF>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else if (line.Equals("Gate objective not met.", StringComparison.OrdinalIgnoreCase))
-                {
-                    formatted.Append("<size=28><color=#FFC6CE>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-                else
-                {
-                    formatted.Append("<size=29><color=#E4ECFF>");
-                    formatted.Append(line);
-                    formatted.Append("</color></size>");
-                }
-
-                formatted.Append('\n');
-            }
-
-            return formatted.ToString().TrimEnd();
         }
 
         private void AnimateIn(float deltaTime)
@@ -570,6 +491,7 @@ namespace MultiplyRush
                 return;
             }
 
+            EnsureMainMenuButton();
             _panelRect.sizeDelta = new Vector2(860f, 690f);
 
             _panelImage = _panelRect.GetComponent<Image>();
@@ -633,7 +555,7 @@ namespace MultiplyRush
                 detailText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 detailText.fontSize = 33;
                 detailText.fontStyle = FontStyle.Normal;
-                detailText.alignment = TextAnchor.UpperLeft;
+                detailText.alignment = TextAnchor.UpperCenter;
                 detailText.horizontalOverflow = HorizontalWrapMode.Wrap;
                 detailText.verticalOverflow = VerticalWrapMode.Overflow;
                 detailText.lineSpacing = 1.08f;
@@ -643,8 +565,8 @@ namespace MultiplyRush
                 var rect = detailText.rectTransform;
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
-                rect.anchoredPosition = new Vector2(0f, 14f);
-                rect.sizeDelta = new Vector2(724f, 390f);
+                rect.anchoredPosition = new Vector2(0f, -8f);
+                rect.sizeDelta = new Vector2(724f, 288f);
 
                 var outline = detailText.GetComponent<Outline>();
                 if (outline == null)
@@ -686,6 +608,11 @@ namespace MultiplyRush
                 StylePrimaryButton(retryButton, new Color(0.88f, 0.3f, 0.34f, 1f), "RETRY");
             }
 
+            if (mainMenuButton != null)
+            {
+                StyleSecondaryButton(mainMenuButton, "MAIN MENU");
+            }
+
             EnsureWinBurst();
         }
 
@@ -705,6 +632,11 @@ namespace MultiplyRush
                     StylePrimaryButton(retryButton, new Color(0.94f, 0.34f, 0.38f, 1f), "TRY AGAIN");
                 }
             }
+
+            if (mainMenuButton != null)
+            {
+                StyleSecondaryButton(mainMenuButton, "MAIN MENU");
+            }
         }
 
         private static void StylePrimaryButton(Button button, Color color, string labelText)
@@ -718,7 +650,7 @@ namespace MultiplyRush
             if (rect != null)
             {
                 rect.sizeDelta = new Vector2(360f, 112f);
-                rect.anchoredPosition = new Vector2(0f, -258f);
+                rect.anchoredPosition = new Vector2(0f, -232f);
             }
 
             var image = button.GetComponent<Image>();
@@ -753,6 +685,38 @@ namespace MultiplyRush
             colors.highlightedColor = new Color(0.92f, 0.95f, 1f, 1f);
             colors.pressedColor = new Color(0.78f, 0.84f, 0.95f, 1f);
             button.colors = colors;
+        }
+
+        private static void StyleSecondaryButton(Button button, string labelText)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var rect = button.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.sizeDelta = new Vector2(300f, 82f);
+                rect.anchoredPosition = new Vector2(0f, -346f);
+            }
+
+            var image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = new Color(0.19f, 0.31f, 0.48f, 1f);
+            }
+
+            var label = button.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.text = labelText;
+                label.fontSize = 34;
+                label.fontStyle = FontStyle.Bold;
+                label.alignment = TextAnchor.MiddleCenter;
+                label.color = Color.white;
+            }
         }
 
         private void TriggerWinBurst(bool shouldPlay)
@@ -911,6 +875,38 @@ namespace MultiplyRush
                     OnUseShieldRequested?.Invoke();
                 });
                 shieldButton.gameObject.SetActive(false);
+            }
+        }
+
+        private void EnsureMainMenuButton()
+        {
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            if (mainMenuButton == null)
+            {
+                mainMenuButton = CreateBuffButton(
+                    "MainMenuButton",
+                    new Vector2(0f, -346f),
+                    new Color(0.2f, 0.3f, 0.46f, 1f),
+                    _panelRect,
+                    out mainMenuButtonLabel);
+            }
+            else if (mainMenuButtonLabel == null)
+            {
+                mainMenuButtonLabel = mainMenuButton.GetComponentInChildren<Text>();
+            }
+
+            if (mainMenuButton != null)
+            {
+                mainMenuButton.onClick.RemoveAllListeners();
+                mainMenuButton.onClick.AddListener(() =>
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.82f, 1f);
+                    OnMainMenuRequested?.Invoke();
+                });
             }
         }
 
