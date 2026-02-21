@@ -11,7 +11,9 @@ namespace MultiplyRush
         MainMenu = 1,
         Gameplay = 2,
         Pause = 3,
-        Battle = 4
+        Battle = 4,
+        ResultWin = 5,
+        ResultLose = 6
     }
 
     public enum AudioSfxCue
@@ -27,7 +29,8 @@ namespace MultiplyRush
         Reinforcement = 8,
         Shield = 9,
         BattleHit = 10,
-        BattleStart = 11
+        BattleStart = 11,
+        WinIntro = 12
     }
 
     public sealed class AudioDirector : MonoBehaviour
@@ -50,8 +53,8 @@ namespace MultiplyRush
 
         private static AudioDirector _instance;
 
-        private readonly Dictionary<AudioMusicCue, AudioClip> _musicClips = new Dictionary<AudioMusicCue, AudioClip>(4);
-        private readonly Dictionary<AudioSfxCue, AudioClip> _sfxClips = new Dictionary<AudioSfxCue, AudioClip>(12);
+        private readonly Dictionary<AudioMusicCue, AudioClip> _musicClips = new Dictionary<AudioMusicCue, AudioClip>(6);
+        private readonly Dictionary<AudioSfxCue, AudioClip> _sfxClips = new Dictionary<AudioSfxCue, AudioClip>(13);
         private readonly AudioClip[] _gameplayTracks = new AudioClip[GameplayMusicTrackCount];
 
         private AudioSource _musicPrimary;
@@ -64,6 +67,12 @@ namespace MultiplyRush
         private float _musicBlendDuration = 0.45f;
         private bool _isMusicBlending;
         private int _selectedGameplayTrackIndex;
+        private bool _hasQueuedCue;
+        private AudioMusicCue _queuedCue = AudioMusicCue.None;
+        private float _queuedCueTimer;
+        private bool _hasGameplayPreview;
+        private float _gameplayPreviewTimer;
+        private AudioMusicCue _gameplayPreviewRestoreCue = AudioMusicCue.None;
 
         public static AudioDirector Instance
         {
@@ -123,15 +132,24 @@ namespace MultiplyRush
             {
                 UpdateMusicBlend(Time.unscaledDeltaTime);
             }
+
+            UpdateQueuedCue(Time.unscaledDeltaTime);
+            UpdateGameplayPreview(Time.unscaledDeltaTime);
         }
 
         public void SetMusicCue(AudioMusicCue cue, bool immediate = false)
         {
+            if (cue != AudioMusicCue.Gameplay)
+            {
+                _hasGameplayPreview = false;
+            }
+
             if (cue == _currentCue && !immediate)
             {
                 return;
             }
 
+            _hasQueuedCue = false;
             if (cue == AudioMusicCue.None)
             {
                 StopMusic(immediate);
@@ -262,6 +280,36 @@ namespace MultiplyRush
             }
         }
 
+        public void PreviewGameplayTrack(float durationSeconds, AudioMusicCue restoreCue)
+        {
+            var safeDuration = Mathf.Clamp(durationSeconds, 0.35f, 8f);
+            _gameplayPreviewRestoreCue = restoreCue;
+            _gameplayPreviewTimer = safeDuration;
+            _hasGameplayPreview = true;
+            SetMusicCue(AudioMusicCue.Gameplay, false);
+        }
+
+        public void StopGameplayPreview()
+        {
+            _hasGameplayPreview = false;
+        }
+
+        public void PlayResultSequence(bool didWin)
+        {
+            _hasGameplayPreview = false;
+            _hasQueuedCue = false;
+            if (didWin)
+            {
+                SetMusicCue(AudioMusicCue.None, true);
+                PlaySfx(AudioSfxCue.WinIntro, 0.96f, 1f);
+                QueueCue(AudioMusicCue.ResultWin, 2.95f);
+                return;
+            }
+
+            PlaySfx(AudioSfxCue.Lose, 0.9f, 1f);
+            SetMusicCue(AudioMusicCue.ResultLose, false);
+        }
+
         private void BuildAudioGraph()
         {
             _musicPrimary = CreateChildSource("MusicA", true);
@@ -298,6 +346,8 @@ namespace MultiplyRush
                 _musicClips[AudioMusicCue.MainMenu] = BuildMenuMusic();
                 _musicClips[AudioMusicCue.Pause] = BuildPauseMusic();
                 _musicClips[AudioMusicCue.Battle] = BuildBattleMusic();
+                _musicClips[AudioMusicCue.ResultWin] = BuildResultWinLoop();
+                _musicClips[AudioMusicCue.ResultLose] = BuildResultLoseLoop();
             }
 
             if (_gameplayTracks[0] == null)
@@ -324,6 +374,51 @@ namespace MultiplyRush
                 _sfxClips[AudioSfxCue.Shield] = BuildDualToneSfx("Sfx_Shield", 0.22f, 260f, 520f, 0.38f);
                 _sfxClips[AudioSfxCue.BattleHit] = BuildBurstSfx("Sfx_BattleHit", 0.08f, 0.24f);
                 _sfxClips[AudioSfxCue.BattleStart] = BuildSweepSfx("Sfx_BattleStart", 0.28f, 170f, 460f, 0.34f, 0.07f);
+                _sfxClips[AudioSfxCue.WinIntro] = BuildVictoryIntro();
+            }
+        }
+
+        private void QueueCue(AudioMusicCue cue, float delaySeconds)
+        {
+            _queuedCue = cue;
+            _queuedCueTimer = Mathf.Max(0.01f, delaySeconds);
+            _hasQueuedCue = true;
+        }
+
+        private void UpdateQueuedCue(float deltaTime)
+        {
+            if (!_hasQueuedCue || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            _queuedCueTimer = Mathf.Max(0f, _queuedCueTimer - deltaTime);
+            if (_queuedCueTimer > 0f)
+            {
+                return;
+            }
+
+            _hasQueuedCue = false;
+            SetMusicCue(_queuedCue, false);
+        }
+
+        private void UpdateGameplayPreview(float deltaTime)
+        {
+            if (!_hasGameplayPreview || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            _gameplayPreviewTimer = Mathf.Max(0f, _gameplayPreviewTimer - deltaTime);
+            if (_gameplayPreviewTimer > 0f)
+            {
+                return;
+            }
+
+            _hasGameplayPreview = false;
+            if (_gameplayPreviewRestoreCue != AudioMusicCue.Gameplay)
+            {
+                SetMusicCue(_gameplayPreviewRestoreCue, false);
             }
         }
 
@@ -515,6 +610,32 @@ namespace MultiplyRush
                 sparseLead: true);
         }
 
+        private static AudioClip BuildResultWinLoop()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Result_Win",
+                bpm: 110f,
+                bars: 4,
+                chordRoots: new[] { 60, 64, 67, 69 },
+                minorKey: false,
+                energy: 0.58f,
+                atmosphere: 0.74f,
+                sparseLead: true);
+        }
+
+        private static AudioClip BuildResultLoseLoop()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Result_Lose",
+                bpm: 78f,
+                bars: 4,
+                chordRoots: new[] { 45, 43, 40, 38 },
+                minorKey: true,
+                energy: 0.34f,
+                atmosphere: 0.62f,
+                sparseLead: true);
+        }
+
         private static AudioClip BuildVictoryStinger()
         {
             var chord = BuildChordSfx("Sfx_Win", 1.05f, new[] { 523.25f, 659.25f, 783.99f, 1046.5f }, 0.34f);
@@ -525,6 +646,64 @@ namespace MultiplyRush
         {
             var chord = BuildChordSfx("Sfx_Lose", 0.86f, new[] { 392f, 293.66f, 246.94f }, 0.33f);
             return chord;
+        }
+
+        private static AudioClip BuildVictoryIntro()
+        {
+            const float duration = 3.2f;
+            var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
+            var data = new float[sampleCount];
+            var beat = 60f / 126f;
+            var introNotes = new[]
+            {
+                (0f, 0.26f, 523.25f, 0.36f),
+                (beat * 0.5f, 0.26f, 659.25f, 0.34f),
+                (beat, 0.3f, 783.99f, 0.35f),
+                (beat * 1.6f, 0.34f, 1046.5f, 0.38f),
+                (beat * 2.2f, 0.36f, 880f, 0.34f),
+                (beat * 2.9f, 0.55f, 1046.5f, 0.36f)
+            };
+
+            for (var i = 0; i < introNotes.Length; i++)
+            {
+                var note = introNotes[i];
+                var startSample = Mathf.RoundToInt(note.Item1 * SampleRate);
+                var noteSamples = Mathf.RoundToInt(note.Item2 * SampleRate);
+                AddTone(data, startSample, noteSamples, note.Item3, note.Item4, Waveform.Sine);
+                AddTone(data, startSample, noteSamples, note.Item3 * 2f, note.Item4 * 0.26f, Waveform.Triangle);
+            }
+
+            AddChordAccent(data, 0.05f, 0.72f, new[] { 523.25f, 659.25f, 783.99f }, 0.13f);
+            AddChordAccent(data, 1.35f, 0.9f, new[] { 659.25f, 783.99f, 1046.5f }, 0.15f);
+            AddChordAccent(data, 2.45f, 1.2f, new[] { 783.99f, 987.77f, 1174.66f }, 0.16f);
+
+            ApplyOnePoleLowPass(data, 12000f);
+            NormalizePeak(data, 0.86f);
+            SoftClip(data, 0.96f);
+            var clip = AudioClip.Create("Sfx_WinIntro", sampleCount, 1, SampleRate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
+        private static void AddChordAccent(float[] data, float startSeconds, float durationSeconds, float[] frequencies, float amplitude)
+        {
+            if (data == null || frequencies == null || frequencies.Length == 0)
+            {
+                return;
+            }
+
+            var startSample = Mathf.RoundToInt(Mathf.Max(0f, startSeconds) * SampleRate);
+            var lengthSamples = Mathf.RoundToInt(Mathf.Max(0.02f, durationSeconds) * SampleRate);
+            for (var i = 0; i < frequencies.Length; i++)
+            {
+                AddTone(
+                    data,
+                    startSample,
+                    lengthSamples,
+                    Mathf.Max(40f, frequencies[i]),
+                    amplitude * (0.8f - i * 0.12f),
+                    i == 0 ? Waveform.Sine : Waveform.Triangle);
+            }
         }
 
         private static AudioClip BuildModernLoop(

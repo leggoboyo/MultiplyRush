@@ -198,6 +198,7 @@ namespace MultiplyRush
                 resultsOverlay.Hide();
             }
 
+            AudioDirector.Instance?.StopGameplayPreview();
             AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
             _roundActive = true;
             _state = GameFlowState.Running;
@@ -359,11 +360,11 @@ namespace MultiplyRush
                 yield return new WaitForSeconds(postBattleDelay);
             }
 
-            ShowResultAfterBattle(didWin, battleStartPlayer, battleStartEnemy);
+            ShowResultAfterBattle(didWin, battleStartEnemy);
             _battleRoutine = null;
         }
 
-        private void ShowResultAfterBattle(bool didWin, int battleStartPlayer, int enemyCount)
+        private void ShowResultAfterBattle(bool didWin, int enemyCount)
         {
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
             var detailLine = string.Empty;
@@ -388,8 +389,6 @@ namespace MultiplyRush
             else
             {
                 _carryoverFromLastWin = 0;
-                var needed = Mathf.Max(1, enemyCount - battleStartPlayer + 1);
-                detailLine = "Need " + NumberFormatter.ToCompact(needed) + " more units.";
             }
 
             RefreshInventoryHud();
@@ -418,7 +417,7 @@ namespace MultiplyRush
 
             _resultShownAt = Time.unscaledTime;
             _state = GameFlowState.ShowingResult;
-            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.None, false);
+            AudioDirector.Instance?.PlayResultSequence(didWin);
         }
 
         private void RetryLevel()

@@ -81,6 +81,7 @@ namespace MultiplyRush
 
         private readonly List<Transform> _activeUnits = new List<Transform>(160);
         private readonly List<Transform> _unitMuzzles = new List<Transform>(160);
+        private readonly List<SoldierMotionAnimator> _unitAnimators = new List<SoldierMotionAnimator>(160);
         private readonly Stack<Transform> _unitPool = new Stack<Transform>(160);
         private readonly List<Vector3> _formationSlots = new List<Vector3>(160);
         private readonly List<float> _unitPhaseOffsets = new List<float>(160);
@@ -89,6 +90,7 @@ namespace MultiplyRush
 
         private Transform _poolRoot;
         private Transform _leaderVisual;
+        private SoldierMotionAnimator _leaderAnimator;
         private Vector3 _leaderBaseScale = Vector3.one;
         private Vector3 _leaderBaseLocalPosition = new Vector3(0f, 0.55f, 0f);
         private bool _isRunning;
@@ -172,6 +174,13 @@ namespace MultiplyRush
 
                 _leaderBaseScale = _leaderVisual.localScale;
                 _leaderBaseLocalPosition = _leaderVisual.localPosition;
+                _leaderAnimator = _leaderVisual.GetComponent<SoldierMotionAnimator>();
+                if (_leaderAnimator == null)
+                {
+                    _leaderAnimator = _leaderVisual.gameObject.AddComponent<SoldierMotionAnimator>();
+                }
+
+                _leaderAnimator.Configure(0f, false);
             }
 
             EnsureGateEffects();
@@ -500,6 +509,7 @@ namespace MultiplyRush
                 unit.SetParent(formationRoot, false);
                 _activeUnits.Add(unit);
                 _unitMuzzles.Add(ResolveUnitMuzzle(unit));
+                _unitAnimators.Add(ResolveUnitAnimator(unit, _activeUnits.Count - 1));
                 _formationSlots.Add(Vector3.zero);
                 _unitPhaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
                 _unitGainPopTimers.Add(enableUnitGainPopIn && !_suppressUnitGainPop
@@ -513,6 +523,7 @@ namespace MultiplyRush
                 var unit = _activeUnits[lastIndex];
                 _activeUnits.RemoveAt(lastIndex);
                 _unitMuzzles.RemoveAt(lastIndex);
+                _unitAnimators.RemoveAt(lastIndex);
                 _formationSlots.RemoveAt(lastIndex);
                 _unitPhaseOffsets.RemoveAt(lastIndex);
                 _unitGainPopTimers.RemoveAt(lastIndex);
@@ -566,6 +577,13 @@ namespace MultiplyRush
             var instance = Instantiate(soldierUnitPrefab, _poolRoot);
             instance.name = "SoldierUnit";
             UnitVisualFactory.ApplySoldierVisual(instance.transform, false);
+            var animator = instance.GetComponent<SoldierMotionAnimator>();
+            if (animator == null)
+            {
+                animator = instance.gameObject.AddComponent<SoldierMotionAnimator>();
+            }
+
+            animator.Configure(CalculatePhaseOffset(_activeUnits.Count), false);
             return instance.transform;
         }
 
@@ -653,6 +671,14 @@ namespace MultiplyRush
 
                 unit.localPosition = Vector3.Lerp(unit.localPosition, slot, blend);
                 unit.localScale = Vector3.one * Mathf.Max(0.6f, unitVisualScale) * popScale;
+                if (i < _unitAnimators.Count)
+                {
+                    var animator = _unitAnimators[i];
+                    if (animator != null)
+                    {
+                        animator.SetState(_isRunning || _combatActive, _combatActive);
+                    }
+                }
             }
 
             formationRoot.localScale = Vector3.one * punchScale;
@@ -680,6 +706,10 @@ namespace MultiplyRush
 
             var pulse = (_isRunning || _combatActive) ? 1f + Mathf.Sin(Time.time * runBobFrequency * 1.2f) * leaderScalePulse : 1f;
             _leaderVisual.localScale = _leaderBaseScale * (pulse * EvaluateGatePunchScale());
+            if (_leaderAnimator != null)
+            {
+                _leaderAnimator.SetState(_isRunning || _combatActive, _combatActive);
+            }
         }
 
         private static float CalculatePhaseOffset(int index)
@@ -1182,6 +1212,11 @@ namespace MultiplyRush
                         UnityEngine.Random.Range(-0.03f, 0.06f),
                         UnityEngine.Random.Range(0f, 0.04f));
                     direction = ResolveFireDirection(position);
+                    if (shooterIndex < _unitAnimators.Count)
+                    {
+                        _unitAnimators[shooterIndex]?.TriggerShot(1f);
+                    }
+
                     return true;
                 }
             }
@@ -1282,7 +1317,13 @@ namespace MultiplyRush
                 return null;
             }
 
-            var muzzle = unit.Find("SoldierModel/MuzzlePoint");
+            var muzzle = unit.Find("SoldierModel/RifleBarrel/MuzzlePoint");
+            if (muzzle != null)
+            {
+                return muzzle;
+            }
+
+            muzzle = unit.Find("SoldierModel/MuzzlePoint");
             if (muzzle != null)
             {
                 return muzzle;
@@ -1300,6 +1341,23 @@ namespace MultiplyRush
             runtimeMuzzle.localRotation = Quaternion.identity;
             runtimeMuzzle.localScale = Vector3.one;
             return runtimeMuzzle;
+        }
+
+        private static SoldierMotionAnimator ResolveUnitAnimator(Transform unit, int index)
+        {
+            if (unit == null)
+            {
+                return null;
+            }
+
+            var animator = unit.GetComponent<SoldierMotionAnimator>();
+            if (animator == null)
+            {
+                animator = unit.gameObject.AddComponent<SoldierMotionAnimator>();
+            }
+
+            animator.Configure(CalculatePhaseOffset(index), false);
+            return animator;
         }
 
         private void RebuildFrontShooterIndices()

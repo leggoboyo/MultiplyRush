@@ -37,6 +37,9 @@ namespace MultiplyRush
         private RectTransform _safeAreaRoot;
         private RectTransform _titleRect;
         private RectTransform _playButtonRect;
+        private RectTransform _bestLevelRect;
+        private RectTransform _metaCardRect;
+        private RectTransform _footerRect;
         private Vector3 _titleBaseScale = Vector3.one;
         private Vector3 _buttonBaseScale = Vector3.one;
         private Vector2 _buttonBasePosition;
@@ -62,12 +65,18 @@ namespace MultiplyRush
         private RectTransform _playShineRect;
         private RectTransform _badgeRect;
         private RectTransform _taglineRect;
+        private Image _metaCardImage;
         private Text _titleText;
         private Text _taglineText;
         private Text _badgeText;
+        private Text _footerText;
+        private Text _playButtonLabel;
         private float _scanlineBaseY;
         private Image _transitionFlashImage;
         private bool _isStartingGame;
+        private Vector2 _lastSafeAreaSize = new Vector2(-1f, -1f);
+        private Vector2 _titleBasePosition;
+        private Vector2 _taglineBasePosition;
 
         private void Start()
         {
@@ -80,6 +89,7 @@ namespace MultiplyRush
             _selectedDifficulty = ProgressionStore.GetDifficultyMode(defaultDifficulty);
             EnsureDifficultySelector();
             EnsureMusicSelector();
+            RefreshResponsiveLayout(true);
             ApplyDifficultySelectionVisuals();
             HapticsDirector.EnsureInstance();
             AppLifecycleController.EnsureInstance().SetPauseOnFocusLoss(true);
@@ -113,6 +123,7 @@ namespace MultiplyRush
                 return;
             }
 
+            RefreshResponsiveLayout();
             AnimateMenu(Time.unscaledTime);
         }
 
@@ -124,6 +135,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 1.04f);
+            AudioDirector.Instance?.StopGameplayPreview();
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             ProgressionStore.SetDifficultyMode(_selectedDifficulty);
             StartCoroutine(PlayTransitionAndLoad());
@@ -153,6 +165,7 @@ namespace MultiplyRush
                 if (_titleRect != null)
                 {
                     _titleBaseScale = _titleRect.localScale;
+                    _titleBasePosition = _titleRect.anchoredPosition;
                 }
             }
 
@@ -214,6 +227,7 @@ namespace MultiplyRush
             if (_playButtonRect != null)
             {
                 _playButtonRect.sizeDelta = new Vector2(520f, 150f);
+                _buttonBasePosition = _playButtonRect.anchoredPosition;
             }
 
             if (_playButtonImage != null)
@@ -232,7 +246,7 @@ namespace MultiplyRush
 
             if (_playButtonRect != null)
             {
-                var playLabel = FindOrCreateText(
+                _playButtonLabel = FindOrCreateText(
                     _playButtonRect,
                     "Label",
                     "PLAY NOW",
@@ -242,10 +256,10 @@ namespace MultiplyRush
                     Vector2.one,
                     Vector2.zero,
                     Vector2.zero);
-                StyleBodyText(playLabel, 58, true);
-                if (playLabel != null)
+                StyleBodyText(_playButtonLabel, 58, true);
+                if (_playButtonLabel != null)
                 {
-                    playLabel.color = Color.white;
+                    _playButtonLabel.color = Color.white;
                 }
 
                 var shine = FindOrCreateImage(
@@ -328,8 +342,31 @@ namespace MultiplyRush
             _taglineText = _taglineRect.GetComponent<Text>();
             StyleBodyText(_taglineText, 34, false);
             _taglineText.color = new Color(0.86f, 0.93f, 1f, 0.96f);
+            _taglineBasePosition = _taglineRect.anchoredPosition;
 
-            var footerText = FindOrCreateText(
+            _metaCardImage = FindOrCreateImage(
+                _safeAreaRoot,
+                "MetaCard",
+                new Color(0.06f, 0.14f, 0.27f, 0.78f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -20f),
+                new Vector2(760f, 292f));
+            _metaCardRect = _metaCardImage != null ? _metaCardImage.rectTransform : null;
+            if (_metaCardImage != null)
+            {
+                var outline = _metaCardImage.GetComponent<Outline>();
+                if (outline == null)
+                {
+                    outline = _metaCardImage.gameObject.AddComponent<Outline>();
+                }
+
+                outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+                outline.effectDistance = new Vector2(1.8f, -1.8f);
+                _metaCardRect.SetAsLastSibling();
+            }
+
+            _footerText = FindOrCreateText(
                 _safeAreaRoot,
                 "FooterText",
                 "No boosts. No timers. Just pure crowd-run chaos.",
@@ -339,8 +376,8 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.12f),
                 Vector2.zero,
                 new Vector2(900f, 56f));
-            StyleBodyText(footerText, 24, false);
-            footerText.color = new Color(0.72f, 0.83f, 0.95f, 0.86f);
+            StyleBodyText(_footerText, 24, false);
+            _footerText.color = new Color(0.72f, 0.83f, 0.95f, 0.86f);
 
             _leftGlowRect.SetAsFirstSibling();
             _rightGlowRect.SetAsFirstSibling();
@@ -417,7 +454,7 @@ namespace MultiplyRush
             {
                 var titlePulse = 1f + Mathf.Sin(runTime * titlePulseSpeed) * titlePulseScale;
                 _titleRect.localScale = _titleBaseScale * titlePulse;
-                _titleRect.anchoredPosition = new Vector2(0f, Mathf.Sin(runTime * 0.85f) * 6f);
+                _titleRect.anchoredPosition = _titleBasePosition + new Vector2(0f, Mathf.Sin(runTime * 0.85f) * 6f);
             }
 
             if (_playButtonRect != null)
@@ -433,18 +470,11 @@ namespace MultiplyRush
                     var x = Mathf.PingPong(runTime * 320f, width) - width * 0.5f;
                     _playShineRect.anchoredPosition = new Vector2(x, 0f);
                 }
+            }
 
-                if (_difficultyRow != null)
-                {
-                    var rowPosition = _buttonBasePosition + new Vector2(0f, 140f + Mathf.Sin(runTime * 1.7f) * 5f);
-                    _difficultyRow.anchoredPosition = rowPosition;
-                }
-
-                if (_musicRow != null)
-                {
-                    var rowPosition = _buttonBasePosition + new Vector2(0f, 218f + Mathf.Sin(runTime * 1.5f + 0.4f) * 5f);
-                    _musicRow.anchoredPosition = rowPosition;
-                }
+            if (_metaCardRect != null)
+            {
+                _metaCardRect.localScale = Vector3.one * (1f + Mathf.Sin(runTime * 1.5f) * 0.016f);
             }
 
             if (_playButtonImage != null)
@@ -494,7 +524,7 @@ namespace MultiplyRush
 
             if (_taglineRect != null)
             {
-                _taglineRect.anchoredPosition = new Vector2(0f, Mathf.Sin(runTime * 1.35f) * 5f);
+                _taglineRect.anchoredPosition = _taglineBasePosition + new Vector2(0f, Mathf.Sin(runTime * 1.35f) * 5f);
             }
 
             if (_titleText != null)
@@ -506,21 +536,21 @@ namespace MultiplyRush
 
         private void EnsureDifficultySelector()
         {
-            if (_safeAreaRoot == null)
+            if (_metaCardRect == null)
             {
                 return;
             }
 
-            var rowTransform = _safeAreaRoot.Find("DifficultyRow");
+            var rowTransform = _metaCardRect.Find("DifficultyRow");
             if (rowTransform == null)
             {
                 var rowObject = new GameObject("DifficultyRow");
-                rowObject.transform.SetParent(_safeAreaRoot, false);
+                rowObject.transform.SetParent(_metaCardRect, false);
                 _difficultyRow = rowObject.AddComponent<RectTransform>();
                 _difficultyRow.anchorMin = new Vector2(0.5f, 0.5f);
                 _difficultyRow.anchorMax = new Vector2(0.5f, 0.5f);
                 _difficultyRow.pivot = new Vector2(0.5f, 0.5f);
-                _difficultyRow.sizeDelta = new Vector2(560f, 140f);
+                _difficultyRow.sizeDelta = new Vector2(560f, 126f);
             }
             else
             {
@@ -532,10 +562,7 @@ namespace MultiplyRush
                 return;
             }
 
-            if (_playButtonRect != null)
-            {
-                _difficultyRow.anchoredPosition = _buttonBasePosition + new Vector2(0f, 140f);
-            }
+            _difficultyRow.anchoredPosition = new Vector2(0f, -82f);
 
             _difficultyLabel = EnsureDifficultyText(
                 _difficultyRow,
@@ -569,21 +596,21 @@ namespace MultiplyRush
 
         private void EnsureMusicSelector()
         {
-            if (_safeAreaRoot == null)
+            if (_metaCardRect == null)
             {
                 return;
             }
 
-            var rowTransform = _safeAreaRoot.Find("MusicRow");
+            var rowTransform = _metaCardRect.Find("MusicRow");
             if (rowTransform == null)
             {
                 var rowObject = new GameObject("MusicRow");
-                rowObject.transform.SetParent(_safeAreaRoot, false);
+                rowObject.transform.SetParent(_metaCardRect, false);
                 _musicRow = rowObject.AddComponent<RectTransform>();
                 _musicRow.anchorMin = new Vector2(0.5f, 0.5f);
                 _musicRow.anchorMax = new Vector2(0.5f, 0.5f);
                 _musicRow.pivot = new Vector2(0.5f, 0.5f);
-                _musicRow.sizeDelta = new Vector2(640f, 128f);
+                _musicRow.sizeDelta = new Vector2(640f, 112f);
             }
             else
             {
@@ -595,10 +622,7 @@ namespace MultiplyRush
                 return;
             }
 
-            if (_playButtonRect != null)
-            {
-                _musicRow.anchoredPosition = _buttonBasePosition + new Vector2(0f, 218f);
-            }
+            _musicRow.anchoredPosition = new Vector2(0f, 8f);
 
             _musicLabel = EnsureDifficultyText(
                 _musicRow,
@@ -646,9 +670,118 @@ namespace MultiplyRush
             }
 
             audio.SetGameplayTrackIndex(next, false);
+            audio.PreviewGameplayTrack(1.35f, AudioMusicCue.MainMenu);
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             RefreshMusicTrackLabel();
+        }
+
+        private void RefreshResponsiveLayout(bool force = false)
+        {
+            if (_safeAreaRoot == null || _playButtonRect == null || _titleRect == null)
+            {
+                return;
+            }
+
+            var safeSize = _safeAreaRoot.rect.size;
+            if (!force && (safeSize - _lastSafeAreaSize).sqrMagnitude < 1f)
+            {
+                return;
+            }
+
+            _lastSafeAreaSize = safeSize;
+            var width = Mathf.Max(320f, safeSize.x);
+            var height = Mathf.Max(560f, safeSize.y);
+            var compact = height < 1280f;
+
+            if (_titleRect != null)
+            {
+                _titleRect.anchoredPosition = new Vector2(0f, compact ? 296f : 332f);
+                _titleBasePosition = _titleRect.anchoredPosition;
+                if (_titleText != null)
+                {
+                    _titleText.fontSize = compact ? 88 : 104;
+                }
+            }
+
+            if (_taglineRect != null)
+            {
+                _taglineRect.anchoredPosition = new Vector2(0f, compact ? 214f : 244f);
+                _taglineRect.sizeDelta = new Vector2(Mathf.Clamp(width - 120f, 420f, 980f), compact ? 66f : 76f);
+                if (_taglineText != null)
+                {
+                    _taglineText.fontSize = compact ? 30 : 34;
+                }
+
+                _taglineBasePosition = _taglineRect.anchoredPosition;
+            }
+
+            if (_metaCardRect != null)
+            {
+                _metaCardRect.anchoredPosition = new Vector2(0f, compact ? -4f : 8f);
+                _metaCardRect.sizeDelta = new Vector2(Mathf.Clamp(width - 120f, 520f, 760f), compact ? 292f : 320f);
+            }
+
+            if (bestLevelText != null)
+            {
+                _bestLevelRect = bestLevelText.rectTransform;
+            }
+
+            if (_bestLevelRect != null)
+            {
+                _bestLevelRect.SetParent(_metaCardRect != null ? _metaCardRect : _safeAreaRoot, false);
+                _bestLevelRect.anchorMin = new Vector2(0.5f, 0.5f);
+                _bestLevelRect.anchorMax = new Vector2(0.5f, 0.5f);
+                _bestLevelRect.pivot = new Vector2(0.5f, 0.5f);
+                _bestLevelRect.anchoredPosition = new Vector2(0f, compact ? 100f : 112f);
+                _bestLevelRect.sizeDelta = new Vector2(420f, 54f);
+                if (bestLevelText != null)
+                {
+                    bestLevelText.fontSize = compact ? 46 : 48;
+                }
+            }
+
+            if (_musicRow != null)
+            {
+                _musicRow.sizeDelta = new Vector2(Mathf.Clamp(width - 200f, 520f, 640f), compact ? 104f : 112f);
+            }
+
+            if (_difficultyRow != null)
+            {
+                _difficultyRow.sizeDelta = new Vector2(Mathf.Clamp(width - 230f, 460f, 560f), compact ? 118f : 126f);
+            }
+
+            if (_playButtonRect != null)
+            {
+                _playButtonRect.sizeDelta = new Vector2(Mathf.Clamp(width - 240f, 360f, 520f), compact ? 132f : 150f);
+                _buttonBasePosition = new Vector2(0f, compact ? -236f : -286f);
+            }
+
+            if (_playButtonLabel != null)
+            {
+                _playButtonLabel.fontSize = compact ? 50 : 58;
+            }
+
+            if (_badgeRect != null)
+            {
+                _badgeRect.anchorMin = new Vector2(0.5f, 1f);
+                _badgeRect.anchorMax = new Vector2(0.5f, 1f);
+                _badgeRect.sizeDelta = new Vector2(Mathf.Clamp(width - 280f, 420f, 560f), 72f);
+                _badgeRect.anchoredPosition = new Vector2(0f, compact ? -26f : -30f);
+            }
+
+            if (_footerText != null)
+            {
+                _footerRect = _footerText.rectTransform;
+            }
+
+            if (_footerRect != null)
+            {
+                _footerRect.anchorMin = new Vector2(0.5f, 0f);
+                _footerRect.anchorMax = new Vector2(0.5f, 0f);
+                _footerRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 460f, 920f), 56f);
+                _footerRect.anchoredPosition = new Vector2(0f, 28f);
+            }
         }
 
         private void RefreshMusicTrackLabel()

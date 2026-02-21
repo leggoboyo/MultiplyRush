@@ -32,6 +32,9 @@ namespace MultiplyRush
         private CanvasGroup _overlayGroup;
         private Image _scanlineImage;
         private RectTransform _scanlineRect;
+        private RectTransform _optionsCardRect;
+        private RectTransform _musicRowRect;
+        private RectTransform _graphicsRowRect;
         private Button _pauseButton;
         private RectTransform _pauseButtonRect;
         private Image _pauseButtonImage;
@@ -224,6 +227,10 @@ namespace MultiplyRush
 
             var changed = _isPaused != paused;
             _isPaused = paused;
+            if (changed && !paused)
+            {
+                AudioDirector.Instance?.StopGameplayPreview();
+            }
 
             if (_overlayRect != null && paused)
             {
@@ -430,6 +437,10 @@ namespace MultiplyRush
             }
 
             audio.SetGameplayTrackIndex(next, false);
+            if (_isPaused)
+            {
+                audio.PreviewGameplayTrack(1.3f, AudioMusicCue.Pause);
+            }
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.62f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             RefreshMusicTrackUi();
@@ -828,7 +839,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(840f, 1260f));
+                new Vector2(720f, 1080f));
             _panelRect = panelImage.rectTransform;
             _panelBaseScale = Vector3.one;
 
@@ -878,7 +889,8 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -178f),
-                new Vector2(740f, 620f)).rectTransform;
+                new Vector2(640f, 520f)).rectTransform;
+            _optionsCardRect = optionsCard;
 
             var optionsOutline = optionsCard.GetComponent<Outline>();
             if (optionsOutline == null)
@@ -965,11 +977,11 @@ namespace MultiplyRush
                 new Vector2(320f, 48f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            var musicRow = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, 28f), new Vector2(664f, 56f));
-            _musicPrevButton = EnsureQualityButton(musicRow, "MusicPrevButton", "<", new Vector2(-252f, 0f));
-            _musicNextButton = EnsureQualityButton(musicRow, "MusicNextButton", ">", new Vector2(252f, 0f));
+            _musicRowRect = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, 28f), new Vector2(564f, 56f));
+            _musicPrevButton = EnsureQualityButton(_musicRowRect, "MusicPrevButton", "<", new Vector2(-212f, 0f));
+            _musicNextButton = EnsureQualityButton(_musicRowRect, "MusicNextButton", ">", new Vector2(212f, 0f));
             _musicTrackValueText = EnsureText(
-                musicRow,
+                _musicRowRect,
                 "MusicTrackValue",
                 "Track",
                 28,
@@ -977,7 +989,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(420f, 52f),
+                new Vector2(360f, 52f),
                 true);
             _musicTrackValueText.color = new Color(0.9f, 0.98f, 1f, 1f);
 
@@ -1012,11 +1024,11 @@ namespace MultiplyRush
                 : null;
             _hapticsButtonText = hapticsLabel;
 
-            var row = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -188f), new Vector2(664f, 68f));
-            _autoButton = EnsureQualityButton(row, "AutoQualityButton", "Auto", new Vector2(-252f, 0f));
-            _lowButton = EnsureQualityButton(row, "LowQualityButton", "Low", new Vector2(-84f, 0f));
-            _mediumButton = EnsureQualityButton(row, "MediumQualityButton", "Medium", new Vector2(84f, 0f));
-            _highButton = EnsureQualityButton(row, "HighQualityButton", "High", new Vector2(252f, 0f));
+            _graphicsRowRect = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -188f), new Vector2(564f, 68f));
+            _autoButton = EnsureQualityButton(_graphicsRowRect, "AutoQualityButton", "Auto", new Vector2(-198f, 0f));
+            _lowButton = EnsureQualityButton(_graphicsRowRect, "LowQualityButton", "Low", new Vector2(-66f, 0f));
+            _mediumButton = EnsureQualityButton(_graphicsRowRect, "MediumQualityButton", "Medium", new Vector2(66f, 0f));
+            _highButton = EnsureQualityButton(_graphicsRowRect, "HighQualityButton", "High", new Vector2(198f, 0f));
 
             EnsureText(
                 optionsCard,
@@ -1067,10 +1079,56 @@ namespace MultiplyRush
             _pauseButtonRect.sizeDelta = new Vector2(buttonSize, buttonSize);
             _pauseButtonRect.anchoredPosition = new Vector2(-marginX, -marginY);
 
-            var panelScaleX = (width - 60f) / 840f;
-            var panelScaleY = (height - 86f) / 1260f;
-            var panelScale = Mathf.Clamp(Mathf.Min(1f, panelScaleX, panelScaleY), 0.62f, 1f);
+            var panelScaleX = (width - 28f) / 720f;
+            var panelScaleY = (height - 42f) / 1080f;
+            var panelScale = Mathf.Clamp(Mathf.Min(1f, panelScaleX, panelScaleY), 0.5f, 1f);
             _panelBaseScale = Vector3.one * panelScale;
+
+            var compact = panelScale < 0.68f;
+            var ultraCompact = panelScale < 0.58f;
+
+            if (_resumeButton != null)
+            {
+                var rect = _resumeButton.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    rect.anchoredPosition = new Vector2(0f, compact ? 334f : 360f);
+                }
+            }
+
+            if (_restartButton != null)
+            {
+                var rect = _restartButton.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    rect.anchoredPosition = new Vector2(0f, compact ? 232f : 250f);
+                }
+            }
+
+            if (_mainMenuButton != null)
+            {
+                var rect = _mainMenuButton.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    rect.anchoredPosition = new Vector2(0f, compact ? 130f : 140f);
+                }
+            }
+
+            if (_optionsCardRect != null)
+            {
+                _optionsCardRect.sizeDelta = new Vector2(ultraCompact ? 596f : 640f, ultraCompact ? 536f : 520f);
+                _optionsCardRect.anchoredPosition = new Vector2(0f, compact ? -194f : -178f);
+            }
+
+            if (_musicRowRect != null)
+            {
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 520f : 564f, 56f);
+            }
+
+            if (_graphicsRowRect != null)
+            {
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 520f : 564f, 68f);
+            }
 
             if (_isPaused)
             {
@@ -1084,7 +1142,7 @@ namespace MultiplyRush
 
         private Button EnsureActionButton(RectTransform parent, string name, string label, Vector2 anchoredPosition, Color color)
         {
-            var buttonRect = EnsureRect(parent, name, anchoredPosition, new Vector2(560f, 92f));
+            var buttonRect = EnsureRect(parent, name, anchoredPosition, new Vector2(468f, 82f));
             var image = buttonRect.GetComponent<Image>();
             if (image == null)
             {
@@ -1117,7 +1175,7 @@ namespace MultiplyRush
                 buttonRect,
                 "Label",
                 label,
-                38,
+                34,
                 TextAnchor.MiddleCenter,
                 Vector2.zero,
                 Vector2.one,
@@ -1177,7 +1235,7 @@ namespace MultiplyRush
 
         private Button EnsureQualityButton(RectTransform parent, string name, string label, Vector2 anchoredPosition)
         {
-            var buttonRect = EnsureRect(parent, name, anchoredPosition, new Vector2(152f, 56f));
+            var buttonRect = EnsureRect(parent, name, anchoredPosition, new Vector2(120f, 54f));
             var image = buttonRect.GetComponent<Image>();
             if (image == null)
             {
@@ -1200,7 +1258,7 @@ namespace MultiplyRush
                 buttonRect,
                 "Label",
                 label,
-                26,
+                23,
                 TextAnchor.MiddleCenter,
                 Vector2.zero,
                 Vector2.one,

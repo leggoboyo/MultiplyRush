@@ -30,7 +30,6 @@ namespace MultiplyRush
         private float _targetProgress;
         private float _displayProgress;
         private int _levelIndex = 1;
-        private string _modifierName = "Core Rush";
         private bool _isMiniBossLevel;
         private int _reinforcementKits;
         private int _shieldCharges;
@@ -49,7 +48,7 @@ namespace MultiplyRush
                 _countBaseColor = countText.color;
             }
 
-            ApplyTextStyle(levelText, 22, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
+            ApplyTextStyle(levelText, 20, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
             if (levelText != null)
@@ -94,7 +93,6 @@ namespace MultiplyRush
         public void SetLevel(int levelIndex, string modifierName = null, bool isMiniBoss = false)
         {
             _levelIndex = Mathf.Max(1, levelIndex);
-            _modifierName = string.IsNullOrWhiteSpace(modifierName) ? "Core Rush" : modifierName;
             _isMiniBossLevel = isMiniBoss;
             RefreshLevelLabel();
         }
@@ -293,28 +291,7 @@ namespace MultiplyRush
             var modeLabel = GetModeLabel(_difficultyMode);
             levelText.text =
                 "Level " + Mathf.Max(1, _levelIndex) + bossTag + " • " + modeLabel +
-                "\nKits " + _reinforcementKits + " • Shields " + _shieldCharges +
-                " • " + CleanModifierName(_modifierName);
-        }
-
-        private static string CleanModifierName(string modifierName)
-        {
-            if (string.IsNullOrWhiteSpace(modifierName))
-            {
-                return "Core Rush";
-            }
-
-            var cleaned = modifierName.Trim();
-            if (cleaned.Contains("•"))
-            {
-                var parts = cleaned.Split('•');
-                if (parts.Length >= 2)
-                {
-                    return parts[0].Trim() + " / " + parts[1].Trim();
-                }
-            }
-
-            return cleaned;
+                "\nKits " + _reinforcementKits + " • Shields " + _shieldCharges;
         }
 
         private static string GetModeLabel(DifficultyMode mode)

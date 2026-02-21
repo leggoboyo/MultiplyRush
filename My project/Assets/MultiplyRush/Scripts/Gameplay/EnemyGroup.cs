@@ -32,6 +32,8 @@ namespace MultiplyRush
         public Color tracerColor = new Color(1f, 0.5f, 0.38f, 1f);
 
         private readonly List<Transform> _activeUnits = new List<Transform>(120);
+        private readonly List<Transform> _unitMuzzles = new List<Transform>(120);
+        private readonly List<SoldierMotionAnimator> _unitAnimators = new List<SoldierMotionAnimator>(120);
         private readonly Stack<Transform> _pool = new Stack<Transform>(120);
         private readonly List<Vector3> _slots = new List<Vector3>(120);
         private readonly List<float> _phaseOffsets = new List<float>(120);
@@ -101,6 +103,10 @@ namespace MultiplyRush
                 unit.localPosition = Vector3.Lerp(unit.localPosition, target, blend);
                 unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * tiltDegrees, 0f, 0f);
                 unit.localScale = Vector3.one * unitVisualScale;
+                if (i < _unitAnimators.Count)
+                {
+                    _unitAnimators[i]?.SetState(_combatActive, _combatActive);
+                }
             }
 
             UpdateWeaponEffects(deltaTime);
@@ -164,6 +170,8 @@ namespace MultiplyRush
                 unit.gameObject.SetActive(true);
                 unit.SetParent(unitsRoot, false);
                 _activeUnits.Add(unit);
+                _unitMuzzles.Add(ResolveUnitMuzzle(unit));
+                _unitAnimators.Add(ResolveUnitAnimator(unit, _activeUnits.Count - 1));
                 _slots.Add(Vector3.zero);
                 _phaseOffsets.Add(CalculatePhaseOffset(_activeUnits.Count - 1));
             }
@@ -173,6 +181,8 @@ namespace MultiplyRush
                 var last = _activeUnits.Count - 1;
                 var unit = _activeUnits[last];
                 _activeUnits.RemoveAt(last);
+                _unitMuzzles.RemoveAt(last);
+                _unitAnimators.RemoveAt(last);
                 _slots.RemoveAt(last);
                 _phaseOffsets.RemoveAt(last);
                 ReturnUnit(unit);
@@ -211,6 +221,13 @@ namespace MultiplyRush
             var instance = Instantiate(enemyUnitPrefab, _poolRoot);
             instance.name = "EnemyUnit";
             UnitVisualFactory.ApplySoldierVisual(instance.transform, true);
+            var animator = instance.GetComponent<SoldierMotionAnimator>();
+            if (animator == null)
+            {
+                animator = instance.gameObject.AddComponent<SoldierMotionAnimator>();
+            }
+
+            animator.Configure(CalculatePhaseOffset(_activeUnits.Count), true);
             return instance.transform;
         }
 
@@ -436,16 +453,34 @@ namespace MultiplyRush
         {
             if (_activeUnits.Count > 0)
             {
-                var unit = _activeUnits[UnityEngine.Random.Range(0, _activeUnits.Count)];
+                var index = UnityEngine.Random.Range(0, _activeUnits.Count);
+                var unit = _activeUnits[index];
                 if (unit != null)
                 {
-                    origin = unit.TransformPoint(new Vector3(
-                        UnityEngine.Random.Range(-0.03f, 0.03f),
-                        0.5f + UnityEngine.Random.Range(-0.03f, 0.07f),
-                        0.17f + UnityEngine.Random.Range(-0.02f, 0.05f)));
+                    var muzzle = index < _unitMuzzles.Count ? _unitMuzzles[index] : null;
+                    if (muzzle == null)
+                    {
+                        muzzle = ResolveUnitMuzzle(unit);
+                        if (index < _unitMuzzles.Count)
+                        {
+                            _unitMuzzles[index] = muzzle;
+                        }
+                    }
+
+                    origin = muzzle != null
+                        ? muzzle.position
+                        : unit.TransformPoint(new Vector3(
+                            UnityEngine.Random.Range(-0.03f, 0.03f),
+                            0.5f + UnityEngine.Random.Range(-0.03f, 0.07f),
+                            0.17f + UnityEngine.Random.Range(-0.02f, 0.05f)));
                     direction = _combatTarget != null
                         ? (_combatTarget.position + Vector3.up * 0.55f - origin).normalized
                         : -transform.forward;
+                    if (index < _unitAnimators.Count)
+                    {
+                        _unitAnimators[index]?.TriggerShot(0.82f);
+                    }
+
                     return true;
                 }
             }
@@ -507,6 +542,56 @@ namespace MultiplyRush
         private static float CalculatePhaseOffset(int index)
         {
             return Mathf.Repeat(index * 0.7548777f, 1f) * Mathf.PI * 2f;
+        }
+
+        private static Transform ResolveUnitMuzzle(Transform unit)
+        {
+            if (unit == null)
+            {
+                return null;
+            }
+
+            var muzzle = unit.Find("SoldierModel/RifleBarrel/MuzzlePoint");
+            if (muzzle != null)
+            {
+                return muzzle;
+            }
+
+            muzzle = unit.Find("SoldierModel/MuzzlePoint");
+            if (muzzle != null)
+            {
+                return muzzle;
+            }
+
+            var model = unit.Find("SoldierModel");
+            if (model == null)
+            {
+                return null;
+            }
+
+            var runtimeMuzzle = new GameObject("MuzzlePoint").transform;
+            runtimeMuzzle.SetParent(model, false);
+            runtimeMuzzle.localPosition = new Vector3(0f, 0.55f, 0.4f);
+            runtimeMuzzle.localRotation = Quaternion.identity;
+            runtimeMuzzle.localScale = Vector3.one;
+            return runtimeMuzzle;
+        }
+
+        private static SoldierMotionAnimator ResolveUnitAnimator(Transform unit, int index)
+        {
+            if (unit == null)
+            {
+                return null;
+            }
+
+            var animator = unit.GetComponent<SoldierMotionAnimator>();
+            if (animator == null)
+            {
+                animator = unit.gameObject.AddComponent<SoldierMotionAnimator>();
+            }
+
+            animator.Configure(CalculatePhaseOffset(index), true);
+            return animator;
         }
     }
 }
