@@ -238,7 +238,7 @@ public static class MultiplyRushReleaseTools
 
     private static void AuditIosPlayerSettings(List<AuditItem> issues)
     {
-        var bundle = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.iOS);
+        var bundle = GetApplicationIdentifierIos();
         var hasRealBundle = !string.IsNullOrWhiteSpace(bundle) &&
                             !bundle.Equals("com.Company.ProductName", StringComparison.OrdinalIgnoreCase);
         issues.Add(new AuditItem(
@@ -512,6 +512,15 @@ public static class MultiplyRushReleaseTools
         return PlayerSettings.GetArchitecture(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
 #else
         return PlayerSettings.GetArchitecture(BuildTargetGroup.iOS);
+#endif
+    }
+
+    private static string GetApplicationIdentifierIos()
+    {
+#if UNITY_2021_2_OR_NEWER
+        return PlayerSettings.GetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
+#else
+        return PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.iOS);
 #endif
     }
 
