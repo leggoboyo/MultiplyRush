@@ -757,20 +757,42 @@ namespace MultiplyRush
 
         private void EnsureWinBurst()
         {
-            if (_panelRect == null || _winBurst != null)
+            if (_panelRect == null)
             {
                 return;
             }
 
-            var burstObject = new GameObject("WinBurst", typeof(RectTransform));
-            burstObject.transform.SetParent(_panelRect, false);
-            var rect = burstObject.GetComponent<RectTransform>();
+            if (_winBurst == null)
+            {
+                var existing = _panelRect.Find("WinBurst");
+                if (existing != null)
+                {
+                    _winBurst = existing.GetComponent<ParticleSystem>();
+                }
+            }
+
+            if (_winBurst == null)
+            {
+                var burstObject = new GameObject("WinBurst", typeof(RectTransform));
+                burstObject.transform.SetParent(_panelRect, false);
+                _winBurst = burstObject.AddComponent<ParticleSystem>();
+            }
+
+            var rectTransform = _winBurst.GetComponent<RectTransform>();
+            if (rectTransform == null)
+            {
+                rectTransform = _winBurst.gameObject.AddComponent<RectTransform>();
+            }
+
+            var rect = rectTransform;
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = new Vector2(0f, 64f);
             rect.sizeDelta = new Vector2(40f, 40f);
 
-            _winBurst = burstObject.AddComponent<ParticleSystem>();
+            _winBurst.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            _winBurst.Clear(true);
+
             var main = _winBurst.main;
             main.playOnAwake = false;
             main.loop = false;
