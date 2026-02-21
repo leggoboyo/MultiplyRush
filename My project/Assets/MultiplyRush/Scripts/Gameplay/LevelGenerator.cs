@@ -19,6 +19,10 @@ namespace MultiplyRush
         public int startCount;
         public int enemyCount;
         public int tankRequirement;
+        public int referenceRouteCount;
+        public int referenceBetterRows;
+        public int referenceWorseRows;
+        public int referenceRedRows;
         public int totalRows;
         public float finishZ;
         public float trackHalfWidth;
@@ -193,6 +197,7 @@ namespace MultiplyRush
         private readonly List<float> _cloudBaseY = new List<float>(64);
         private readonly List<float> _cloudPhases = new List<float>(64);
         private readonly float[] _lanePressure = { 0.34f, 0.32f, 0.34f };
+        private const int CountClamp = 2000000000;
 
         private FinishLine _activeFinish;
         private float _effectiveLaneSpacing;
@@ -228,6 +233,11 @@ namespace MultiplyRush
 
         public LevelBuildResult Generate(int levelIndex)
         {
+            return Generate(levelIndex, ProgressionStore.GetDifficultyMode(DifficultyMode.Normal));
+        }
+
+        public LevelBuildResult Generate(int levelIndex, DifficultyMode difficultyMode)
+        {
             var safeLevel = Mathf.Max(1, levelIndex);
             _activeLevelIndex = safeLevel;
             _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
@@ -237,7 +247,7 @@ namespace MultiplyRush
             EnsureRoots();
             PrewarmGatePool();
             PrewarmHazardPool();
-            var generated = BuildDefinition(safeLevel);
+            var generated = BuildDefinition(safeLevel, difficultyMode);
             UpdateDynamicPalette(safeLevel, generated.isMiniBoss);
 
             ClearGeneratedObjects();
@@ -252,6 +262,10 @@ namespace MultiplyRush
                 startCount = generated.startCount,
                 enemyCount = generated.enemyCount,
                 tankRequirement = generated.tankRequirement,
+                referenceRouteCount = generated.referenceRouteCount,
+                referenceBetterRows = generated.referenceBetterRows,
+                referenceWorseRows = generated.referenceWorseRows,
+                referenceRedRows = generated.referenceRedRows,
                 totalRows = generated.totalRows,
                 finishZ = generated.finishZ,
                 trackHalfWidth = _effectiveTrackHalfWidth,
@@ -1773,7 +1787,7 @@ namespace MultiplyRush
             }
         }
 
-        private GeneratedLevel BuildDefinition(int levelIndex)
+        private GeneratedLevel BuildDefinition(int levelIndex, DifficultyMode difficultyMode)
         {
             var random = new System.Random(9143 + levelIndex * 101);
             var gateDifficulty01 = EvaluateGateDifficulty(levelIndex);
@@ -1783,7 +1797,7 @@ namespace MultiplyRush
 
             var generated = new GeneratedLevel
             {
-                startCount = Mathf.Clamp(baseStartCount + (levelIndex / 2) + (isMiniBoss ? 3 : 0), baseStartCount, 120),
+                startCount = BuildStartCount(levelIndex, difficultyMode, isMiniBoss),
                 forwardSpeed = CalculateForwardSpeed(levelIndex),
                 isMiniBoss = isMiniBoss,
                 modifierName = themeName + " • " + modifier.label
@@ -1910,7 +1924,19 @@ namespace MultiplyRush
 
             generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
             var expectedBest = EstimateBestCaseCount(generated.startCount, generated.rows);
-            generated.enemyCount = BuildEnemyCount(levelIndex, generated.startCount, expectedBest, isMiniBoss, modifier);
+            var routeProfile = DifficultyRules.BuildRouteProfile(difficultyMode, isMiniBoss, generated.rows.Count);
+            generated.referenceBetterRows = routeProfile.betterRows;
+            generated.referenceWorseRows = routeProfile.worseRows;
+            generated.referenceRedRows = routeProfile.redRows;
+            generated.referenceRouteCount = EstimateRouteReferenceCount(generated.startCount, generated.rows, routeProfile);
+            generated.enemyCount = BuildEnemyCount(
+                levelIndex,
+                generated.startCount,
+                expectedBest,
+                generated.referenceRouteCount,
+                isMiniBoss,
+                modifier,
+                difficultyMode);
             generated.tankRequirement = BuildTankRequirement(levelIndex, expectedBest, generated.enemyCount, isMiniBoss, modifier);
             generated.gateDifficulty01 = gateDifficulty01;
 
@@ -1934,6 +1960,42 @@ namespace MultiplyRush
             var safeLevel = Mathf.Max(1, levelIndex);
             var ramp = Mathf.Max(0.0001f, gateDifficultyRamp);
             return 1f - Mathf.Exp(-(safeLevel - 1) * ramp);
+        }
+
+        private int BuildStartCount(int levelIndex, DifficultyMode difficultyMode, bool isMiniBoss)
+        {
+            var safeLevel = Mathf.Max(1, levelIndex);
+            int startCount;
+            switch (difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    startCount = 10 + Mathf.FloorToInt((safeLevel - 1) * 0.35f);
+                    break;
+                case DifficultyMode.Hard:
+                    startCount = 1 + Mathf.FloorToInt((safeLevel - 1) * 0.05f);
+                    break;
+                default:
+                    startCount = 4 + Mathf.FloorToInt((safeLevel - 1) * 0.18f);
+                    break;
+            }
+
+            if (isMiniBoss)
+            {
+                switch (difficultyMode)
+                {
+                    case DifficultyMode.Easy:
+                        startCount += 4;
+                        break;
+                    case DifficultyMode.Hard:
+                        startCount += 1;
+                        break;
+                    default:
+                        startCount += 2;
+                        break;
+                }
+            }
+
+            return Mathf.Clamp(startCount, 1, 320);
         }
 
         private float EvaluateRiskRewardChance(float gateDifficulty01, ModifierState modifier, bool isMiniBoss)
@@ -2624,39 +2686,84 @@ namespace MultiplyRush
             }
         }
 
-        private int BuildEnemyCount(int levelIndex, int startCount, int expectedBest, bool isMiniBoss, ModifierState modifier)
+        private int BuildEnemyCount(
+            int levelIndex,
+            int startCount,
+            int expectedBest,
+            int referenceRouteCount,
+            bool isMiniBoss,
+            ModifierState modifier,
+            DifficultyMode difficultyMode)
         {
             var safeLevel = Mathf.Max(1, levelIndex);
-            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear);
-            // Keep scaling predictable over endless play while still introducing mild curvature.
-            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, enemyFormulaPower) * enemyFormulaPowerMultiplier * 0.42f);
+            var safeStart = Mathf.Max(1, startCount);
+            var safeExpectedBest = Mathf.Max(safeStart + 2, expectedBest);
+            var safeReference = Mathf.Clamp(referenceRouteCount, safeStart + 2, safeExpectedBest);
+
+            float routeUpperFraction;
+            float routeLowerFraction;
+            switch (difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    routeUpperFraction = 0.68f;
+                    routeLowerFraction = 0.45f;
+                    break;
+                case DifficultyMode.Hard:
+                    routeUpperFraction = 0.93f;
+                    routeLowerFraction = 0.68f;
+                    break;
+                default:
+                    routeUpperFraction = 0.82f;
+                    routeLowerFraction = 0.58f;
+                    break;
+            }
+
+            if (isMiniBoss)
+            {
+                routeUpperFraction += 0.04f;
+                routeLowerFraction += 0.03f;
+            }
+
+            routeUpperFraction = Mathf.Clamp(routeUpperFraction, 0.45f, 0.97f);
+            routeLowerFraction = Mathf.Clamp(routeLowerFraction, 0.25f, routeUpperFraction - 0.05f);
+
+            var configuredCeilingFraction = Mathf.Clamp01(enemyMaxFractionOfBestPath + (isMiniBoss ? 0.04f : 0f));
+            routeUpperFraction = Mathf.Min(routeUpperFraction, configuredCeilingFraction);
+
+            var configuredFloorFraction = Mathf.Clamp01(enemyMinFractionOfBestPath * 0.9f);
+            routeLowerFraction = Mathf.Max(routeLowerFraction, configuredFloorFraction);
+
+            if (routeLowerFraction >= routeUpperFraction)
+            {
+                routeLowerFraction = Mathf.Max(0.2f, routeUpperFraction - 0.06f);
+            }
+
+            var routeFloor = Mathf.FloorToInt(safeReference * routeLowerFraction);
+            var routeCeiling = Mathf.FloorToInt(safeReference * routeUpperFraction);
+            routeFloor = Mathf.Max(safeStart + 2, routeFloor);
+            var ceilingMax = Mathf.Max(routeFloor + 1, safeExpectedBest - 1);
+            routeCeiling = Mathf.Clamp(routeCeiling, routeFloor + 1, ceilingMax);
+
+            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.82f);
+            var curvePower = Mathf.Max(1.01f, enemyFormulaPower * 0.96f);
+            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, curvePower) * enemyFormulaPowerMultiplier * 0.16f);
             var formulaTarget = linearTarget + curvatureBoost;
 
             if (isMiniBoss)
             {
-                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.14f) + 8;
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.08f) + 6;
             }
 
             if (modifier.tankSurge)
             {
-                formulaTarget += Mathf.RoundToInt(levelIndex * 0.32f);
+                formulaTarget += Mathf.RoundToInt(levelIndex * 0.18f);
             }
 
-            var linearFloor = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.7f);
-            var floor = Mathf.Max(startCount + 4, linearFloor);
-            if (isMiniBoss)
-            {
-                floor = Mathf.Max(floor, startCount + 16);
-            }
+            var enemyCount = Mathf.Clamp(formulaTarget, routeFloor, routeCeiling);
 
-            var bossCeilingBonus = isMiniBoss ? 0.05f : 0.01f;
-            var capByBestPath = Mathf.FloorToInt(expectedBest * Mathf.Clamp01(enemyMaxFractionOfBestPath + bossCeilingBonus));
-            capByBestPath = Mathf.Max(startCount + 5, capByBestPath);
-            var enemyCount = Mathf.Clamp(formulaTarget, floor, Mathf.Max(floor, capByBestPath));
-
-            if (enemyCount >= expectedBest)
+            if (enemyCount >= safeReference)
             {
-                enemyCount = Mathf.Max(startCount + 1, expectedBest - 1);
+                enemyCount = Mathf.Max(safeStart + 1, safeReference - 1);
             }
 
             return Mathf.Max(5, enemyCount);
@@ -2725,22 +2832,187 @@ namespace MultiplyRush
             return running;
         }
 
+        private static int EstimateRouteReferenceCount(int startCount, List<GateRow> rows, DifficultyRouteProfile routeProfile)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return Mathf.Max(1, startCount);
+            }
+
+            var rowCount = rows.Count;
+            var targetBetter = Mathf.Clamp(routeProfile.betterRows, 0, rowCount);
+            var targetWorse = Mathf.Clamp(routeProfile.worseRows, 0, rowCount - targetBetter);
+            var targetRed = Mathf.Max(0, rowCount - targetBetter - targetWorse);
+
+            var current = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            var next = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            FillStateGrid(current, -1);
+            FillStateGrid(next, -1);
+            current[0, 0, 0] = Mathf.Max(1, startCount);
+
+            for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+            {
+                FillStateGrid(next, -1);
+                var row = rows[rowIndex];
+                var betterGate = SelectGateForTier(row, GatePickTier.BetterGood);
+                var worseGate = SelectGateForTier(row, GatePickTier.WorseGood);
+                var redGate = SelectGateForTier(row, GatePickTier.RedBad);
+
+                for (var betterUsed = 0; betterUsed <= targetBetter; betterUsed++)
+                {
+                    for (var worseUsed = 0; worseUsed <= targetWorse; worseUsed++)
+                    {
+                        for (var redUsed = 0; redUsed <= targetRed; redUsed++)
+                        {
+                            if (betterUsed + worseUsed + redUsed != rowIndex)
+                            {
+                                continue;
+                            }
+
+                            var sourceCount = current[betterUsed, worseUsed, redUsed];
+                            if (sourceCount < 0)
+                            {
+                                continue;
+                            }
+
+                            if (betterUsed < targetBetter)
+                            {
+                                var nextCount = ApplyOperation(sourceCount, betterGate.operation, betterGate.value);
+                                UpdateMinState(next, betterUsed + 1, worseUsed, redUsed, nextCount);
+                            }
+
+                            if (worseUsed < targetWorse)
+                            {
+                                var nextCount = ApplyOperation(sourceCount, worseGate.operation, worseGate.value);
+                                UpdateMinState(next, betterUsed, worseUsed + 1, redUsed, nextCount);
+                            }
+
+                            if (redUsed < targetRed)
+                            {
+                                var nextCount = ApplyOperation(sourceCount, redGate.operation, redGate.value);
+                                UpdateMinState(next, betterUsed, worseUsed, redUsed + 1, nextCount);
+                            }
+                        }
+                    }
+                }
+
+                var swap = current;
+                current = next;
+                next = swap;
+            }
+
+            var reference = current[targetBetter, targetWorse, targetRed];
+            if (reference > 0)
+            {
+                return reference;
+            }
+
+            return Mathf.Max(1, startCount);
+        }
+
+        private static void FillStateGrid(int[,,] grid, int value)
+        {
+            for (var x = 0; x < grid.GetLength(0); x++)
+            {
+                for (var y = 0; y < grid.GetLength(1); y++)
+                {
+                    for (var z = 0; z < grid.GetLength(2); z++)
+                    {
+                        grid[x, y, z] = value;
+                    }
+                }
+            }
+        }
+
+        private static void UpdateMinState(int[,,] states, int better, int worse, int red, int candidate)
+        {
+            var existing = states[better, worse, red];
+            if (existing < 0 || candidate < existing)
+            {
+                states[better, worse, red] = candidate;
+            }
+        }
+
+        private static GateSpec SelectGateForTier(GateRow row, GatePickTier tier)
+        {
+            if (row.gates != null)
+            {
+                for (var i = 0; i < row.gates.Count; i++)
+                {
+                    if (row.gates[i].pickTier == tier)
+                    {
+                        return row.gates[i];
+                    }
+                }
+
+                if (row.gates.Count > 0)
+                {
+                    var fallback = row.gates[0];
+                    var bestScore = EvaluateGateBenefit(fallback, 1);
+                    for (var i = 1; i < row.gates.Count; i++)
+                    {
+                        var candidate = row.gates[i];
+                        var score = EvaluateGateBenefit(candidate, 1);
+                        if (tier == GatePickTier.RedBad)
+                        {
+                            if (score < bestScore)
+                            {
+                                fallback = candidate;
+                                bestScore = score;
+                            }
+                        }
+                        else if (score > bestScore)
+                        {
+                            fallback = candidate;
+                            bestScore = score;
+                        }
+                    }
+
+                    return fallback;
+                }
+            }
+
+            return new GateSpec
+            {
+                lane = 1,
+                operation = GateOperation.Add,
+                value = 1,
+                pickTier = tier
+            };
+        }
+
         private static int ApplyOperation(int source, GateOperation operation, int value)
         {
             var safeValue = Mathf.Max(1, value);
+            long result;
             switch (operation)
             {
                 case GateOperation.Add:
-                    return source + safeValue;
+                    result = (long)source + safeValue;
+                    break;
                 case GateOperation.Subtract:
-                    return Mathf.Max(1, source - safeValue);
+                    result = source - safeValue;
+                    break;
                 case GateOperation.Multiply:
-                    return source * safeValue;
+                    result = (long)source * safeValue;
+                    break;
                 case GateOperation.Divide:
-                    return Mathf.Max(1, source / safeValue);
+                    result = source / safeValue;
+                    break;
                 default:
-                    return source;
+                    result = source;
+                    break;
             }
+
+            if (result < 1L)
+            {
+                result = 1L;
+            }
+            else if (result > CountClamp)
+            {
+                result = CountClamp;
+            }
+            return (int)result;
         }
 
         private void DecayLanePressureTowardNeutral()
@@ -2889,6 +3161,10 @@ namespace MultiplyRush
             public int startCount;
             public int enemyCount;
             public int tankRequirement;
+            public int referenceRouteCount;
+            public int referenceBetterRows;
+            public int referenceWorseRows;
+            public int referenceRedRows;
             public int totalRows;
             public float finishZ;
             public float forwardSpeed;

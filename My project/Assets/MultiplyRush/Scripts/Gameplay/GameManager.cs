@@ -136,7 +136,8 @@ namespace MultiplyRush
 
             _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
-            _currentBuild = levelGenerator.Generate(_currentLevelIndex);
+            _difficultyMode = ProgressionStore.GetDifficultyMode(_difficultyMode);
+            _currentBuild = levelGenerator.Generate(_currentLevelIndex, _difficultyMode);
 
             var finishLine = levelGenerator.GetActiveFinishLine();
             if (finishLine != null && finishLine.enemyGroup != null)
@@ -237,26 +238,16 @@ namespace MultiplyRush
                 playerCrowd.GetGateHitStats(out betterHits, out worseHits, out redHits, out totalRows);
             }
 
-            var objective = DifficultyRules.BuildObjective(
+            var routeProfile = DifficultyRules.BuildRouteProfile(
                 _difficultyMode,
                 _currentBuild.isMiniBoss,
                 Mathf.Max(_currentBuild.totalRows, totalRows));
-            var gateObjectivePassed = DifficultyRules.EvaluateObjective(
-                objective,
-                betterHits,
-                worseHits,
-                redHits,
-                out var gateObjectiveLine);
-
-            var requiredCount = Mathf.Max(enemyBaseCount, _currentBuild.tankRequirement);
-            var didWin = playerCount >= requiredCount && gateObjectivePassed;
+            var didWin = playerCount >= enemyBaseCount;
             var detailLine =
                 "Mode " + GetModeLabel(_difficultyMode) +
-                " • " + gateObjectiveLine;
-            if (!gateObjectivePassed)
-            {
-                detailLine += "\nGate objective not met.";
-            }
+                " • " + DifficultyRules.BuildRoutePlanLabel(routeProfile) +
+                " • " + DifficultyRules.BuildRouteHitLabel(betterHits, worseHits, redHits) +
+                " • Route Ref " + NumberFormatter.ToCompact(_currentBuild.referenceRouteCount);
 
             _battleRoutine = StartCoroutine(RunFinishBattle(didWin, detailLine, enemyBaseCount));
         }

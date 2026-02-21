@@ -317,7 +317,7 @@ namespace MultiplyRush
 
             if (tankRequirement > 0)
             {
-                builder.Append("\n<size=30><color=#FFC89A>TANK BURST REQUIRED: ");
+                builder.Append("\n<size=30><color=#FFC89A>TANK BURST TARGET: ");
                 builder.Append(NumberFormatter.ToCompact(tankRequirement));
                 builder.Append("</color></size>");
             }
@@ -330,7 +330,7 @@ namespace MultiplyRush
 
             if (!didWin)
             {
-                builder.Append("\n\n<size=27><color=#FFC0C9>Route tip: protect better gates and avoid any red gate.</color></size>");
+                builder.Append("\n\n<size=27><color=#FFC0C9>Route tip: follow the route plan while keeping your count above enemy total.</color></size>");
             }
 
             return builder.ToString();
@@ -364,6 +364,24 @@ namespace MultiplyRush
                     formatted.Append("><b>");
                     formatted.Append(line.ToUpperInvariant());
                     formatted.Append("</b></color></size>");
+                }
+                else if (line.StartsWith("Route Plan ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#8DFFC7>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Route Hits ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#C7DCFF>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
+                }
+                else if (line.StartsWith("Route Ref ", StringComparison.OrdinalIgnoreCase))
+                {
+                    formatted.Append("<size=30><color=#FFD39B>");
+                    formatted.Append(line);
+                    formatted.Append("</color></size>");
                 }
                 else if (line.StartsWith("Better ", StringComparison.OrdinalIgnoreCase))
                 {

@@ -2,112 +2,100 @@ using UnityEngine;
 
 namespace MultiplyRush
 {
-    public struct DifficultyGateObjective
+    public struct DifficultyRouteProfile
     {
         public int totalRows;
-        public int maxRedHits;
-        public int minBetterHits;
-        public int maxWorseHits;
-        public bool requirePerfect;
+        public int betterRows;
+        public int worseRows;
+        public int redRows;
+        public bool isMiniBoss;
     }
 
     public static class DifficultyRules
     {
-        public static DifficultyGateObjective BuildObjective(DifficultyMode mode, bool isMiniBoss, int totalRows)
+        public static DifficultyRouteProfile BuildRouteProfile(DifficultyMode mode, bool isMiniBoss, int totalRows)
         {
             var rows = Mathf.Max(1, totalRows);
-            var objective = new DifficultyGateObjective
-            {
-                totalRows = rows,
-                maxRedHits = rows,
-                minBetterHits = 0,
-                maxWorseHits = rows,
-                requirePerfect = false
-            };
+            float betterRatio;
+            float worseRatio;
+            float redRatio;
 
             if (!isMiniBoss)
             {
                 switch (mode)
                 {
                     case DifficultyMode.Easy:
-                        objective.maxRedHits = ScaleRows(rows, 7f / 15f);
-                        break;
-                    case DifficultyMode.Normal:
-                        objective.maxRedHits = 0;
+                        // Easy: can still win while taking roughly 7 red + 8 worse out of 15 rows.
+                        betterRatio = 0f;
+                        worseRatio = 8f / 15f;
+                        redRatio = 7f / 15f;
                         break;
                     case DifficultyMode.Hard:
-                        objective.maxRedHits = 0;
-                        objective.minBetterHits = ScaleRowsCeil(rows, 10f / 15f);
-                        objective.maxWorseHits = Mathf.Max(0, rows - objective.minBetterHits);
+                        // Hard: tuned around at least 10 better + up to 5 worse (scaled by row count).
+                        betterRatio = 10f / 15f;
+                        worseRatio = 5f / 15f;
+                        redRatio = 0f;
+                        break;
+                    default:
+                        // Normal: tuned so taking the worse-green route each row can still beat the enemy count.
+                        betterRatio = 0f;
+                        worseRatio = 1f;
+                        redRatio = 0f;
                         break;
                 }
-
-                return objective;
             }
-
-            switch (mode)
+            else
             {
-                case DifficultyMode.Easy:
-                    objective.maxRedHits = ScaleRows(rows, 5f / 15f);
-                    objective.maxWorseHits = ScaleRows(rows, 10f / 15f);
-                    break;
-                case DifficultyMode.Normal:
-                    objective.maxRedHits = 0;
-                    objective.minBetterHits = ScaleRowsCeil(rows, 13f / 15f);
-                    objective.maxWorseHits = Mathf.Max(0, rows - objective.minBetterHits);
-                    break;
-                case DifficultyMode.Hard:
-                    objective.requirePerfect = true;
-                    objective.maxRedHits = 0;
-                    objective.minBetterHits = rows;
-                    objective.maxWorseHits = 0;
-                    break;
+                switch (mode)
+                {
+                    case DifficultyMode.Easy:
+                        // Mini-boss easy: around 5 red + 10 worse out of 15 rows.
+                        betterRatio = 0f;
+                        worseRatio = 10f / 15f;
+                        redRatio = 5f / 15f;
+                        break;
+                    case DifficultyMode.Hard:
+                        // Mini-boss hard: all better-route execution.
+                        betterRatio = 1f;
+                        worseRatio = 0f;
+                        redRatio = 0f;
+                        break;
+                    default:
+                        // Mini-boss normal: around 13 better + 2 worse out of 15 rows.
+                        betterRatio = 13f / 15f;
+                        worseRatio = 2f / 15f;
+                        redRatio = 0f;
+                        break;
+                }
             }
 
-            return objective;
+            var better = Mathf.Clamp(Mathf.RoundToInt(rows * betterRatio), 0, rows);
+            var worse = Mathf.Clamp(Mathf.RoundToInt(rows * worseRatio), 0, rows - better);
+            var red = rows - better - worse;
+            red = Mathf.Clamp(red, 0, rows);
+
+            return new DifficultyRouteProfile
+            {
+                totalRows = rows,
+                betterRows = better,
+                worseRows = worse,
+                redRows = red,
+                isMiniBoss = isMiniBoss
+            };
         }
 
-        public static bool EvaluateObjective(
-            DifficultyGateObjective objective,
-            int betterHits,
-            int worseHits,
-            int redHits,
-            out string statusLine)
+        public static string BuildRoutePlanLabel(DifficultyRouteProfile profile)
         {
-            var safeBetter = Mathf.Max(0, betterHits);
-            var safeWorse = Mathf.Max(0, worseHits);
-            var safeRed = Mathf.Max(0, redHits);
-            var rows = Mathf.Max(1, objective.totalRows);
-            var hits = safeBetter + safeWorse + safeRed;
+            return "Route Plan B" + profile.betterRows +
+                   " / W" + profile.worseRows +
+                   " / R" + profile.redRows;
+        }
 
-            var pass = true;
-            if (safeRed > objective.maxRedHits)
-            {
-                pass = false;
-            }
-
-            if (safeBetter < objective.minBetterHits)
-            {
-                pass = false;
-            }
-
-            if (safeWorse > objective.maxWorseHits)
-            {
-                pass = false;
-            }
-
-            if (objective.requirePerfect && (safeRed > 0 || safeWorse > 0 || safeBetter < rows))
-            {
-                pass = false;
-            }
-
-            statusLine =
-                "Gate Objective " + (pass ? "PASS" : "FAIL") +
-                " • Better " + safeBetter + "/" + rows +
-                " • Worse " + safeWorse + "/" + objective.maxWorseHits +
-                " • Red " + safeRed + "/" + objective.maxRedHits +
-                " • Hit " + hits + "/" + rows;
-            return pass;
+        public static string BuildRouteHitLabel(int betterHits, int worseHits, int redHits)
+        {
+            return "Route Hits B" + Mathf.Max(0, betterHits) +
+                   " / W" + Mathf.Max(0, worseHits) +
+                   " / R" + Mathf.Max(0, redHits);
         }
 
         public static string GetModeShortLabel(DifficultyMode mode)
@@ -121,16 +109,6 @@ namespace MultiplyRush
                 default:
                     return "NORM";
             }
-        }
-
-        private static int ScaleRows(int rows, float ratio)
-        {
-            return Mathf.Clamp(Mathf.RoundToInt(rows * ratio), 0, rows);
-        }
-
-        private static int ScaleRowsCeil(int rows, float ratio)
-        {
-            return Mathf.Clamp(Mathf.CeilToInt(rows * ratio), 0, rows);
         }
     }
 }
