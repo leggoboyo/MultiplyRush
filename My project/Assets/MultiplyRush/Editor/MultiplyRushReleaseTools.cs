@@ -47,7 +47,7 @@ public static class MultiplyRushReleaseTools
         SetApiCompatibilityLevelIos(ApiCompatibilityLevel.NET_Standard);
 
         // iOS requires ARM64 for App Store uploads.
-        PlayerSettings.SetArchitecture(BuildTargetGroup.iOS, 1);
+        SetArchitectureIos(1);
 
         if (string.IsNullOrWhiteSpace(PlayerSettings.bundleVersion))
         {
@@ -263,7 +263,7 @@ public static class MultiplyRushReleaseTools
             "iOS Scripting Backend",
             "Current backend: " + GetScriptingBackendIos()));
 
-        var architecture = PlayerSettings.GetArchitecture(BuildTargetGroup.iOS);
+        var architecture = GetArchitectureIos();
         issues.Add(new AuditItem(
             architecture == 1 ? AuditSeverity.Pass : AuditSeverity.Fail,
             "iOS Architecture",
@@ -454,32 +454,74 @@ public static class MultiplyRushReleaseTools
 
     private static ScriptingImplementation GetScriptingBackendIos()
     {
+#if UNITY_2021_2_OR_NEWER
+        return PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
+#else
         return PlayerSettings.GetScriptingBackend(BuildTargetGroup.iOS);
+#endif
     }
 
     private static void SetScriptingBackendIos(ScriptingImplementation implementation)
     {
+#if UNITY_2021_2_OR_NEWER
+        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), implementation);
+#else
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, implementation);
+#endif
     }
 
     private static ManagedStrippingLevel GetManagedStrippingLevelIos()
     {
+#if UNITY_2021_2_OR_NEWER
+        return PlayerSettings.GetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
+#else
         return PlayerSettings.GetManagedStrippingLevel(BuildTargetGroup.iOS);
+#endif
     }
 
     private static void SetManagedStrippingLevelIos(ManagedStrippingLevel level)
     {
+#if UNITY_2021_2_OR_NEWER
+        PlayerSettings.SetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), level);
+#else
         PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, level);
+#endif
     }
 
     private static void SetApiCompatibilityLevelIos(ApiCompatibilityLevel level)
     {
+#if UNITY_2021_2_OR_NEWER
+        PlayerSettings.SetApiCompatibilityLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), level);
+#else
         PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.iOS, level);
+#endif
     }
 
     private static ApiCompatibilityLevel GetApiCompatibilityLevelIos()
     {
+#if UNITY_2021_2_OR_NEWER
+        return PlayerSettings.GetApiCompatibilityLevel(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
+#else
         return PlayerSettings.GetApiCompatibilityLevel(BuildTargetGroup.iOS);
+#endif
+    }
+
+    private static int GetArchitectureIos()
+    {
+#if UNITY_2021_2_OR_NEWER
+        return PlayerSettings.GetArchitecture(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS));
+#else
+        return PlayerSettings.GetArchitecture(BuildTargetGroup.iOS);
+#endif
+    }
+
+    private static void SetArchitectureIos(int architecture)
+    {
+#if UNITY_2021_2_OR_NEWER
+        PlayerSettings.SetArchitecture(UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.iOS), architecture);
+#else
+        PlayerSettings.SetArchitecture(BuildTargetGroup.iOS, architecture);
+#endif
     }
 
     private readonly struct AuditItem
