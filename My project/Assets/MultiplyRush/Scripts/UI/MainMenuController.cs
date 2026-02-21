@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.Video;
 
 namespace MultiplyRush
 {
@@ -34,6 +35,13 @@ namespace MultiplyRush
         public Color playButtonColor = new Color(0.1f, 0.68f, 1f, 1f);
         public Color neonAccentColor = new Color(0.3f, 0.94f, 1f, 1f);
 
+        [Header("Background Video")]
+        public bool enableVideoBackground = true;
+        public VideoClip menuBackgroundClip;
+        [Range(0.15f, 1f)] public float menuVideoBrightness = 0.68f;
+        [Range(0.5f, 1.2f)] public float menuVideoPlaybackSpeed = 1f;
+        public bool muteMenuVideo = true;
+
         private RectTransform _safeAreaRoot;
         private RectTransform _titleRect;
         private RectTransform _playButtonRect;
@@ -64,15 +72,19 @@ namespace MultiplyRush
         private RectTransform _scanlineRect;
         private RectTransform _playShineRect;
         private RectTransform _badgeRect;
+        private RectTransform _studioRect;
         private RectTransform _taglineRect;
         private Image _metaCardImage;
         private Text _titleText;
         private Text _taglineText;
-        private Text _badgeText;
+        private Text _studioText;
         private Text _footerText;
         private Text _playButtonLabel;
         private float _scanlineBaseY;
         private Image _transitionFlashImage;
+        private RawImage _videoBackground;
+        private VideoPlayer _menuVideoPlayer;
+        private RenderTexture _menuVideoRenderTexture;
         private bool _isStartingGame;
         private Vector2 _lastSafeAreaSize = new Vector2(-1f, -1f);
         private Vector2 _titleBasePosition;
@@ -84,6 +96,7 @@ namespace MultiplyRush
             SceneVisualTuning.ApplyMenuLook();
             CacheMenuElements();
             EnsureBackgroundBehindContent();
+            EnsureSafeAreaFitter();
             EnsureRuntimePolish();
 
             _selectedDifficulty = ProgressionStore.GetDifficultyMode(defaultDifficulty);
@@ -123,6 +136,7 @@ namespace MultiplyRush
                 return;
             }
 
+            UpdateVideoBackgroundState();
             RefreshResponsiveLayout();
             AnimateMenu(Time.unscaledTime);
         }
@@ -202,13 +216,182 @@ namespace MultiplyRush
             }
 
             _safeAreaRoot = backgroundRect.parent as RectTransform;
+            EnsureVideoBackground(_safeAreaRoot != null ? _safeAreaRoot.parent as RectTransform : null);
             backgroundRect.SetAsFirstSibling();
 
             var image = background.GetComponent<Image>();
             if (image != null)
             {
-                image.color = backgroundBottomColor;
+                var hasVideo = enableVideoBackground && menuBackgroundClip != null;
+                var tint = Color.Lerp(backgroundBottomColor, backgroundTopColor, 0.45f);
+                tint.a = hasVideo ? 0.58f : 0.96f;
+                image.color = tint;
             }
+        }
+
+        private void EnsureSafeAreaFitter()
+        {
+            if (_safeAreaRoot == null)
+            {
+                return;
+            }
+
+            var fitter = _safeAreaRoot.GetComponent<SafeAreaFitter>();
+            if (fitter == null)
+            {
+                fitter = _safeAreaRoot.gameObject.AddComponent<SafeAreaFitter>();
+            }
+
+            fitter.targetRect = _safeAreaRoot;
+            fitter.continuousRefresh = true;
+        }
+
+        private void EnsureVideoBackground(RectTransform canvasRoot)
+        {
+            if (canvasRoot == null)
+            {
+                return;
+            }
+
+            var existing = canvasRoot.Find("MenuVideoBackground");
+            GameObject videoObject;
+            if (existing == null)
+            {
+                videoObject = new GameObject("MenuVideoBackground", typeof(RectTransform), typeof(RawImage), typeof(VideoPlayer));
+                videoObject.transform.SetParent(canvasRoot, false);
+            }
+            else
+            {
+                videoObject = existing.gameObject;
+                if (videoObject.GetComponent<RawImage>() == null)
+                {
+                    videoObject.AddComponent<RawImage>();
+                }
+
+                if (videoObject.GetComponent<VideoPlayer>() == null)
+                {
+                    videoObject.AddComponent<VideoPlayer>();
+                }
+            }
+
+            var rect = videoObject.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.localScale = Vector3.one;
+
+            _videoBackground = videoObject.GetComponent<RawImage>();
+            _menuVideoPlayer = videoObject.GetComponent<VideoPlayer>();
+            if (_videoBackground != null)
+            {
+                _videoBackground.raycastTarget = false;
+                _videoBackground.transform.SetAsFirstSibling();
+            }
+
+            if (_menuVideoPlayer != null)
+            {
+                _menuVideoPlayer.playOnAwake = false;
+                _menuVideoPlayer.renderMode = VideoRenderMode.RenderTexture;
+                _menuVideoPlayer.waitForFirstFrame = false;
+                _menuVideoPlayer.isLooping = true;
+                _menuVideoPlayer.skipOnDrop = true;
+            }
+
+            UpdateVideoBackgroundState();
+        }
+
+        private void UpdateVideoBackgroundState()
+        {
+            var hasVideo = enableVideoBackground &&
+                           menuBackgroundClip != null &&
+                           _videoBackground != null &&
+                           _menuVideoPlayer != null;
+
+            if (!hasVideo)
+            {
+                if (_menuVideoPlayer != null && _menuVideoPlayer.isPlaying)
+                {
+                    _menuVideoPlayer.Stop();
+                }
+
+                if (_videoBackground != null)
+                {
+                    _videoBackground.texture = null;
+                    _videoBackground.gameObject.SetActive(false);
+                }
+
+                ReleaseVideoRenderTexture();
+                return;
+            }
+
+            _menuVideoPlayer.clip = menuBackgroundClip;
+            _menuVideoPlayer.audioOutputMode = muteMenuVideo ? VideoAudioOutputMode.None : VideoAudioOutputMode.Direct;
+            _menuVideoPlayer.playbackSpeed = Mathf.Clamp(menuVideoPlaybackSpeed, 0.5f, 1.2f);
+
+            _videoBackground.gameObject.SetActive(true);
+            _videoBackground.color = new Color(menuVideoBrightness, menuVideoBrightness, menuVideoBrightness, 1f);
+
+            EnsureVideoRenderTexture();
+            if (_menuVideoRenderTexture == null)
+            {
+                return;
+            }
+
+            _menuVideoPlayer.targetTexture = _menuVideoRenderTexture;
+            _videoBackground.texture = _menuVideoRenderTexture;
+            if (!_menuVideoPlayer.isPlaying)
+            {
+                _menuVideoPlayer.Play();
+            }
+        }
+
+        private void EnsureVideoRenderTexture()
+        {
+            var targetWidth = 1280;
+            var targetHeight = 720;
+            if (menuBackgroundClip != null)
+            {
+                targetWidth = Mathf.Clamp((int)menuBackgroundClip.width, 640, 2560);
+                targetHeight = Mathf.Clamp((int)menuBackgroundClip.height, 360, 1440);
+            }
+
+            if (_menuVideoRenderTexture != null &&
+                _menuVideoRenderTexture.width == targetWidth &&
+                _menuVideoRenderTexture.height == targetHeight)
+            {
+                if (!_menuVideoRenderTexture.IsCreated())
+                {
+                    _menuVideoRenderTexture.Create();
+                }
+
+                return;
+            }
+
+            ReleaseVideoRenderTexture();
+            _menuVideoRenderTexture = new RenderTexture(targetWidth, targetHeight, 0, RenderTextureFormat.ARGB32)
+            {
+                name = "MenuVideoRT",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            _menuVideoRenderTexture.Create();
+        }
+
+        private void ReleaseVideoRenderTexture()
+        {
+            if (_menuVideoRenderTexture == null)
+            {
+                return;
+            }
+
+            if (_menuVideoRenderTexture.IsCreated())
+            {
+                _menuVideoRenderTexture.Release();
+            }
+
+            Destroy(_menuVideoRenderTexture);
+            _menuVideoRenderTexture = null;
         }
 
         private void EnsureRuntimePolish()
@@ -310,24 +493,54 @@ namespace MultiplyRush
 
             _badgeRect = FindOrCreateImage(
                 _safeAreaRoot,
-                "NoAdsBadge",
-                new Color(0.1f, 0.23f, 0.43f, 0.9f),
-                new Vector2(0.5f, 0.93f),
-                new Vector2(0.5f, 0.93f),
+                "TopDecorStrip",
+                new Color(0.18f, 0.52f, 0.86f, 0.34f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
                 Vector2.zero,
-                new Vector2(560f, 72f)).rectTransform;
-            _badgeText = FindOrCreateText(
-                _badgeRect,
-                "Label",
-                "100% OFFLINE  |  ZERO ADS  |  INFINITE LEVELS",
-                24,
+                new Vector2(640f, 44f)).rectTransform;
+            if (_badgeRect != null)
+            {
+                var leftAccent = FindOrCreateImage(
+                    _badgeRect,
+                    "LeftAccent",
+                    new Color(0.62f, 0.9f, 1f, 0.48f),
+                    new Vector2(0f, 0.5f),
+                    new Vector2(0f, 0.5f),
+                    new Vector2(28f, 0f),
+                    new Vector2(42f, 6f));
+                if (leftAccent != null)
+                {
+                    leftAccent.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -4f);
+                }
+
+                var rightAccent = FindOrCreateImage(
+                    _badgeRect,
+                    "RightAccent",
+                    new Color(0.62f, 0.9f, 1f, 0.48f),
+                    new Vector2(1f, 0.5f),
+                    new Vector2(1f, 0.5f),
+                    new Vector2(-28f, 0f),
+                    new Vector2(42f, 6f));
+                if (rightAccent != null)
+                {
+                    rightAccent.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 4f);
+                }
+            }
+
+            _studioText = FindOrCreateText(
+                _safeAreaRoot,
+                "StudioLabel",
+                "by ZoKorp Games",
+                30,
                 TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 0.62f),
+                new Vector2(0.5f, 0.62f),
                 Vector2.zero,
-                Vector2.one,
-                Vector2.zero,
-                Vector2.zero);
-            StyleBodyText(_badgeText, 24, true);
-            _badgeText.color = new Color(0.84f, 0.97f, 1f, 1f);
+                new Vector2(720f, 56f));
+            StyleBodyText(_studioText, 30, true);
+            _studioText.color = new Color(0.75f, 0.91f, 1f, 0.94f);
+            _studioRect = _studioText.rectTransform;
 
             _taglineRect = FindOrCreateText(
                 _safeAreaRoot,
@@ -519,7 +732,19 @@ namespace MultiplyRush
 
             if (_badgeRect != null)
             {
-                _badgeRect.localScale = Vector3.one * (1f + Mathf.Sin(runTime * 2f) * 0.025f);
+                _badgeRect.localScale = Vector3.one * (1f + Mathf.Sin(runTime * 2.2f) * 0.015f);
+                var stripImage = _badgeRect.GetComponent<Image>();
+                if (stripImage != null)
+                {
+                    var alpha = 0.24f + Mathf.Abs(Mathf.Sin(runTime * 1.8f)) * 0.16f;
+                    stripImage.color = new Color(0.18f, 0.52f, 0.86f, alpha);
+                }
+            }
+
+            if (_studioText != null)
+            {
+                var glow = 0.78f + Mathf.Abs(Mathf.Sin(runTime * 1.25f)) * 0.22f;
+                _studioText.color = new Color(0.75f * glow, 0.91f * glow, 1f * glow, 0.95f);
             }
 
             if (_taglineRect != null)
@@ -766,8 +991,18 @@ namespace MultiplyRush
             {
                 _badgeRect.anchorMin = new Vector2(0.5f, 1f);
                 _badgeRect.anchorMax = new Vector2(0.5f, 1f);
-                _badgeRect.sizeDelta = new Vector2(Mathf.Clamp(width - 280f, 420f, 560f), 72f);
-                _badgeRect.anchoredPosition = new Vector2(0f, compact ? -26f : -30f);
+                _badgeRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 420f, 760f), compact ? 34f : 40f);
+                _badgeRect.anchoredPosition = new Vector2(0f, compact ? -68f : -78f);
+            }
+
+            if (_studioRect != null)
+            {
+                _studioRect.anchoredPosition = new Vector2(0f, compact ? 256f : 286f);
+                _studioRect.sizeDelta = new Vector2(Mathf.Clamp(width - 220f, 420f, 780f), compact ? 52f : 56f);
+                if (_studioText != null)
+                {
+                    _studioText.fontSize = compact ? 26 : 30;
+                }
             }
 
             if (_footerText != null)
@@ -780,7 +1015,7 @@ namespace MultiplyRush
                 _footerRect.anchorMin = new Vector2(0.5f, 0f);
                 _footerRect.anchorMax = new Vector2(0.5f, 0f);
                 _footerRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 460f, 920f), 56f);
-                _footerRect.anchoredPosition = new Vector2(0f, 28f);
+                _footerRect.anchoredPosition = new Vector2(0f, 34f);
             }
         }
 
@@ -801,6 +1036,19 @@ namespace MultiplyRush
             var index = ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount());
             var trackName = audio.GetGameplayTrackName(index);
             _musicTrackLabel.text = "#" + (index + 1) + "  " + trackName;
+        }
+
+        private void OnDisable()
+        {
+            if (_menuVideoPlayer != null && _menuVideoPlayer.isPlaying)
+            {
+                _menuVideoPlayer.Stop();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseVideoRenderTexture();
         }
 
         private void SelectDifficulty(DifficultyMode mode)
