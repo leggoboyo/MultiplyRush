@@ -454,56 +454,32 @@ public static class MultiplyRushReleaseTools
 
     private static ScriptingImplementation GetScriptingBackendIos()
     {
-#if UNITY_2021_2_OR_NEWER
-        return PlayerSettings.GetScriptingBackend(NamedBuildTarget.iOS);
-#else
         return PlayerSettings.GetScriptingBackend(BuildTargetGroup.iOS);
-#endif
     }
 
     private static void SetScriptingBackendIos(ScriptingImplementation implementation)
     {
-#if UNITY_2021_2_OR_NEWER
-        PlayerSettings.SetScriptingBackend(NamedBuildTarget.iOS, implementation);
-#else
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.iOS, implementation);
-#endif
     }
 
     private static ManagedStrippingLevel GetManagedStrippingLevelIos()
     {
-#if UNITY_2021_2_OR_NEWER
-        return PlayerSettings.GetManagedStrippingLevel(NamedBuildTarget.iOS);
-#else
         return PlayerSettings.GetManagedStrippingLevel(BuildTargetGroup.iOS);
-#endif
     }
 
     private static void SetManagedStrippingLevelIos(ManagedStrippingLevel level)
     {
-#if UNITY_2021_2_OR_NEWER
-        PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.iOS, level);
-#else
         PlayerSettings.SetManagedStrippingLevel(BuildTargetGroup.iOS, level);
-#endif
     }
 
     private static void SetApiCompatibilityLevelIos(ApiCompatibilityLevel level)
     {
-#if UNITY_2021_2_OR_NEWER
-        PlayerSettings.SetApiCompatibilityLevel(NamedBuildTarget.iOS, level);
-#else
         PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.iOS, level);
-#endif
     }
 
     private static ApiCompatibilityLevel GetApiCompatibilityLevelIos()
     {
-#if UNITY_2021_2_OR_NEWER
-        return PlayerSettings.GetApiCompatibilityLevel(NamedBuildTarget.iOS);
-#else
         return PlayerSettings.GetApiCompatibilityLevel(BuildTargetGroup.iOS);
-#endif
     }
 
     private readonly struct AuditItem
