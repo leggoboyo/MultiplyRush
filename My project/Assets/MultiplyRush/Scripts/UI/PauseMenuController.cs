@@ -49,12 +49,15 @@ namespace MultiplyRush
         private Button _lowButton;
         private Button _mediumButton;
         private Button _highButton;
+        private Button _hapticsButton;
+        private Text _hapticsButtonText;
         private bool _isPaused;
         private bool _canPause = true;
         private bool _isInitialized;
         private bool _suppressControlCallbacks;
         private float _overlayAlpha;
         private BackdropQuality _selectedQuality = BackdropQuality.Auto;
+        private bool _hapticsEnabled = true;
         private bool _fallbackPointerWasDown;
         private Vector2 _lastSafeAreaSize = Vector2.zero;
 
@@ -107,7 +110,17 @@ namespace MultiplyRush
 
         public void ForceResume(bool instant = false)
         {
-            SetPaused(false, instant);
+            SetPaused(false, instant, true);
+        }
+
+        public void PauseFromSystem()
+        {
+            if (!_canPause || _isPaused)
+            {
+                return;
+            }
+
+            SetPaused(true, true, false);
         }
 
         private void Update()
@@ -154,7 +167,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.62f, 1.06f);
-            SetPaused(!_isPaused, false);
+            SetPaused(!_isPaused, false, true);
         }
 
         private void HandlePauseTapFallback()
@@ -194,7 +207,7 @@ namespace MultiplyRush
             TogglePauseRequested();
         }
 
-        private void SetPaused(bool paused, bool instant)
+        private void SetPaused(bool paused, bool instant, bool playFeedback)
         {
             if (paused && !_canPause)
             {
@@ -225,15 +238,28 @@ namespace MultiplyRush
                 _pauseButton.interactable = _canPause && !paused;
             }
 
-            if (changed && paused)
+            if (changed && paused && playFeedback)
             {
                 AudioDirector.Instance?.PlaySfx(AudioSfxCue.PauseOpen, 0.74f, 1f);
                 AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Pause, false);
+                HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
             }
-            else if (changed)
+            else if (changed && playFeedback)
             {
                 AudioDirector.Instance?.PlaySfx(AudioSfxCue.PauseClose, 0.62f, 1.06f);
                 AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
+            }
+
+            if (changed && !playFeedback)
+            {
+                if (paused)
+                {
+                    AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Pause, false);
+                }
+                else
+                {
+                    AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
+                }
             }
 
             Time.timeScale = paused ? 0f : 1f;
@@ -338,13 +364,13 @@ namespace MultiplyRush
         private void HandleResumePressed()
         {
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.74f, 1.04f);
-            SetPaused(false, false);
+            SetPaused(false, false, false);
         }
 
         private void HandleRestartPressed()
         {
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.76f, 0.98f);
-            SetPaused(false, true);
+            SetPaused(false, true, false);
             if (_gameManager != null)
             {
                 _gameManager.RetryCurrentLevelFromPauseMenu();
@@ -354,7 +380,7 @@ namespace MultiplyRush
         private void HandleMainMenuPressed()
         {
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 0.94f);
-            SetPaused(false, true);
+            SetPaused(false, true, false);
             SceneManager.LoadScene(mainMenuSceneName);
         }
 
@@ -407,14 +433,30 @@ namespace MultiplyRush
             RefreshQualityUi();
         }
 
+        private void HandleHapticsTogglePressed()
+        {
+            _hapticsEnabled = !_hapticsEnabled;
+            HapticsDirector.Instance?.SetEnabled(_hapticsEnabled);
+            RefreshHapticsUi();
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.58f, _hapticsEnabled ? 1.1f : 0.92f);
+            if (_hapticsEnabled)
+            {
+                HapticsDirector.Instance?.Play(HapticCue.LightTap);
+            }
+        }
+
         private void ApplySavedSettings()
         {
+            HapticsDirector.EnsureInstance();
+
             var volume = ProgressionStore.GetMasterVolume(0.85f);
             var motion = ProgressionStore.GetCameraMotionIntensity(0.35f);
             _selectedQuality = ProgressionStore.GetGraphicsFidelity(BackdropQuality.Auto);
+            _hapticsEnabled = ProgressionStore.GetHapticsEnabled(true);
 
             AudioListener.volume = volume;
             AudioDirector.Instance?.RefreshMasterVolume();
+            HapticsDirector.Instance?.SetEnabled(_hapticsEnabled);
 
             if (_cameraFollower != null)
             {
@@ -442,6 +484,7 @@ namespace MultiplyRush
             RefreshVolumeLabel(volume);
             RefreshCameraMotionLabel(motion);
             RefreshQualityUi();
+            RefreshHapticsUi();
         }
 
         private void RefreshVolumeLabel(float value)
@@ -471,6 +514,25 @@ namespace MultiplyRush
             UpdateQualityButtonVisual(_lowButton, _selectedQuality == BackdropQuality.Low);
             UpdateQualityButtonVisual(_mediumButton, _selectedQuality == BackdropQuality.Medium);
             UpdateQualityButtonVisual(_highButton, _selectedQuality == BackdropQuality.High);
+        }
+
+        private void RefreshHapticsUi()
+        {
+            if (_hapticsButtonText != null)
+            {
+                _hapticsButtonText.text = _hapticsEnabled ? "ON" : "OFF";
+                _hapticsButtonText.fontStyle = FontStyle.Bold;
+                _hapticsButtonText.color = Color.white;
+            }
+
+            if (_hapticsButton != null)
+            {
+                var image = _hapticsButton.GetComponent<Image>();
+                if (image != null)
+                {
+                    image.color = _hapticsEnabled ? selectedQualityColor : unselectedQualityColor;
+                }
+            }
         }
 
         private void UpdateQualityButtonVisual(Button button, bool isSelected)
@@ -554,6 +616,12 @@ namespace MultiplyRush
             {
                 _highButton.onClick.RemoveAllListeners();
                 _highButton.onClick.AddListener(() => SelectGraphicsQuality(BackdropQuality.High));
+            }
+
+            if (_hapticsButton != null)
+            {
+                _hapticsButton.onClick.RemoveAllListeners();
+                _hapticsButton.onClick.AddListener(HandleHapticsTogglePressed);
             }
         }
 
@@ -842,10 +910,28 @@ namespace MultiplyRush
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(38f, -282f),
+                new Vector2(38f, -352f),
                 new Vector2(420f, 48f),
                 false);
             _qualityValueText.color = new Color(0.82f, 0.9f, 0.98f, 1f);
+
+            EnsureText(
+                optionsCard,
+                "HapticsLabel",
+                "Haptics",
+                30,
+                TextAnchor.MiddleLeft,
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(38f, -282f),
+                new Vector2(320f, 48f),
+                false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
+
+            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -12f));
+            var hapticsLabel = _hapticsButton != null
+                ? _hapticsButton.GetComponentInChildren<Text>()
+                : null;
+            _hapticsButtonText = hapticsLabel;
 
             var row = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -126f), new Vector2(664f, 68f));
             _autoButton = EnsureQualityButton(row, "AutoQualityButton", "Auto", new Vector2(-252f, 0f));

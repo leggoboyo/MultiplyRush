@@ -54,6 +54,8 @@ namespace MultiplyRush
             CanvasRootGuard.NormalizeAllRootCanvasScales();
             SceneVisualTuning.ApplyGameLook();
             AudioDirector.EnsureInstance().SetMusicCue(AudioMusicCue.Gameplay, true);
+            AppLifecycleController.EnsureInstance().SetPauseOnFocusLoss(true);
+            HapticsDirector.EnsureInstance();
 
             if (resultsOverlay != null)
             {

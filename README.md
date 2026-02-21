@@ -2,30 +2,44 @@
 An actually-playable version of the clickbait gate-multiplier runner ads. Free, offline, no ads.
 
 ## Unity Project
-Project root: `My project/`
+- Project root: `My project/`
+- Recommended Unity version: `6000.3.9f1`
 
-## Step 1 Run (Editor)
-1. Open `My project/` in Unity Hub (Unity `6000.3.9f1`).
-2. Wait for script compilation.
-3. In the Unity top menu, run: `Multiply Rush -> Step 1 -> Bootstrap Project`.
-4. Open scene: `Assets/MultiplyRush/Scenes/MainMenu.unity`.
-5. Press Play, click `Play`, and test:
-   - drag left/right while moving forward,
-   - pass through gates to change crowd count,
-   - reach finish to WIN/LOSE,
-   - use `Next Level` or `Retry`.
+## Run In Editor
+1. Open `My project/` in Unity Hub.
+2. Let scripts compile and asset import finish.
+3. If this is a fresh clone, run `Multiply Rush -> Step 1 -> Bootstrap Project`.
+4. Open `Assets/MultiplyRush/Scenes/MainMenu.unity`.
+5. Press Play and verify:
+   - Menu animates and difficulty selection works.
+   - Tap `PLAY NOW` to transition into gameplay.
+   - Drag left/right, hit gates, and confirm count updates.
+   - Reach finish and observe the short battle phase before WIN/LOSE.
+   - Pause button works and options persist (audio, camera motion, graphics, haptics).
 
-## Release-Readiness Foundation (current)
-- Safe-area aware UI (notch support)
-- First-run drag hint onboarding
-- Input System-native controls and UI input module
-- Pool prewarm for crowd/enemy/gates to reduce spawn hitches
-- Stronger run/result state guards
-- Mobile runtime defaults: frame cap + no sleep timeout
+## Production Features Implemented
+- Offline-only architecture with no ads/analytics/IAP/network calls.
+- Runtime procedural audio (menu/game/pause music + SFX).
+- Device-tier runtime tuning (target FPS + render scale).
+- Quality selector (Auto/Low/Medium/High) and camera-motion slider.
+- Haptics toggle with persisted preference.
+- App lifecycle safety:
+  - Auto pause on app background/focus loss.
+  - Low-memory cleanup hook.
+- Result overlays, battle phase, miniboss cadence, and endless progression scaling.
+
+## iOS Release Workflow (Unity)
+1. Open Unity and run:
+   - `Multiply Rush -> Release -> Prepare iOS Release Candidate`
+2. Open generated audit report:
+   - `Assets/MultiplyRush/Docs/ReleaseAudit.md`
+3. Resolve all `[FAIL]` items before building.
+4. Resolve `[WARN]` items that apply to your final submission (bundle ID, icons, metadata).
+5. Build iOS and archive in Xcode for App Store Connect upload.
 
 ## Design Constraints
-- Offline only
-- No ads
-- No analytics/telemetry
-- No IAP
-- No network requirement
+- Offline only.
+- No ads.
+- No analytics/telemetry.
+- No IAP.
+- No network requirement.

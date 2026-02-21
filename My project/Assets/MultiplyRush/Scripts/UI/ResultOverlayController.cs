@@ -223,6 +223,7 @@ namespace MultiplyRush
                 : new Color(1f, 0.32f, 0.42f, 0.08f);
 
             AudioDirector.Instance?.PlaySfx(didWin ? AudioSfxCue.Win : AudioSfxCue.Lose, 0.88f, 1f);
+            HapticsDirector.Instance?.Play(didWin ? HapticCue.Success : HapticCue.Failure);
 
             if (retryButton != null)
             {

@@ -75,6 +75,8 @@ namespace MultiplyRush
             _selectedDifficulty = ProgressionStore.GetDifficultyMode(defaultDifficulty);
             EnsureDifficultySelector();
             ApplyDifficultySelectionVisuals();
+            HapticsDirector.EnsureInstance();
+            AppLifecycleController.EnsureInstance().SetPauseOnFocusLoss(true);
 
             if (bestLevelText == null)
             {
@@ -114,6 +116,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 1.04f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
             ProgressionStore.SetDifficultyMode(_selectedDifficulty);
             StartCoroutine(PlayTransitionAndLoad());
         }
@@ -558,6 +561,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.66f, 1.08f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
             _selectedDifficulty = mode;
             ApplyDifficultySelectionVisuals();
         }

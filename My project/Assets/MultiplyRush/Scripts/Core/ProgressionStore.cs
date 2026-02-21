@@ -21,6 +21,7 @@ namespace MultiplyRush
         private const string MasterVolumeKey = "mr_master_volume";
         private const string GraphicsFidelityKey = "mr_graphics_fidelity";
         private const string CameraMotionKey = "mr_camera_motion";
+        private const string HapticsEnabledKey = "mr_haptics_enabled";
 
         public static int GetUnlockedLevel()
         {
@@ -159,6 +160,23 @@ namespace MultiplyRush
         public static void SetCameraMotionIntensity(float intensity)
         {
             PlayerPrefs.SetFloat(CameraMotionKey, Mathf.Clamp01(intensity));
+            PlayerPrefs.Save();
+        }
+
+        public static bool GetHapticsEnabled(bool fallback = true)
+        {
+            var fallbackValue = fallback ? 1 : 0;
+            return PlayerPrefs.GetInt(HapticsEnabledKey, fallbackValue) != 0;
+        }
+
+        public static void SetHapticsEnabled(bool enabled)
+        {
+            PlayerPrefs.SetInt(HapticsEnabledKey, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        public static void Flush()
+        {
             PlayerPrefs.Save();
         }
     }

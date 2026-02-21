@@ -350,6 +350,7 @@ namespace MultiplyRush
             {
                 _shieldActive = false;
                 TriggerGatePunch(new Color(0.38f, 0.85f, 1f, 1f));
+                HapticsDirector.Instance?.Play(HapticCue.LightTap);
                 return;
             }
 
@@ -378,6 +379,7 @@ namespace MultiplyRush
                 IsNegativeGate(operation) ? AudioSfxCue.GateNegative : AudioSfxCue.GatePositive,
                 0.78f,
                 UnityEngine.Random.Range(0.92f, 1.12f));
+            HapticsDirector.Instance?.Play(IsNegativeGate(operation) ? HapticCue.MediumImpact : HapticCue.LightTap);
             TriggerGatePunch(IsNegativeGate(operation)
                 ? new Color(1f, 0.52f, 0.44f, 1f)
                 : new Color(0.38f, 1f, 0.48f, 1f));
