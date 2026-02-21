@@ -1929,13 +1929,26 @@ namespace MultiplyRush
                 }
             }
 
+            ApplyMultiplierBudget(
+                random,
+                levelIndex,
+                addBase,
+                difficultyMode,
+                isMiniBoss,
+                generated.rows);
+
             generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
             var expectedBest = EstimateBestCaseCount(generated.startCount, generated.rows);
             var routeProfile = DifficultyRules.BuildRouteProfile(difficultyMode, isMiniBoss, generated.rows.Count);
             generated.referenceBetterRows = routeProfile.betterRows;
             generated.referenceWorseRows = routeProfile.worseRows;
             generated.referenceRedRows = routeProfile.redRows;
-            generated.referenceRouteCount = EstimateRouteReferenceCount(generated.startCount, generated.rows, routeProfile);
+            generated.referenceRouteCount = EstimateRouteReferenceCount(
+                generated.startCount,
+                generated.rows,
+                routeProfile,
+                difficultyMode,
+                isMiniBoss);
             generated.enemyCount = BuildEnemyCount(
                 levelIndex,
                 generated.startCount,
@@ -2693,6 +2706,109 @@ namespace MultiplyRush
             }
         }
 
+        private static bool IsPositiveMultiplier(GateSpec gate)
+        {
+            return gate.operation == GateOperation.Multiply && gate.value > 1;
+        }
+
+        private static int ComputeMultiplierBudget(int levelIndex, DifficultyMode mode, bool isMiniBoss, int rowCount)
+        {
+            var safeRows = Mathf.Max(1, rowCount);
+            var safeLevel = Mathf.Max(1, levelIndex);
+            int baseBudget;
+            int growthDivisor;
+            switch (mode)
+            {
+                case DifficultyMode.Easy:
+                    baseBudget = 1;
+                    growthDivisor = 28;
+                    break;
+                case DifficultyMode.Hard:
+                    baseBudget = 3;
+                    growthDivisor = 18;
+                    break;
+                default:
+                    baseBudget = 2;
+                    growthDivisor = 22;
+                    break;
+            }
+
+            var budget = baseBudget + Mathf.FloorToInt((safeLevel - 1) / Mathf.Max(1f, growthDivisor));
+            if (isMiniBoss)
+            {
+                budget += 1;
+            }
+
+            var rowCap = Mathf.Max(1, safeRows / 4);
+            return Mathf.Clamp(budget, 1, rowCap);
+        }
+
+        private static void ApplyMultiplierBudget(
+            System.Random random,
+            int levelIndex,
+            int addBase,
+            DifficultyMode mode,
+            bool isMiniBoss,
+            List<GateRow> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                return;
+            }
+
+            var budget = ComputeMultiplierBudget(levelIndex, mode, isMiniBoss, rows.Count);
+            var kept = 0;
+
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                var row = rows[rowIndex];
+                if (row.gates == null || row.gates.Count == 0)
+                {
+                    continue;
+                }
+
+                for (var gateIndex = 0; gateIndex < row.gates.Count; gateIndex++)
+                {
+                    var gate = row.gates[gateIndex];
+                    if (!IsPositiveMultiplier(gate))
+                    {
+                        continue;
+                    }
+
+                    var keepThisMultiplier = false;
+                    if (kept < budget)
+                    {
+                        if (gate.pickTier == GatePickTier.BetterGood)
+                        {
+                            keepThisMultiplier = true;
+                        }
+                        else if (gate.pickTier == GatePickTier.WorseGood &&
+                                 kept < Mathf.Max(1, budget - 1) &&
+                                 random.NextDouble() < 0.24)
+                        {
+                            keepThisMultiplier = true;
+                        }
+                    }
+
+                    if (keepThisMultiplier)
+                    {
+                        kept++;
+                        continue;
+                    }
+
+                    gate.operation = GateOperation.Add;
+                    var bonus = gate.pickTier == GatePickTier.BetterGood ? 4 : 2;
+                    gate.value = Mathf.Clamp(
+                        addBase + bonus + random.Next(0, 3),
+                        2,
+                        addBase + bonus + 4);
+                    row.gates[gateIndex] = gate;
+                }
+
+                rows[rowIndex] = row;
+            }
+        }
+
         private int BuildEnemyCount(
             int levelIndex,
             int startCount,
@@ -2706,74 +2822,70 @@ namespace MultiplyRush
             var safeStart = Mathf.Max(1, startCount);
             var safeExpectedBest = Mathf.Max(safeStart + 2, expectedBest);
             var safeReference = Mathf.Clamp(referenceRouteCount, safeStart + 2, safeExpectedBest);
+            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.9f);
+            var curvePower = Mathf.Max(1.01f, enemyFormulaPower * 0.88f);
+            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, curvePower) * enemyFormulaPowerMultiplier * 0.11f);
+            var formulaTarget = linearTarget + curvatureBoost;
 
-            float routeUpperFraction;
-            float routeLowerFraction;
+            float blendToBest;
+            float pressure;
+            float floorFractionOfBest;
+            float ceilingFractionOfBest;
             switch (difficultyMode)
             {
                 case DifficultyMode.Easy:
-                    routeUpperFraction = 0.68f;
-                    routeLowerFraction = 0.45f;
+                    blendToBest = 0.18f;
+                    pressure = 0.84f;
+                    floorFractionOfBest = 0.32f;
+                    ceilingFractionOfBest = 0.88f;
                     break;
                 case DifficultyMode.Hard:
-                    routeUpperFraction = 0.93f;
-                    routeLowerFraction = 0.68f;
+                    blendToBest = 0.5f;
+                    pressure = 0.96f;
+                    floorFractionOfBest = 0.62f;
+                    ceilingFractionOfBest = 0.97f;
                     break;
                 default:
-                    routeUpperFraction = 0.82f;
-                    routeLowerFraction = 0.58f;
+                    blendToBest = 0.32f;
+                    pressure = 0.91f;
+                    floorFractionOfBest = 0.48f;
+                    ceilingFractionOfBest = 0.93f;
                     break;
             }
 
             if (isMiniBoss)
             {
-                routeUpperFraction += 0.04f;
-                routeLowerFraction += 0.03f;
-            }
-
-            routeUpperFraction = Mathf.Clamp(routeUpperFraction, 0.45f, 0.97f);
-            routeLowerFraction = Mathf.Clamp(routeLowerFraction, 0.25f, routeUpperFraction - 0.05f);
-
-            var configuredCeilingFraction = Mathf.Clamp01(enemyMaxFractionOfBestPath + (isMiniBoss ? 0.04f : 0f));
-            routeUpperFraction = Mathf.Min(routeUpperFraction, configuredCeilingFraction);
-
-            var configuredFloorFraction = Mathf.Clamp01(enemyMinFractionOfBestPath * 0.9f);
-            routeLowerFraction = Mathf.Max(routeLowerFraction, configuredFloorFraction);
-
-            if (routeLowerFraction >= routeUpperFraction)
-            {
-                routeLowerFraction = Mathf.Max(0.2f, routeUpperFraction - 0.06f);
-            }
-
-            var routeFloor = Mathf.FloorToInt(safeReference * routeLowerFraction);
-            var routeCeiling = Mathf.FloorToInt(safeReference * routeUpperFraction);
-            routeFloor = Mathf.Max(safeStart + 2, routeFloor);
-            var ceilingMax = Mathf.Max(routeFloor + 1, safeExpectedBest - 1);
-            routeCeiling = Mathf.Clamp(routeCeiling, routeFloor + 1, ceilingMax);
-
-            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.82f);
-            var curvePower = Mathf.Max(1.01f, enemyFormulaPower * 0.96f);
-            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, curvePower) * enemyFormulaPowerMultiplier * 0.16f);
-            var formulaTarget = linearTarget + curvatureBoost;
-
-            if (isMiniBoss)
-            {
-                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.08f) + 6;
+                pressure += 0.02f;
+                floorFractionOfBest += 0.04f;
+                ceilingFractionOfBest += 0.015f;
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.08f) + 8;
             }
 
             if (modifier.tankSurge)
             {
-                formulaTarget += Mathf.RoundToInt(levelIndex * 0.18f);
+                formulaTarget += Mathf.RoundToInt(levelIndex * 0.14f);
             }
 
-            var enemyCount = Mathf.Clamp(formulaTarget, routeFloor, routeCeiling);
+            var routeBlend = Mathf.Lerp(safeReference, safeExpectedBest, Mathf.Clamp01(blendToBest));
+            var skillTarget = Mathf.RoundToInt(routeBlend * Mathf.Clamp(pressure, 0.75f, 1.02f));
+            var baseline = Mathf.Max(safeStart + 2, formulaTarget);
 
-            if (enemyCount >= safeReference)
+            var floorByBest = Mathf.FloorToInt(safeExpectedBest * Mathf.Clamp(floorFractionOfBest, 0.2f, 0.92f));
+            var enemyFloor = Mathf.Max(baseline, floorByBest);
+            var ceilingConfig = Mathf.Min(
+                Mathf.Clamp01(enemyMaxFractionOfBestPath + (isMiniBoss ? 0.04f : 0f)),
+                Mathf.Clamp(ceilingFractionOfBest, 0.5f, 0.99f));
+            var enemyCeiling = Mathf.Max(enemyFloor + 1, Mathf.FloorToInt(safeExpectedBest * ceilingConfig));
+            enemyCeiling = Mathf.Min(enemyCeiling, safeExpectedBest - 1);
+            if (enemyCeiling <= enemyFloor)
             {
-                enemyCount = Mathf.Max(safeStart + 1, safeReference - 1);
+                enemyCeiling = Mathf.Min(safeExpectedBest - 1, enemyFloor + 1);
             }
 
-            return Mathf.Max(5, enemyCount);
+            var target = Mathf.Max(baseline, skillTarget);
+            var enemyCount = Mathf.Clamp(target, enemyFloor, enemyCeiling);
+            var playableCeiling = Mathf.Max(1, safeExpectedBest - 1);
+            return Mathf.Clamp(enemyCount, 1, playableCeiling);
         }
 
         private int BuildTankRequirement(int levelIndex, int expectedBest, int enemyCount, bool isMiniBoss, ModifierState modifier)
@@ -2839,7 +2951,12 @@ namespace MultiplyRush
             return running;
         }
 
-        private static int EstimateRouteReferenceCount(int startCount, List<GateRow> rows, DifficultyRouteProfile routeProfile)
+        private static int EstimateRouteReferenceCount(
+            int startCount,
+            List<GateRow> rows,
+            DifficultyRouteProfile routeProfile,
+            DifficultyMode mode,
+            bool isMiniBoss)
         {
             if (rows == null || rows.Count == 0)
             {
@@ -2851,15 +2968,22 @@ namespace MultiplyRush
             var targetWorse = Mathf.Clamp(routeProfile.worseRows, 0, rowCount - targetBetter);
             var targetRed = Mathf.Max(0, rowCount - targetBetter - targetWorse);
 
-            var current = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
-            var next = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
-            FillStateGrid(current, -1);
-            FillStateGrid(next, -1);
-            current[0, 0, 0] = Mathf.Max(1, startCount);
+            var currentMin = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            var nextMin = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            var currentMax = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            var nextMax = new int[targetBetter + 1, targetWorse + 1, targetRed + 1];
+            FillStateGrid(currentMin, -1);
+            FillStateGrid(nextMin, -1);
+            FillStateGrid(currentMax, -1);
+            FillStateGrid(nextMax, -1);
+            var initial = Mathf.Max(1, startCount);
+            currentMin[0, 0, 0] = initial;
+            currentMax[0, 0, 0] = initial;
 
             for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
             {
-                FillStateGrid(next, -1);
+                FillStateGrid(nextMin, -1);
+                FillStateGrid(nextMax, -1);
                 var row = rows[rowIndex];
                 var betterGate = SelectGateForTier(row, GatePickTier.BetterGood);
                 var worseGate = SelectGateForTier(row, GatePickTier.WorseGood);
@@ -2876,45 +3000,88 @@ namespace MultiplyRush
                                 continue;
                             }
 
-                            var sourceCount = current[betterUsed, worseUsed, redUsed];
-                            if (sourceCount < 0)
+                            var sourceMin = currentMin[betterUsed, worseUsed, redUsed];
+                            var sourceMax = currentMax[betterUsed, worseUsed, redUsed];
+                            if (sourceMin < 0 || sourceMax < 0)
                             {
                                 continue;
                             }
 
                             if (betterUsed < targetBetter)
                             {
-                                var nextCount = ApplyOperation(sourceCount, betterGate.operation, betterGate.value);
-                                UpdateMinState(next, betterUsed + 1, worseUsed, redUsed, nextCount);
+                                var nextMinValue = ApplyOperation(sourceMin, betterGate.operation, betterGate.value);
+                                var nextMaxValue = ApplyOperation(sourceMax, betterGate.operation, betterGate.value);
+                                UpdateMinState(nextMin, betterUsed + 1, worseUsed, redUsed, nextMinValue);
+                                UpdateMaxState(nextMax, betterUsed + 1, worseUsed, redUsed, nextMaxValue);
                             }
 
                             if (worseUsed < targetWorse)
                             {
-                                var nextCount = ApplyOperation(sourceCount, worseGate.operation, worseGate.value);
-                                UpdateMinState(next, betterUsed, worseUsed + 1, redUsed, nextCount);
+                                var nextMinValue = ApplyOperation(sourceMin, worseGate.operation, worseGate.value);
+                                var nextMaxValue = ApplyOperation(sourceMax, worseGate.operation, worseGate.value);
+                                UpdateMinState(nextMin, betterUsed, worseUsed + 1, redUsed, nextMinValue);
+                                UpdateMaxState(nextMax, betterUsed, worseUsed + 1, redUsed, nextMaxValue);
                             }
 
                             if (redUsed < targetRed)
                             {
-                                var nextCount = ApplyOperation(sourceCount, redGate.operation, redGate.value);
-                                UpdateMinState(next, betterUsed, worseUsed, redUsed + 1, nextCount);
+                                var nextMinValue = ApplyOperation(sourceMin, redGate.operation, redGate.value);
+                                var nextMaxValue = ApplyOperation(sourceMax, redGate.operation, redGate.value);
+                                UpdateMinState(nextMin, betterUsed, worseUsed, redUsed + 1, nextMinValue);
+                                UpdateMaxState(nextMax, betterUsed, worseUsed, redUsed + 1, nextMaxValue);
                             }
                         }
                     }
                 }
 
-                var swap = current;
-                current = next;
-                next = swap;
+                var minSwap = currentMin;
+                currentMin = nextMin;
+                nextMin = minSwap;
+                var maxSwap = currentMax;
+                currentMax = nextMax;
+                nextMax = maxSwap;
             }
 
-            var reference = current[targetBetter, targetWorse, targetRed];
-            if (reference > 0)
+            var minReference = currentMin[targetBetter, targetWorse, targetRed];
+            var maxReference = currentMax[targetBetter, targetWorse, targetRed];
+            if (minReference <= 0 && maxReference <= 0)
             {
-                return reference;
+                return Mathf.Max(1, startCount);
             }
 
-            return Mathf.Max(1, startCount);
+            if (minReference <= 0)
+            {
+                minReference = Mathf.Max(1, maxReference);
+            }
+
+            if (maxReference <= 0)
+            {
+                maxReference = Mathf.Max(1, minReference);
+            }
+
+            var bandHigh = Mathf.Max(minReference, maxReference);
+            var bandLow = Mathf.Min(minReference, maxReference);
+            float blend;
+            switch (mode)
+            {
+                case DifficultyMode.Easy:
+                    blend = 0.4f;
+                    break;
+                case DifficultyMode.Hard:
+                    blend = 0.82f;
+                    break;
+                default:
+                    blend = 0.6f;
+                    break;
+            }
+
+            if (isMiniBoss)
+            {
+                blend = Mathf.Clamp01(blend + 0.06f);
+            }
+
+            var reference = Mathf.RoundToInt(Mathf.Lerp(bandLow, bandHigh, Mathf.Clamp01(blend)));
+            return Mathf.Clamp(reference, bandLow, bandHigh);
         }
 
         private static void FillStateGrid(int[,,] grid, int value)
@@ -2935,6 +3102,15 @@ namespace MultiplyRush
         {
             var existing = states[better, worse, red];
             if (existing < 0 || candidate < existing)
+            {
+                states[better, worse, red] = candidate;
+            }
+        }
+
+        private static void UpdateMaxState(int[,,] states, int better, int worse, int red, int candidate)
+        {
+            var existing = states[better, worse, red];
+            if (existing < 0 || candidate > existing)
             {
                 states[better, worse, red] = candidate;
             }
