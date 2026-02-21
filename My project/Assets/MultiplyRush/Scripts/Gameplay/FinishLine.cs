@@ -11,6 +11,8 @@ namespace MultiplyRush
         public TextMesh tankRequirementLabel;
         public float labelPulseAmplitude = 0.08f;
         public float labelPulseSpeed = 2.5f;
+        public Vector3 enemyGroupLocalOffset = new Vector3(0f, 0f, -2.6f);
+        public Vector3 enemyGroupLocalScale = Vector3.one;
 
         private BoxCollider _trigger;
         private bool _isTriggered;
@@ -76,6 +78,10 @@ namespace MultiplyRush
 
             if (enemyGroup != null)
             {
+                enemyGroup.transform.SetParent(transform, false);
+                enemyGroup.transform.localPosition = enemyGroupLocalOffset;
+                enemyGroup.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                enemyGroup.transform.localScale = enemyGroupLocalScale;
                 enemyGroup.SetCount(_enemyCount);
             }
 

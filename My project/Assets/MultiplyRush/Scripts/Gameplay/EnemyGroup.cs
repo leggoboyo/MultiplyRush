@@ -19,12 +19,26 @@ namespace MultiplyRush
         public float bobFrequency = 7.8f;
         public float tiltDegrees = 5f;
 
+        [Header("Weapon VFX")]
+        public bool enableWeaponVfx = true;
+        public float baseShotsPerSecond = 6f;
+        public float shotsPerUnit = 0.3f;
+        public float maxShotsPerSecond = 34f;
+        public float tracerSpeed = 31f;
+        public float tracerLifetime = 0.2f;
+        public float tracerSpread = 0.08f;
+        public Color tracerColor = new Color(1f, 0.5f, 0.38f, 1f);
+
         private readonly List<Transform> _activeUnits = new List<Transform>(120);
         private readonly Stack<Transform> _pool = new Stack<Transform>(120);
         private readonly List<Vector3> _slots = new List<Vector3>(120);
         private readonly List<float> _phaseOffsets = new List<float>(120);
         private Transform _poolRoot;
         private int _count;
+        private bool _combatActive;
+        private Transform _combatTarget;
+        private ParticleSystem _tracerSystem;
+        private float _shotAccumulator;
 
         public int Count => _count;
 
@@ -46,6 +60,7 @@ namespace MultiplyRush
             maxVisibleUnits = Mathf.Min(maxVisibleUnits, 100);
 
             PrewarmPool();
+            EnsureWeaponEffects();
         }
 
         private void Update()
@@ -79,14 +94,48 @@ namespace MultiplyRush
                 unit.localPosition = Vector3.Lerp(unit.localPosition, target, blend);
                 unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * tiltDegrees, 0f, 0f);
             }
+
+            UpdateWeaponEffects(deltaTime);
         }
 
         public void SetCount(int count)
         {
-            _count = Mathf.Max(1, count);
+            SetCountInternal(count, false);
+        }
+
+        public int ApplyBattleLosses(int amount)
+        {
+            var safeAmount = Mathf.Max(0, amount);
+            if (safeAmount <= 0 || _count <= 0)
+            {
+                return 0;
+            }
+
+            var before = _count;
+            SetCountInternal(_count - safeAmount, true);
+            return before - _count;
+        }
+
+        public void BeginCombat(Transform target)
+        {
+            _combatTarget = target;
+            _combatActive = true;
+            _shotAccumulator = 0f;
+        }
+
+        public void EndCombat()
+        {
+            _combatTarget = null;
+            _combatActive = false;
+            _shotAccumulator = 0f;
+        }
+
+        private void SetCountInternal(int count, bool allowZero)
+        {
+            _count = allowZero ? Mathf.Max(0, count) : Mathf.Max(1, count);
             if (countLabel != null)
             {
-                countLabel.text = _count.ToString();
+                countLabel.text = NumberFormatter.ToCompact(_count);
             }
 
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
@@ -172,6 +221,184 @@ namespace MultiplyRush
                 var z = row * spacingZ;
                 _slots[i] = new Vector3(x, 0f, z);
             }
+        }
+
+        private void EnsureWeaponEffects()
+        {
+            if (!enableWeaponVfx || _tracerSystem != null)
+            {
+                return;
+            }
+
+            var tracerObject = new GameObject("EnemyTracerFX");
+            tracerObject.transform.SetParent(transform, false);
+            tracerObject.SetActive(false);
+            _tracerSystem = tracerObject.AddComponent<ParticleSystem>();
+            var renderer = tracerObject.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.renderMode = ParticleSystemRenderMode.Stretch;
+                renderer.lengthScale = 3.2f;
+                renderer.velocityScale = 0.52f;
+                renderer.material = CreateEffectMaterial("EnemyTracerMaterial", tracerColor, 0.18f, 0.9f);
+            }
+
+            ConfigureTracerSystem(_tracerSystem);
+            tracerObject.SetActive(true);
+        }
+
+        private static void ConfigureTracerSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 1f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.25f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(18f, 36f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.045f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.55f, 0.36f, 1f));
+            main.maxParticles = 280;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = false;
+
+            var colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(1f, 0.62f, 0.42f, 1f), 0f),
+                    new GradientColorKey(new Color(1f, 0.35f, 0.22f, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+        }
+
+        private void UpdateWeaponEffects(float deltaTime)
+        {
+            if (!enableWeaponVfx || !_combatActive || _count <= 0 || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            EnsureWeaponEffects();
+            if (_tracerSystem == null)
+            {
+                return;
+            }
+
+            var shotsPerSecond = Mathf.Clamp(
+                baseShotsPerSecond + (_activeUnits.Count * Mathf.Max(0.01f, shotsPerUnit)),
+                1f,
+                Mathf.Max(1f, maxShotsPerSecond));
+            _shotAccumulator += deltaTime * shotsPerSecond;
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_shotAccumulator), 0, 30);
+            if (shotCount <= 0)
+            {
+                return;
+            }
+
+            _shotAccumulator -= shotCount;
+            for (var i = 0; i < shotCount; i++)
+            {
+                if (!TryGetShotPose(out var origin, out var direction))
+                {
+                    continue;
+                }
+
+                direction = (direction + new Vector3(
+                    UnityEngine.Random.Range(-tracerSpread, tracerSpread),
+                    UnityEngine.Random.Range(-tracerSpread * 0.16f, tracerSpread * 0.16f),
+                    0f)).normalized;
+                var emitParams = new ParticleSystem.EmitParams
+                {
+                    position = origin,
+                    velocity = direction * Mathf.Max(4f, tracerSpeed * UnityEngine.Random.Range(0.84f, 1.16f)),
+                    startLifetime = UnityEngine.Random.Range(tracerLifetime * 0.85f, tracerLifetime * 1.2f),
+                    startSize = UnityEngine.Random.Range(0.022f, 0.048f),
+                    startColor = Color.Lerp(tracerColor, Color.white, UnityEngine.Random.value * 0.34f)
+                };
+                _tracerSystem.Emit(emitParams, 1);
+            }
+        }
+
+        private bool TryGetShotPose(out Vector3 origin, out Vector3 direction)
+        {
+            if (_activeUnits.Count > 0)
+            {
+                var unit = _activeUnits[UnityEngine.Random.Range(0, _activeUnits.Count)];
+                if (unit != null)
+                {
+                    origin = unit.TransformPoint(new Vector3(
+                        UnityEngine.Random.Range(-0.03f, 0.03f),
+                        0.5f + UnityEngine.Random.Range(-0.03f, 0.07f),
+                        0.17f + UnityEngine.Random.Range(-0.02f, 0.05f)));
+                    direction = _combatTarget != null
+                        ? (_combatTarget.position + Vector3.up * 0.55f - origin).normalized
+                        : -transform.forward;
+                    return true;
+                }
+            }
+
+            origin = transform.position + Vector3.up * 0.55f;
+            direction = _combatTarget != null
+                ? (_combatTarget.position + Vector3.up * 0.5f - origin).normalized
+                : Vector3.back;
+            return true;
+        }
+
+        private static Material CreateEffectMaterial(string materialName, Color color, float smoothness, float emission)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            var material = new Material(shader)
+            {
+                name = materialName
+            };
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            if (material.HasProperty("_Smoothness"))
+            {
+                material.SetFloat("_Smoothness", Mathf.Clamp01(smoothness));
+            }
+
+            if (material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", color * Mathf.Clamp(emission, 0f, 2f));
+            }
+
+            return material;
         }
 
         private void PrewarmPool()

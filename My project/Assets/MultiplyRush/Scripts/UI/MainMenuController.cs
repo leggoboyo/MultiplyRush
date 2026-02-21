@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -23,6 +24,9 @@ namespace MultiplyRush
         public float buttonPulseScale = 0.08f;
         public float glowDriftSpeed = 0.22f;
         public float scanlineSpeed = 54f;
+        public float playTransitionDuration = 0.45f;
+        public float playZoomScale = 1.12f;
+        public Color transitionFlashColor = new Color(0.3f, 0.84f, 1f, 1f);
 
         [Header("Palette")]
         public Color backgroundTopColor = new Color(0.03f, 0.09f, 0.2f, 1f);
@@ -57,6 +61,8 @@ namespace MultiplyRush
         private Text _taglineText;
         private Text _badgeText;
         private float _scanlineBaseY;
+        private Image _transitionFlashImage;
+        private bool _isStartingGame;
 
         private void Start()
         {
@@ -85,18 +91,31 @@ namespace MultiplyRush
                 StyleBodyText(bestLevelText, 48, true);
             }
 
-            AudioListener.volume = ProgressionStore.GetMasterVolume(0.85f);
+            var audio = AudioDirector.EnsureInstance();
+            audio.RefreshMasterVolume();
+            audio.SetMusicCue(AudioMusicCue.MainMenu, true);
         }
 
         private void Update()
         {
+            if (_isStartingGame)
+            {
+                return;
+            }
+
             AnimateMenu(Time.unscaledTime);
         }
 
         public void Play()
         {
+            if (_isStartingGame)
+            {
+                return;
+            }
+
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 1.04f);
             ProgressionStore.SetDifficultyMode(_selectedDifficulty);
-            SceneManager.LoadScene(gameSceneName);
+            StartCoroutine(PlayTransitionAndLoad());
         }
 
         private void CacheMenuElements()
@@ -315,6 +334,68 @@ namespace MultiplyRush
             _leftGlowRect.SetAsFirstSibling();
             _rightGlowRect.SetAsFirstSibling();
             _scanlineRect.SetAsFirstSibling();
+            EnsureTransitionFlash();
+        }
+
+        private IEnumerator PlayTransitionAndLoad()
+        {
+            _isStartingGame = true;
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.PlayTransition, 0.9f, 1f);
+
+            var playButton = _playButtonRect != null ? _playButtonRect.GetComponent<Button>() : null;
+            if (playButton != null)
+            {
+                playButton.interactable = false;
+            }
+
+            EnsureTransitionFlash();
+            var flashRect = _transitionFlashImage != null ? _transitionFlashImage.rectTransform : null;
+            var startScale = _buttonBaseScale;
+            var startButtonPosition = _buttonBasePosition;
+            var startTitlePosition = _titleRect != null ? _titleRect.anchoredPosition : Vector2.zero;
+            var duration = Mathf.Max(0.12f, playTransitionDuration);
+            var elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                var t = Mathf.Clamp01(elapsed / duration);
+                var eased = 1f - Mathf.Pow(1f - t, 3f);
+
+                if (_transitionFlashImage != null)
+                {
+                    _transitionFlashImage.color = new Color(
+                        transitionFlashColor.r,
+                        transitionFlashColor.g,
+                        transitionFlashColor.b,
+                        Mathf.Lerp(0f, 0.94f, eased));
+                }
+
+                if (flashRect != null)
+                {
+                    var scale = Mathf.Lerp(1.02f, 1.2f, eased);
+                    flashRect.localScale = new Vector3(scale, scale, 1f);
+                }
+
+                if (_playButtonRect != null)
+                {
+                    _playButtonRect.localScale = Vector3.Lerp(startScale, startScale * playZoomScale, eased);
+                    _playButtonRect.anchoredPosition = Vector2.Lerp(
+                        startButtonPosition,
+                        startButtonPosition + new Vector2(0f, 26f),
+                        eased);
+                }
+
+                if (_titleRect != null)
+                {
+                    _titleRect.anchoredPosition = Vector2.Lerp(startTitlePosition, startTitlePosition + new Vector2(0f, 28f), eased);
+                }
+
+                yield return null;
+            }
+
+            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, true);
+            SceneManager.LoadScene(gameSceneName);
         }
 
         private void AnimateMenu(float runTime)
@@ -471,6 +552,12 @@ namespace MultiplyRush
 
         private void SelectDifficulty(DifficultyMode mode)
         {
+            if (_selectedDifficulty == mode)
+            {
+                return;
+            }
+
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.66f, 1.08f);
             _selectedDifficulty = mode;
             ApplyDifficultySelectionVisuals();
         }
@@ -695,6 +782,35 @@ namespace MultiplyRush
             var image = imageObject.GetComponent<Image>();
             image.color = color;
             return image;
+        }
+
+        private void EnsureTransitionFlash()
+        {
+            if (_safeAreaRoot == null)
+            {
+                return;
+            }
+
+            var flash = FindOrCreateImage(
+                _safeAreaRoot,
+                "TransitionFlash",
+                new Color(transitionFlashColor.r, transitionFlashColor.g, transitionFlashColor.b, 0f),
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            if (flash == null)
+            {
+                return;
+            }
+
+            var rect = flash.rectTransform;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            rect.localScale = Vector3.one;
+            flash.raycastTarget = false;
+            flash.transform.SetAsLastSibling();
+            _transitionFlashImage = flash;
         }
 
         private static Text FindOrCreateText(

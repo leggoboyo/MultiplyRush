@@ -305,6 +305,11 @@ namespace MultiplyRush
             return backdropQuality;
         }
 
+        public FinishLine GetActiveFinishLine()
+        {
+            return _activeFinish;
+        }
+
         private void Update()
         {
             AnimateClouds(Time.deltaTime);
@@ -539,7 +544,8 @@ namespace MultiplyRush
                         var xJitter = ((float)random.NextDouble() * 2f - 1f) * 1.25f;
                         block.position = new Vector3(side * (sideX + xJitter + width * 0.4f), (height * 0.5f) - 0.2f, z + zJitter);
                         block.rotation = Quaternion.identity;
-                        block.localScale = new Vector3(width, height, depth);
+                        block.localScale = Vector3.one;
+                        ConfigureBackdropGeometry(block, width, height, depth, random);
                         block.gameObject.SetActive(true);
                         _activeBackdropBlocks.Add(block);
                     }
@@ -572,7 +578,8 @@ namespace MultiplyRush
                 var baseScale = Mathf.Lerp(2.5f, 5.8f, (float)random.NextDouble());
                 cloud.position = new Vector3(x, y, z);
                 cloud.rotation = Quaternion.identity;
-                cloud.localScale = new Vector3(baseScale * 1.9f, baseScale * 0.56f, baseScale);
+                cloud.localScale = Vector3.one;
+                ConfigureCloudGeometry(cloud, baseScale, random);
                 cloud.gameObject.SetActive(true);
                 _activeClouds.Add(cloud);
 
@@ -840,25 +847,20 @@ namespace MultiplyRush
 
         private Transform CreateBackdropBlock()
         {
-            var block = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            block.name = "BackdropBlock";
-            block.transform.SetParent(_backdropRoot, false);
-            var collider = block.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
+            var blockRoot = new GameObject("BackdropBlock");
+            blockRoot.transform.SetParent(_backdropRoot, false);
 
-            var renderer = block.GetComponent<MeshRenderer>();
-            if (renderer != null)
-            {
-                renderer.sharedMaterial = GetBackdropMaterial();
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-            }
+            CreateBackdropPart(blockRoot.transform, "Base", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Mid", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Top", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "WingLeft", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "WingRight", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "NeonBand", PrimitiveType.Cube, GetBeaconCoreMaterial());
+            CreateBackdropPart(blockRoot.transform, "RoofCap", PrimitiveType.Cylinder, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Antenna", PrimitiveType.Cube, GetBeaconPoleMaterial());
 
-            block.SetActive(false);
-            return block.transform;
+            blockRoot.SetActive(false);
+            return blockRoot.transform;
         }
 
         private Transform GetCloud()
@@ -883,25 +885,30 @@ namespace MultiplyRush
 
         private Transform CreateCloud()
         {
-            var cloud = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            cloud.name = "BackdropCloud";
-            cloud.transform.SetParent(_cloudRoot, false);
-            var collider = cloud.GetComponent<Collider>();
-            if (collider != null)
+            var cloudRoot = new GameObject("BackdropCloud");
+            cloudRoot.transform.SetParent(_cloudRoot, false);
+            for (var i = 0; i < 7; i++)
             {
-                Destroy(collider);
+                var lobe = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                lobe.name = "Lobe" + i;
+                lobe.transform.SetParent(cloudRoot.transform, false);
+                var collider = lobe.GetComponent<Collider>();
+                if (collider != null)
+                {
+                    Destroy(collider);
+                }
+
+                var renderer = lobe.GetComponent<MeshRenderer>();
+                if (renderer != null)
+                {
+                    renderer.sharedMaterial = GetCloudMaterial();
+                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                }
             }
 
-            var renderer = cloud.GetComponent<MeshRenderer>();
-            if (renderer != null)
-            {
-                renderer.sharedMaterial = GetCloudMaterial();
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-            }
-
-            cloud.SetActive(false);
-            return cloud.transform;
+            cloudRoot.SetActive(false);
+            return cloudRoot.transform;
         }
 
         private Transform CreateBeacon()
@@ -968,6 +975,175 @@ namespace MultiplyRush
             {
                 core.localPosition = new Vector3(0f, safeHeight + 0.08f, 0f);
                 core.localScale = Vector3.one * safeCoreScale;
+            }
+        }
+
+        private static Transform CreateBackdropPart(Transform parent, string name, PrimitiveType primitiveType, Material material)
+        {
+            var part = GameObject.CreatePrimitive(primitiveType);
+            part.name = name;
+            part.transform.SetParent(parent, false);
+
+            var collider = part.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Destroy(collider);
+            }
+
+            var renderer = part.GetComponent<MeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+            }
+
+            return part.transform;
+        }
+
+        private void ConfigureBackdropGeometry(Transform root, float width, float height, float depth, System.Random random)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
+            var safeWidth = Mathf.Max(0.8f, width);
+            var safeHeight = Mathf.Max(1.2f, height);
+            var safeDepth = Mathf.Max(0.8f, depth);
+            var wingWidth = safeWidth * Mathf.Lerp(0.28f, 0.4f, (float)random.NextDouble());
+            var wingHeight = safeHeight * Mathf.Lerp(0.35f, 0.58f, (float)random.NextDouble());
+            var wingDepth = safeDepth * Mathf.Lerp(0.28f, 0.45f, (float)random.NextDouble());
+
+            var basePart = root.Find("Base");
+            if (basePart != null)
+            {
+                basePart.gameObject.SetActive(true);
+                basePart.localPosition = new Vector3(0f, 0f, 0f);
+                basePart.localScale = new Vector3(safeWidth, safeHeight, safeDepth);
+            }
+
+            var useMedium = quality == BackdropQuality.Medium || quality == BackdropQuality.High;
+            var useHigh = quality == BackdropQuality.High;
+
+            var midPart = root.Find("Mid");
+            if (midPart != null)
+            {
+                midPart.gameObject.SetActive(useMedium);
+                if (useMedium)
+                {
+                    midPart.localPosition = new Vector3(0f, safeHeight * 0.14f, safeDepth * -0.04f);
+                    midPart.localScale = new Vector3(safeWidth * 0.74f, safeHeight * 0.66f, safeDepth * 0.72f);
+                }
+            }
+
+            var topPart = root.Find("Top");
+            if (topPart != null)
+            {
+                topPart.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    topPart.localPosition = new Vector3(0f, safeHeight * 0.35f, 0f);
+                    topPart.localScale = new Vector3(safeWidth * 0.48f, safeHeight * 0.34f, safeDepth * 0.5f);
+                }
+            }
+
+            var wingLeft = root.Find("WingLeft");
+            if (wingLeft != null)
+            {
+                wingLeft.gameObject.SetActive(useMedium);
+                if (useMedium)
+                {
+                    wingLeft.localPosition = new Vector3(-(safeWidth * 0.52f), -(safeHeight * 0.1f), safeDepth * 0.06f);
+                    wingLeft.localScale = new Vector3(wingWidth, wingHeight, wingDepth);
+                }
+            }
+
+            var wingRight = root.Find("WingRight");
+            if (wingRight != null)
+            {
+                wingRight.gameObject.SetActive(useMedium);
+                if (useMedium)
+                {
+                    wingRight.localPosition = new Vector3(safeWidth * 0.52f, -(safeHeight * 0.08f), -safeDepth * 0.04f);
+                    wingRight.localScale = new Vector3(wingWidth * 0.95f, wingHeight * 0.9f, wingDepth * 1.04f);
+                }
+            }
+
+            var neonBand = root.Find("NeonBand");
+            if (neonBand != null)
+            {
+                neonBand.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    neonBand.localPosition = new Vector3(0f, safeHeight * 0.08f, safeDepth * 0.44f);
+                    neonBand.localScale = new Vector3(safeWidth * 0.84f, Mathf.Max(0.08f, safeHeight * 0.04f), Mathf.Max(0.05f, safeDepth * 0.05f));
+                }
+            }
+
+            var roofCap = root.Find("RoofCap");
+            if (roofCap != null)
+            {
+                roofCap.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    roofCap.localPosition = new Vector3(0f, safeHeight * 0.52f, 0f);
+                    roofCap.localScale = new Vector3(safeWidth * 0.36f, Mathf.Max(0.08f, safeHeight * 0.05f), safeDepth * 0.36f);
+                }
+            }
+
+            var antenna = root.Find("Antenna");
+            if (antenna != null)
+            {
+                antenna.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    antenna.localPosition = new Vector3(
+                        (float)(random.NextDouble() < 0.5 ? -1f : 1f) * safeWidth * 0.16f,
+                        safeHeight * 0.74f,
+                        safeDepth * -0.08f);
+                    antenna.localScale = new Vector3(0.06f, safeHeight * 0.36f, 0.06f);
+                }
+            }
+        }
+
+        private void ConfigureCloudGeometry(Transform root, float baseScale, System.Random random)
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
+            var safeScale = Mathf.Max(1f, baseScale);
+            var baseWidth = safeScale * 1.8f;
+            var baseHeight = safeScale * 0.54f;
+            var baseDepth = safeScale * 1f;
+            root.localScale = new Vector3(baseWidth, baseHeight, baseDepth);
+
+            for (var i = 0; i < 7; i++)
+            {
+                var lobe = root.Find("Lobe" + i);
+                if (lobe == null)
+                {
+                    continue;
+                }
+
+                var active = quality == BackdropQuality.High || i < (quality == BackdropQuality.Medium ? 5 : 2);
+                lobe.gameObject.SetActive(active);
+                if (!active)
+                {
+                    continue;
+                }
+
+                var normalized = i / 6f;
+                var x = Mathf.Lerp(-0.42f, 0.42f, normalized) + ((float)random.NextDouble() - 0.5f) * 0.08f;
+                var y = Mathf.Sin(normalized * Mathf.PI) * 0.1f + ((float)random.NextDouble() - 0.5f) * 0.05f;
+                var z = ((float)random.NextDouble() - 0.5f) * 0.22f;
+                var lobeScale = 0.52f + Mathf.Sin(normalized * Mathf.PI) * 0.44f + ((float)random.NextDouble() - 0.5f) * 0.14f;
+                lobe.localPosition = new Vector3(x, y, z);
+                lobe.localScale = Vector3.one * Mathf.Max(0.28f, lobeScale);
             }
         }
 
@@ -1078,7 +1254,8 @@ namespace MultiplyRush
                 return;
             }
 
-            var count = Mathf.Max(0, backdropPoolSize);
+            var density = Mathf.Clamp(GetBackdropDensityMultiplier(), 0.45f, 1.25f);
+            var count = Mathf.RoundToInt(Mathf.Max(0, backdropPoolSize) * density);
             for (var i = 0; i < count; i++)
             {
                 var block = CreateBackdropBlock();
@@ -1095,7 +1272,8 @@ namespace MultiplyRush
                 return;
             }
 
-            var count = Mathf.Max(0, cloudPoolSize);
+            var density = Mathf.Clamp(GetBackdropDensityMultiplier(), 0.45f, 1.25f);
+            var count = Mathf.RoundToInt(Mathf.Max(0, cloudPoolSize) * Mathf.Lerp(0.66f, 1f, density));
             for (var i = 0; i < count; i++)
             {
                 var cloud = CreateCloud();
@@ -1247,7 +1425,7 @@ namespace MultiplyRush
             railColor = ScaleColor(theme.railColor, 0.96f + (bandProgress * 0.05f));
             backdropColor = ScaleColor(theme.backdropColor, 0.94f + (bandProgress * 0.08f));
             cloudColor = theme.cloudColor;
-            cloudColor.a = 0.9f;
+            cloudColor.a = 1f;
             beaconPoleColor = ScaleColor(theme.beaconPoleColor, 0.95f + (bandProgress * 0.04f));
             beaconCoreColor = ScaleColor(theme.beaconCoreColor, 1f + (bandProgress * 0.12f));
 
@@ -2450,12 +2628,13 @@ namespace MultiplyRush
         {
             var safeLevel = Mathf.Max(1, levelIndex);
             var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear);
-            var curvatureBoost = Mathf.RoundToInt(Mathf.Sqrt(safeLevel) * enemyFormulaPowerMultiplier * 1.35f);
+            // Keep scaling predictable over endless play while still introducing mild curvature.
+            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, enemyFormulaPower) * enemyFormulaPowerMultiplier * 0.42f);
             var formulaTarget = linearTarget + curvatureBoost;
 
             if (isMiniBoss)
             {
-                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.16f) + 10;
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.14f) + 8;
             }
 
             if (modifier.tankSurge)

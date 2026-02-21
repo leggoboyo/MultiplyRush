@@ -107,6 +107,8 @@ namespace MultiplyRush
         private ParticleSystem _weaponFlashSystem;
         private Transform _weaponMuzzle;
         private float _weaponShotAccumulator;
+        private bool _combatActive;
+        private Transform _combatTarget;
         private int _betterGateHits;
         private int _worseGateHits;
         private int _redGateHits;
@@ -118,6 +120,7 @@ namespace MultiplyRush
         public int Count => _count;
         public float Progress01 => _progress01;
         public bool IsRunning => _isRunning;
+        public bool IsCombatActive => _combatActive;
 
         private void Awake()
         {
@@ -142,6 +145,14 @@ namespace MultiplyRush
             _leaderVisual = transform.Find("LeaderVisual");
             if (_leaderVisual != null)
             {
+                UnitVisualFactory.ApplySoldierVisual(_leaderVisual, false);
+                var leaderModel = _leaderVisual.Find("SoldierModel");
+                if (leaderModel != null)
+                {
+                    leaderModel.localScale = Vector3.one * 1.28f;
+                    leaderModel.localPosition = new Vector3(0f, -0.04f, 0.03f);
+                }
+
                 _leaderBaseScale = _leaderVisual.localScale;
                 _leaderBaseLocalPosition = _leaderVisual.localPosition;
             }
@@ -288,6 +299,8 @@ namespace MultiplyRush
             _laneTimeCenter = 0f;
             _laneTimeRight = 0f;
             _weaponShotAccumulator = 0f;
+            _combatActive = false;
+            _combatTarget = null;
             _betterGateHits = 0;
             _worseGateHits = 0;
             _redGateHits = 0;
@@ -299,6 +312,34 @@ namespace MultiplyRush
         public void StopRun()
         {
             _isRunning = false;
+        }
+
+        public void BeginCombat(Transform target)
+        {
+            _isRunning = false;
+            _combatActive = true;
+            _combatTarget = target;
+            _weaponShotAccumulator = 0f;
+        }
+
+        public void EndCombat()
+        {
+            _combatActive = false;
+            _combatTarget = null;
+            _weaponShotAccumulator = 0f;
+        }
+
+        public int ApplyBattleLosses(int amount)
+        {
+            var safeAmount = Mathf.Max(0, amount);
+            if (safeAmount <= 0 || _count <= 0)
+            {
+                return 0;
+            }
+
+            var before = _count;
+            SetCount(_count - safeAmount, true);
+            return before - _count;
         }
 
         public void ApplyGate(GateOperation operation, int value)
@@ -333,6 +374,10 @@ namespace MultiplyRush
             }
 
             SetCount(next);
+            AudioDirector.Instance?.PlaySfx(
+                IsNegativeGate(operation) ? AudioSfxCue.GateNegative : AudioSfxCue.GatePositive,
+                0.78f,
+                UnityEngine.Random.Range(0.92f, 1.12f));
             TriggerGatePunch(IsNegativeGate(operation)
                 ? new Color(1f, 0.52f, 0.44f, 1f)
                 : new Color(0.38f, 1f, 0.48f, 1f));
@@ -403,9 +448,9 @@ namespace MultiplyRush
             FinishReached?.Invoke(enemyCount);
         }
 
-        private void SetCount(int value)
+        private void SetCount(int value, bool allowZero = false)
         {
-            _count = Mathf.Max(minCount, value);
+            _count = allowZero ? Mathf.Max(0, value) : Mathf.Max(minCount, value);
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
 
             while (_activeUnits.Count < targetVisible)
@@ -523,7 +568,7 @@ namespace MultiplyRush
                     continue;
                 }
 
-                if (_isRunning)
+                if (_isRunning || _combatActive)
                 {
                     var phase = runTime * runBobFrequency + _unitPhaseOffsets[i];
                     slot.y += Mathf.Sin(phase) * runBobAmplitude;
@@ -552,7 +597,7 @@ namespace MultiplyRush
             _leaderTilt = Mathf.Lerp(_leaderTilt, tiltTarget, tiltBlend);
 
             var localPosition = _leaderBaseLocalPosition;
-            if (_isRunning)
+            if (_isRunning || _combatActive)
             {
                 localPosition.y += Mathf.Sin(Time.time * runBobFrequency * 0.9f) * leaderBobAmplitude;
             }
@@ -560,7 +605,7 @@ namespace MultiplyRush
             _leaderVisual.localPosition = localPosition;
             _leaderVisual.localRotation = Quaternion.Euler(0f, 0f, _leaderTilt);
 
-            var pulse = _isRunning ? 1f + Mathf.Sin(Time.time * runBobFrequency * 1.2f) * leaderScalePulse : 1f;
+            var pulse = (_isRunning || _combatActive) ? 1f + Mathf.Sin(Time.time * runBobFrequency * 1.2f) * leaderScalePulse : 1f;
             _leaderVisual.localScale = _leaderBaseScale * (pulse * EvaluateGatePunchScale());
         }
 
@@ -813,9 +858,9 @@ namespace MultiplyRush
             if (_weaponFlashSystem == null)
             {
                 var flashObject = new GameObject("WeaponFlashFX");
-                flashObject.transform.SetParent(_weaponMuzzle, false);
-                flashObject.transform.localPosition = Vector3.zero;
-                flashObject.transform.localRotation = Quaternion.identity;
+                flashObject.transform.SetParent(transform, false);
+                flashObject.transform.position = _weaponMuzzle != null ? _weaponMuzzle.position : transform.position;
+                flashObject.transform.rotation = Quaternion.identity;
                 flashObject.SetActive(false);
                 _weaponFlashSystem = flashObject.AddComponent<ParticleSystem>();
                 var flashRenderer = flashObject.GetComponent<ParticleSystemRenderer>();
@@ -905,17 +950,13 @@ namespace MultiplyRush
             main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.14f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.84f, 0.32f, 1f));
             main.maxParticles = 64;
-            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
 
             var emission = particleSystem.emission;
             emission.enabled = false;
 
             var shape = particleSystem.shape;
-            shape.enabled = true;
-            shape.shapeType = ParticleSystemShapeType.Cone;
-            shape.radius = 0.02f;
-            shape.angle = 8f;
-            shape.length = 0.04f;
+            shape.enabled = false;
 
             var sizeOverLifetime = particleSystem.sizeOverLifetime;
             sizeOverLifetime.enabled = true;
@@ -928,23 +969,24 @@ namespace MultiplyRush
 
         private void UpdateWeaponEffects(float deltaTime)
         {
-            if (!enableWeaponVfx || !_isRunning)
+            if (!enableWeaponVfx || (!_isRunning && !_combatActive))
             {
                 return;
             }
 
             EnsureWeaponEffects();
-            if (_weaponMuzzle == null || _weaponTracerSystem == null)
+            if (_weaponTracerSystem == null)
             {
                 return;
             }
 
+            var activeVisualUnits = Mathf.Max(1, _activeUnits.Count);
             var shotsPerSecond = Mathf.Clamp(
-                baseShotsPerSecond + (Mathf.Sqrt(Mathf.Max(1f, _count)) * Mathf.Max(0f, shotsPerVisibleUnit)),
+                baseShotsPerSecond + (Mathf.Sqrt(Mathf.Max(1f, _count)) * Mathf.Max(0f, shotsPerVisibleUnit)) + (activeVisualUnits * 0.05f),
                 1f,
                 Mathf.Max(1f, maxShotsPerSecond));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
-            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, 28);
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, 32);
             if (shotCount <= 0)
             {
                 return;
@@ -953,16 +995,21 @@ namespace MultiplyRush
             _weaponShotAccumulator -= shotCount;
             for (var i = 0; i < shotCount; i++)
             {
+                if (!TryGetWeaponEmissionPose(out var emitPosition, out var emitDirection))
+                {
+                    continue;
+                }
+
                 var jitter = new Vector3(
                     UnityEngine.Random.Range(-tracerMuzzleJitter, tracerMuzzleJitter),
                     UnityEngine.Random.Range(-tracerMuzzleJitter * 0.35f, tracerMuzzleJitter * 0.35f),
                     UnityEngine.Random.Range(-0.02f, 0.04f));
-                var emitPosition = _weaponMuzzle.position + jitter;
-                var direction = (Vector3.forward + new Vector3(
+                emitPosition += jitter;
+                emitDirection = (emitDirection + new Vector3(
                     UnityEngine.Random.Range(-tracerSpread, tracerSpread),
                     UnityEngine.Random.Range(-tracerSpread * 0.2f, tracerSpread * 0.2f),
                     0f)).normalized;
-                var emitVelocity = direction * Mathf.Max(4f, tracerSpeed * UnityEngine.Random.Range(0.84f, 1.18f));
+                var emitVelocity = emitDirection * Mathf.Max(4f, tracerSpeed * UnityEngine.Random.Range(0.84f, 1.18f));
 
                 var emitParams = new ParticleSystem.EmitParams
                 {
@@ -978,8 +1025,58 @@ namespace MultiplyRush
 
             if (_weaponFlashSystem != null)
             {
-                _weaponFlashSystem.Emit(Mathf.Clamp(1 + (shotCount / 5), 1, 5));
+                for (var i = 0; i < Mathf.Clamp(1 + (shotCount / 6), 1, 7); i++)
+                {
+                    if (!TryGetWeaponEmissionPose(out var flashPosition, out var flashDirection))
+                    {
+                        continue;
+                    }
+
+                    var flashParams = new ParticleSystem.EmitParams
+                    {
+                        position = flashPosition,
+                        velocity = flashDirection * 0.35f,
+                        startLifetime = UnityEngine.Random.Range(0.03f, 0.08f),
+                        startSize = UnityEngine.Random.Range(0.045f, 0.1f),
+                        startColor = new Color(1f, 0.84f, 0.32f, 1f)
+                    };
+                    _weaponFlashSystem.Emit(flashParams, 1);
+                }
             }
+        }
+
+        private bool TryGetWeaponEmissionPose(out Vector3 position, out Vector3 direction)
+        {
+            direction = transform.forward;
+            if (_combatTarget != null)
+            {
+                direction = (_combatTarget.position + Vector3.up * 0.55f) - transform.position;
+            }
+
+            if (_activeUnits.Count > 0)
+            {
+                var unit = _activeUnits[UnityEngine.Random.Range(0, _activeUnits.Count)];
+                if (unit != null)
+                {
+                    position = unit.TransformPoint(new Vector3(
+                        UnityEngine.Random.Range(-0.03f, 0.03f),
+                        0.5f + UnityEngine.Random.Range(-0.03f, 0.08f),
+                        0.18f + UnityEngine.Random.Range(-0.02f, 0.05f)));
+                    direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
+                    return true;
+                }
+            }
+
+            if (_weaponMuzzle != null)
+            {
+                position = _weaponMuzzle.position;
+                direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
+                return true;
+            }
+
+            position = transform.position + Vector3.up * 0.55f + transform.forward * 0.18f;
+            direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
+            return true;
         }
 
         private void AnimateGateEffects(float deltaTime)

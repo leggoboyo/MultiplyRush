@@ -59,7 +59,7 @@ namespace MultiplyRush
                 levelText.horizontalOverflow = HorizontalWrapMode.Wrap;
                 levelText.verticalOverflow = VerticalWrapMode.Overflow;
                 var levelRect = levelText.rectTransform;
-                levelRect.sizeDelta = new Vector2(980f, 132f);
+                levelRect.sizeDelta = new Vector2(860f, 112f);
                 levelRect.anchoredPosition = new Vector2(24f, -50f);
             }
             SetNonInteractive(levelText);
@@ -292,11 +292,9 @@ namespace MultiplyRush
             var bossTag = _isMiniBossLevel ? " • Mini-Boss" : string.Empty;
             var modeLabel = GetModeLabel(_difficultyMode);
             levelText.text =
-                "Level " + Mathf.Max(1, _levelIndex) + bossTag +
-                "\nMode: " + modeLabel +
-                " • " + CleanModifierName(_modifierName) +
-                " • Kits: " + _reinforcementKits +
-                " • Shields: " + _shieldCharges;
+                "Level " + Mathf.Max(1, _levelIndex) + bossTag + " • " + modeLabel +
+                "\nKits " + _reinforcementKits + " • Shields " + _shieldCharges +
+                " • " + CleanModifierName(_modifierName);
         }
 
         private static string CleanModifierName(string modifierName)

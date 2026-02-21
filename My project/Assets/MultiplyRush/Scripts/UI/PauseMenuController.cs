@@ -56,6 +56,7 @@ namespace MultiplyRush
         private float _overlayAlpha;
         private BackdropQuality _selectedQuality = BackdropQuality.Auto;
         private bool _fallbackPointerWasDown;
+        private Vector2 _lastSafeAreaSize = Vector2.zero;
 
         public bool IsPaused => _isPaused;
 
@@ -124,6 +125,7 @@ namespace MultiplyRush
 #endif
 
             HandlePauseTapFallback();
+            RefreshResponsiveLayout();
             AnimatePauseButton(Time.unscaledTime);
             AnimateOverlay(Time.unscaledDeltaTime, Time.unscaledTime);
         }
@@ -151,6 +153,7 @@ namespace MultiplyRush
                 return;
             }
 
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.62f, 1.06f);
             SetPaused(!_isPaused, false);
         }
 
@@ -203,6 +206,7 @@ namespace MultiplyRush
                 return;
             }
 
+            var changed = _isPaused != paused;
             _isPaused = paused;
 
             if (_overlayRect != null && paused)
@@ -219,6 +223,17 @@ namespace MultiplyRush
             if (_pauseButton != null)
             {
                 _pauseButton.interactable = _canPause && !paused;
+            }
+
+            if (changed && paused)
+            {
+                AudioDirector.Instance?.PlaySfx(AudioSfxCue.PauseOpen, 0.74f, 1f);
+                AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Pause, false);
+            }
+            else if (changed)
+            {
+                AudioDirector.Instance?.PlaySfx(AudioSfxCue.PauseClose, 0.62f, 1.06f);
+                AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
             }
 
             Time.timeScale = paused ? 0f : 1f;
@@ -322,11 +337,13 @@ namespace MultiplyRush
 
         private void HandleResumePressed()
         {
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.74f, 1.04f);
             SetPaused(false, false);
         }
 
         private void HandleRestartPressed()
         {
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.76f, 0.98f);
             SetPaused(false, true);
             if (_gameManager != null)
             {
@@ -336,6 +353,7 @@ namespace MultiplyRush
 
         private void HandleMainMenuPressed()
         {
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 0.94f);
             SetPaused(false, true);
             SceneManager.LoadScene(mainMenuSceneName);
         }
@@ -350,6 +368,7 @@ namespace MultiplyRush
             var safeValue = Mathf.Clamp01(value);
             AudioListener.volume = safeValue;
             ProgressionStore.SetMasterVolume(safeValue);
+            AudioDirector.Instance?.RefreshMasterVolume();
             RefreshVolumeLabel(safeValue);
         }
 
@@ -372,6 +391,12 @@ namespace MultiplyRush
 
         private void SelectGraphicsQuality(BackdropQuality quality)
         {
+            if (_selectedQuality == quality)
+            {
+                return;
+            }
+
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.58f, 1.08f);
             _selectedQuality = quality;
             ProgressionStore.SetGraphicsFidelity(_selectedQuality);
             if (_levelGenerator != null)
@@ -389,6 +414,7 @@ namespace MultiplyRush
             _selectedQuality = ProgressionStore.GetGraphicsFidelity(BackdropQuality.Auto);
 
             AudioListener.volume = volume;
+            AudioDirector.Instance?.RefreshMasterVolume();
 
             if (_cameraFollower != null)
             {
@@ -552,6 +578,7 @@ namespace MultiplyRush
         {
             EnsurePauseButton();
             EnsureOverlay();
+            RefreshResponsiveLayout(true);
         }
 
         private void EnsurePauseButton()
@@ -850,6 +877,44 @@ namespace MultiplyRush
             _scanlineRect.SetAsLastSibling();
 
             _overlayRect.gameObject.SetActive(false);
+        }
+
+        private void RefreshResponsiveLayout(bool force = false)
+        {
+            if (_safeAreaRoot == null || _panelRect == null || _pauseButtonRect == null)
+            {
+                return;
+            }
+
+            var safeSize = _safeAreaRoot.rect.size;
+            if (!force && (safeSize - _lastSafeAreaSize).sqrMagnitude < 1f)
+            {
+                return;
+            }
+
+            _lastSafeAreaSize = safeSize;
+            var width = Mathf.Max(320f, safeSize.x);
+            var height = Mathf.Max(520f, safeSize.y);
+
+            var buttonSize = Mathf.Clamp(Mathf.Min(width, height) * 0.11f, 72f, 108f);
+            var marginX = Mathf.Clamp(width * 0.028f, 18f, 32f);
+            var marginY = Mathf.Clamp(height * 0.022f, 16f, 34f);
+            _pauseButtonRect.sizeDelta = new Vector2(buttonSize, buttonSize);
+            _pauseButtonRect.anchoredPosition = new Vector2(-marginX, -marginY);
+
+            var panelScaleX = (width - 60f) / 840f;
+            var panelScaleY = (height - 86f) / 1260f;
+            var panelScale = Mathf.Clamp(Mathf.Min(1f, panelScaleX, panelScaleY), 0.62f, 1f);
+            _panelBaseScale = Vector3.one * panelScale;
+
+            if (_isPaused)
+            {
+                ApplyOverlayVisuals(Time.unscaledTime);
+            }
+            else if (_overlayRect != null && _overlayRect.gameObject.activeInHierarchy)
+            {
+                _panelRect.localScale = _panelBaseScale * panelHiddenScale;
+            }
         }
 
         private Button EnsureActionButton(RectTransform parent, string name, string label, Vector2 anchoredPosition, Color color)

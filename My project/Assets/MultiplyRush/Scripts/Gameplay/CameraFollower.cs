@@ -12,14 +12,14 @@ namespace MultiplyRush
         public float baseFieldOfView = 58f;
         public float maxFieldOfView = 66f;
         public float speedForMaxFov = 14f;
-        public float rollByLateralVelocity = 0.08f;
-        public float maxRollDegrees = 0.62f;
+        public float rollByLateralVelocity = 0.045f;
+        public float maxRollDegrees = 0.34f;
         public float speedLookAhead = 1.8f;
-        public float horizontalFollowFactor = 0.44f;
-        public float horizontalLookFactor = 0.24f;
-        public float maxHorizontalCameraOffset = 1.6f;
+        public float horizontalFollowFactor = 0.33f;
+        public float horizontalLookFactor = 0.17f;
+        public float maxHorizontalCameraOffset = 1.18f;
         [Range(0f, 1f)]
-        public float minimumMotionIntensity = 0.1f;
+        public float minimumMotionIntensity = 0.04f;
 
         private Camera _camera;
         private Vector3 _smoothedLookOffset;
@@ -42,12 +42,12 @@ namespace MultiplyRush
             }
 
             _smoothedLookOffset = lookOffset;
-            rollByLateralVelocity = Mathf.Clamp(rollByLateralVelocity, 0.01f, 0.1f);
-            maxRollDegrees = Mathf.Clamp(maxRollDegrees, 0.2f, 0.9f);
+            rollByLateralVelocity = Mathf.Clamp(rollByLateralVelocity, 0.008f, 0.08f);
+            maxRollDegrees = Mathf.Clamp(maxRollDegrees, 0.12f, 0.65f);
             speedLookAhead = Mathf.Clamp(speedLookAhead, 0.6f, 2f);
-            horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.26f, 0.5f);
-            horizontalLookFactor = Mathf.Clamp(horizontalLookFactor, 0.12f, 0.3f);
-            maxHorizontalCameraOffset = Mathf.Clamp(maxHorizontalCameraOffset, 0.9f, 1.9f);
+            horizontalFollowFactor = Mathf.Clamp(horizontalFollowFactor, 0.18f, 0.42f);
+            horizontalLookFactor = Mathf.Clamp(horizontalLookFactor, 0.08f, 0.24f);
+            maxHorizontalCameraOffset = Mathf.Clamp(maxHorizontalCameraOffset, 0.65f, 1.45f);
             _baseRollByLateralVelocity = rollByLateralVelocity;
             _baseMaxRollDegrees = maxRollDegrees;
             _baseHorizontalFollowFactor = horizontalFollowFactor;
@@ -120,11 +120,11 @@ namespace MultiplyRush
             _motionIntensity = Mathf.Clamp01(intensity01);
             var intensity = Mathf.Lerp(minimumMotionIntensity, 1f, _motionIntensity);
 
-            rollByLateralVelocity = _baseRollByLateralVelocity * Mathf.Lerp(0.2f, 1f, intensity);
-            maxRollDegrees = _baseMaxRollDegrees * Mathf.Lerp(0.22f, 1f, intensity);
-            horizontalFollowFactor = _baseHorizontalFollowFactor * Mathf.Lerp(0.35f, 1f, intensity);
-            horizontalLookFactor = _baseHorizontalLookFactor * Mathf.Lerp(0.32f, 1f, intensity);
-            maxHorizontalCameraOffset = _baseMaxHorizontalCameraOffset * Mathf.Lerp(0.4f, 1f, intensity);
+            rollByLateralVelocity = _baseRollByLateralVelocity * Mathf.Lerp(0.14f, 1f, intensity);
+            maxRollDegrees = _baseMaxRollDegrees * Mathf.Lerp(0.16f, 1f, intensity);
+            horizontalFollowFactor = _baseHorizontalFollowFactor * Mathf.Lerp(0.28f, 1f, intensity);
+            horizontalLookFactor = _baseHorizontalLookFactor * Mathf.Lerp(0.25f, 1f, intensity);
+            maxHorizontalCameraOffset = _baseMaxHorizontalCameraOffset * Mathf.Lerp(0.32f, 1f, intensity);
         }
 
         public float GetMotionIntensity01()

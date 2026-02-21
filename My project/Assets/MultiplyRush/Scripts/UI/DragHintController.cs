@@ -23,7 +23,7 @@ namespace MultiplyRush
         {
             if (hintText != null && string.IsNullOrWhiteSpace(hintText.text))
             {
-                hintText.text = "Drag left/right to steer";
+                hintText.text = "Drag to steer • Green gates help • Red gates hurt";
             }
 
             var wasDismissed = PlayerPrefs.GetInt(DragHintDismissedKey, 0) == 1;

@@ -59,13 +59,21 @@ namespace MultiplyRush
             if (retryButton != null)
             {
                 retryButton.onClick.RemoveAllListeners();
-                retryButton.onClick.AddListener(() => OnRetryRequested?.Invoke());
+                retryButton.onClick.AddListener(() =>
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.82f, 0.98f);
+                    OnRetryRequested?.Invoke();
+                });
             }
 
             if (nextButton != null)
             {
                 nextButton.onClick.RemoveAllListeners();
-                nextButton.onClick.AddListener(() => OnNextRequested?.Invoke());
+                nextButton.onClick.AddListener(() =>
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.84f, 1.02f);
+                    OnNextRequested?.Invoke();
+                });
             }
 
             _canvasGroup = rootPanel.GetComponent<CanvasGroup>();
@@ -164,6 +172,31 @@ namespace MultiplyRush
                     enemyCount,
                     tankRequirement,
                     extraDetail);
+                var lineCount = 1;
+                var detail = detailText.text;
+                for (var i = 0; i < detail.Length; i++)
+                {
+                    if (detail[i] == '\n')
+                    {
+                        lineCount++;
+                    }
+                }
+
+                if (lineCount > 12)
+                {
+                    detailText.fontSize = 27;
+                    detailText.lineSpacing = 1.02f;
+                }
+                else if (lineCount > 9)
+                {
+                    detailText.fontSize = 30;
+                    detailText.lineSpacing = 1.05f;
+                }
+                else
+                {
+                    detailText.fontSize = 33;
+                    detailText.lineSpacing = 1.08f;
+                }
             }
 
             if (_panelImage != null)
@@ -188,6 +221,8 @@ namespace MultiplyRush
             _scanlineBaseColor = didWin
                 ? new Color(0.58f, 0.95f, 1f, 0.07f)
                 : new Color(1f, 0.32f, 0.42f, 0.08f);
+
+            AudioDirector.Instance?.PlaySfx(didWin ? AudioSfxCue.Win : AudioSfxCue.Lose, 0.88f, 1f);
 
             if (retryButton != null)
             {
@@ -818,14 +853,22 @@ namespace MultiplyRush
             if (reinforcementButton != null)
             {
                 reinforcementButton.onClick.RemoveAllListeners();
-                reinforcementButton.onClick.AddListener(() => OnUseReinforcementRequested?.Invoke());
+                reinforcementButton.onClick.AddListener(() =>
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.82f, 1.04f);
+                    OnUseReinforcementRequested?.Invoke();
+                });
                 reinforcementButton.gameObject.SetActive(false);
             }
 
             if (shieldButton != null)
             {
                 shieldButton.onClick.RemoveAllListeners();
-                shieldButton.onClick.AddListener(() => OnUseShieldRequested?.Invoke());
+                shieldButton.onClick.AddListener(() =>
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.8f, 1f);
+                    OnUseShieldRequested?.Invoke();
+                });
                 shieldButton.gameObject.SetActive(false);
             }
         }
