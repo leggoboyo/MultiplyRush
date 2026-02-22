@@ -7,6 +7,7 @@ namespace MultiplyRush
     {
         public Text levelText;
         public Text countText;
+        public Text enemyCountText;
         public Text countDeltaText;
         public Text progressText;
         public Image progressFill;
@@ -20,13 +21,20 @@ namespace MultiplyRush
 
         private int _lastProgressPercent = -1;
         private RectTransform _countRect;
+        private RectTransform _enemyCountRect;
         private Vector3 _countBaseScale = Vector3.one;
         private Color _countBaseColor = Color.white;
+        private Color _enemyCountBaseColor = new Color(1f, 0.42f, 0.38f, 1f);
         private Color _countFlashColor = Color.white;
         private int _targetCount;
         private float _displayCount;
         private bool _countInitialized;
         private float _countFlash;
+        private int _targetEnemyCount;
+        private float _displayEnemyCount;
+        private bool _enemyCountInitialized;
+        private bool _enemyCountVisible;
+        private float _enemyCountFlash;
         private float _targetProgress;
         private float _displayProgress;
         private int _levelIndex = 1;
@@ -48,9 +56,22 @@ namespace MultiplyRush
                 _countBaseColor = countText.color;
             }
 
+            EnsureEnemyCountLabel();
+            if (enemyCountText != null)
+            {
+                _enemyCountRect = enemyCountText.rectTransform;
+                _enemyCountBaseColor = enemyCountText.color;
+                enemyCountText.gameObject.SetActive(false);
+            }
+
             ApplyTextStyle(levelText, 20, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
+            ApplyTextStyle(enemyCountText, 30, FontStyle.Bold, new Color(1f, 0.42f, 0.38f, 1f));
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
+            if (enemyCountText != null)
+            {
+                _enemyCountBaseColor = enemyCountText.color;
+            }
             if (levelText != null)
             {
                 levelText.lineSpacing = 1.05f;
@@ -63,6 +84,7 @@ namespace MultiplyRush
             }
             SetNonInteractive(levelText);
             SetNonInteractive(countText);
+            SetNonInteractive(enemyCountText);
             SetNonInteractive(progressText);
             SetNonInteractive(progressFill);
             if (progressFill != null)
@@ -87,6 +109,7 @@ namespace MultiplyRush
         {
             AnimateProgress(Time.deltaTime);
             AnimateCount(Time.deltaTime);
+            AnimateEnemyCount(Time.deltaTime);
             AnimateDeltaLabel(Time.deltaTime);
         }
 
@@ -141,6 +164,44 @@ namespace MultiplyRush
         public void SetProgress(float progress01)
         {
             _targetProgress = Mathf.Clamp01(progress01);
+        }
+
+        public void SetEnemyCount(int count, bool visible = true)
+        {
+            var safeCount = Mathf.Max(0, count);
+            _enemyCountVisible = visible;
+            if (enemyCountText != null)
+            {
+                enemyCountText.gameObject.SetActive(visible);
+            }
+
+            if (!_enemyCountInitialized)
+            {
+                _targetEnemyCount = safeCount;
+                _displayEnemyCount = safeCount;
+                _enemyCountInitialized = true;
+                if (enemyCountText != null)
+                {
+                    enemyCountText.text = "Enemy: " + NumberFormatter.ToCompact(safeCount);
+                }
+                return;
+            }
+
+            if (safeCount != _targetEnemyCount)
+            {
+                _enemyCountFlash = 1f;
+            }
+
+            _targetEnemyCount = safeCount;
+        }
+
+        public void SetEnemyCountVisible(bool visible)
+        {
+            _enemyCountVisible = visible;
+            if (enemyCountText != null)
+            {
+                enemyCountText.gameObject.SetActive(visible);
+            }
         }
 
         private void AnimateProgress(float deltaTime)
@@ -200,6 +261,34 @@ namespace MultiplyRush
             }
         }
 
+        private void AnimateEnemyCount(float deltaTime)
+        {
+            if (!_enemyCountInitialized || !_enemyCountVisible || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            var blend = 1f - Mathf.Exp(-Mathf.Max(8f, countLerpSpeed) * deltaTime);
+            _displayEnemyCount = Mathf.Lerp(_displayEnemyCount, _targetEnemyCount, blend);
+            var shownEnemyCount = Mathf.RoundToInt(_displayEnemyCount);
+            if (enemyCountText != null)
+            {
+                enemyCountText.text = "Enemy: " + NumberFormatter.ToCompact(shownEnemyCount);
+            }
+
+            _enemyCountFlash = Mathf.MoveTowards(_enemyCountFlash, 0f, flashFadeSpeed * deltaTime);
+            if (_enemyCountRect != null)
+            {
+                var pulse = 1f + (_enemyCountFlash * (countPulseScale * 0.78f));
+                _enemyCountRect.localScale = Vector3.one * pulse;
+            }
+
+            if (enemyCountText != null)
+            {
+                enemyCountText.color = Color.Lerp(_enemyCountBaseColor, Color.white, _enemyCountFlash * 0.5f);
+            }
+        }
+
         private void EnsureDeltaLabel()
         {
             if (countDeltaText != null || countText == null)
@@ -223,6 +312,31 @@ namespace MultiplyRush
             countDeltaText.verticalOverflow = VerticalWrapMode.Overflow;
             countDeltaText.text = string.Empty;
             countDeltaText.raycastTarget = false;
+        }
+
+        private void EnsureEnemyCountLabel()
+        {
+            if (enemyCountText != null || countText == null)
+            {
+                return;
+            }
+
+            var enemyObject = new GameObject("EnemyCount");
+            enemyObject.transform.SetParent(countText.transform.parent, false);
+            var enemyRect = enemyObject.AddComponent<RectTransform>();
+            enemyRect.anchorMin = countText.rectTransform.anchorMin;
+            enemyRect.anchorMax = countText.rectTransform.anchorMax;
+            enemyRect.pivot = countText.rectTransform.pivot;
+            enemyRect.sizeDelta = new Vector2(460f, 52f);
+            enemyRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -84f);
+
+            enemyCountText = enemyObject.AddComponent<Text>();
+            enemyCountText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            enemyCountText.alignment = TextAnchor.MiddleCenter;
+            enemyCountText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            enemyCountText.verticalOverflow = VerticalWrapMode.Overflow;
+            enemyCountText.text = "Enemy: 0";
+            enemyCountText.raycastTarget = false;
         }
 
         private void ShowCountDelta(int delta)

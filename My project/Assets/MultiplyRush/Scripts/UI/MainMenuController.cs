@@ -31,6 +31,10 @@ namespace MultiplyRush
         public Color transitionFlashColor = new Color(0.3f, 0.84f, 1f, 1f);
         public float backdropStripDriftSpeed = 90f;
         public float backdropStarDriftSpeed = 46f;
+        public float backdropCometDriftSpeed = 170f;
+        public float backdropRingPulseSpeed = 0.72f;
+        public float backdropWaveSweepSpeed = 0.54f;
+        public float backdropParticleOrbitSpeed = 0.68f;
 
         [Header("Palette")]
         public Color backgroundTopColor = new Color(0.03f, 0.09f, 0.2f, 1f);
@@ -102,6 +106,23 @@ namespace MultiplyRush
         private readonly List<float> _backdropStarSpeeds = new List<float>(40);
         private readonly List<float> _backdropStarPhases = new List<float>(40);
         private readonly List<float> _backdropStarBaseX = new List<float>(40);
+        private readonly List<RectTransform> _backdropCometRects = new List<RectTransform>(8);
+        private readonly List<float> _backdropCometSpeeds = new List<float>(8);
+        private readonly List<float> _backdropCometPhases = new List<float>(8);
+        private readonly List<float> _backdropCometAmplitudes = new List<float>(8);
+        private readonly List<RectTransform> _backdropPulseRingRects = new List<RectTransform>(6);
+        private readonly List<float> _backdropPulseRingSpeeds = new List<float>(6);
+        private readonly List<float> _backdropPulseRingPhases = new List<float>(6);
+        private readonly List<Vector2> _backdropPulseRingBasePositions = new List<Vector2>(6);
+        private readonly List<RectTransform> _backdropWaveRects = new List<RectTransform>(6);
+        private readonly List<float> _backdropWaveSpeeds = new List<float>(6);
+        private readonly List<float> _backdropWavePhases = new List<float>(6);
+        private readonly List<float> _backdropWaveBaseY = new List<float>(6);
+        private readonly List<RectTransform> _backdropOrbitParticleRects = new List<RectTransform>(12);
+        private readonly List<Vector2> _backdropOrbitCenters = new List<Vector2>(12);
+        private readonly List<float> _backdropOrbitRadii = new List<float>(12);
+        private readonly List<float> _backdropOrbitSpeeds = new List<float>(12);
+        private readonly List<float> _backdropOrbitPhases = new List<float>(12);
         private Sprite _softOrbSprite;
         private Sprite _starOrbSprite;
         private Texture2D _softOrbTexture;
@@ -1435,6 +1456,172 @@ namespace MultiplyRush
                 _backdropStarPhases.Add(phaseHash * 1400f);
                 _backdropStarBaseX.Add(baseX);
             }
+
+            const int cometCount = 6;
+            _backdropCometRects.Clear();
+            _backdropCometSpeeds.Clear();
+            _backdropCometPhases.Clear();
+            _backdropCometAmplitudes.Clear();
+            for (var i = 0; i < cometCount; i++)
+            {
+                var speedHash = Hash01(i + 1701);
+                var phaseHash = Hash01(i + 1723);
+                var widthHash = Hash01(i + 1747);
+                var alphaHash = Hash01(i + 1783);
+                var comet = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "Comet_" + i,
+                    new Color(0.76f, 0.95f, 1f, Mathf.Lerp(0.15f, 0.34f, alphaHash)),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(Mathf.Lerp(120f, 250f, widthHash), Mathf.Lerp(8f, 16f, widthHash)));
+                if (comet == null)
+                {
+                    continue;
+                }
+
+                if (_softOrbSprite != null)
+                {
+                    comet.sprite = _softOrbSprite;
+                    comet.type = Image.Type.Simple;
+                    comet.preserveAspect = false;
+                }
+
+                var cometRect = comet.rectTransform;
+                cometRect.localRotation = Quaternion.Euler(0f, 0f, -28f);
+                cometRect.SetSiblingIndex(Mathf.Clamp(_backdropLayerRect.childCount - 1, 0, _backdropLayerRect.childCount - 1));
+                _backdropCometRects.Add(cometRect);
+                _backdropCometSpeeds.Add(Mathf.Lerp(0.58f, 1.18f, speedHash));
+                _backdropCometPhases.Add(phaseHash * 2200f);
+                _backdropCometAmplitudes.Add(Mathf.Lerp(18f, 68f, Hash01(i + 1823)));
+            }
+
+            const int ringCount = 4;
+            _backdropPulseRingRects.Clear();
+            _backdropPulseRingSpeeds.Clear();
+            _backdropPulseRingPhases.Clear();
+            _backdropPulseRingBasePositions.Clear();
+            for (var i = 0; i < ringCount; i++)
+            {
+                var xHash = Hash01(i + 1901);
+                var yHash = Hash01(i + 1933);
+                var speedHash = Hash01(i + 1973);
+                var phaseHash = Hash01(i + 2017);
+                var basePosition = new Vector2(
+                    Mathf.Lerp(-420f, 420f, xHash),
+                    Mathf.Lerp(-480f, 480f, yHash));
+                var ring = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "PulseRing_" + i,
+                    new Color(0.42f, 0.88f, 1f, 0.18f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    basePosition,
+                    new Vector2(280f, 280f));
+                if (ring == null)
+                {
+                    continue;
+                }
+
+                if (_softOrbSprite != null)
+                {
+                    ring.sprite = _softOrbSprite;
+                    ring.type = Image.Type.Simple;
+                    ring.preserveAspect = true;
+                }
+
+                ring.raycastTarget = false;
+                _backdropPulseRingRects.Add(ring.rectTransform);
+                _backdropPulseRingSpeeds.Add(Mathf.Lerp(0.62f, 1.06f, speedHash));
+                _backdropPulseRingPhases.Add(phaseHash);
+                _backdropPulseRingBasePositions.Add(basePosition);
+            }
+
+            const int waveCount = 5;
+            _backdropWaveRects.Clear();
+            _backdropWaveSpeeds.Clear();
+            _backdropWavePhases.Clear();
+            _backdropWaveBaseY.Clear();
+            for (var i = 0; i < waveCount; i++)
+            {
+                var widthHash = Hash01(i + 2111);
+                var speedHash = Hash01(i + 2137);
+                var phaseHash = Hash01(i + 2179);
+                var yHash = Hash01(i + 2213);
+                var width = Mathf.Lerp(1180f, 1740f, widthHash);
+                var height = Mathf.Lerp(62f, 102f, Hash01(i + 2239));
+                var baseY = Mathf.Lerp(-420f, 210f, yHash);
+                var wave = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "WaveRibbon_" + i,
+                    new Color(0.34f, 0.82f, 1f, Mathf.Lerp(0.05f, 0.13f, Hash01(i + 2267))),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, baseY),
+                    new Vector2(width, height));
+                if (wave == null)
+                {
+                    continue;
+                }
+
+                if (_softOrbSprite != null)
+                {
+                    wave.sprite = _softOrbSprite;
+                    wave.type = Image.Type.Simple;
+                    wave.preserveAspect = false;
+                }
+
+                wave.raycastTarget = false;
+                wave.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-8f, 8f, Hash01(i + 2299)));
+                _backdropWaveRects.Add(wave.rectTransform);
+                _backdropWaveSpeeds.Add(Mathf.Lerp(0.56f, 1.12f, speedHash));
+                _backdropWavePhases.Add(phaseHash * 100f);
+                _backdropWaveBaseY.Add(baseY);
+            }
+
+            const int orbitParticleCount = 10;
+            _backdropOrbitParticleRects.Clear();
+            _backdropOrbitCenters.Clear();
+            _backdropOrbitRadii.Clear();
+            _backdropOrbitSpeeds.Clear();
+            _backdropOrbitPhases.Clear();
+            for (var i = 0; i < orbitParticleCount; i++)
+            {
+                var center = new Vector2(
+                    Mathf.Lerp(-300f, 320f, Hash01(i + 2309)),
+                    Mathf.Lerp(-340f, 420f, Hash01(i + 2347)));
+                var size = Mathf.Lerp(42f, 94f, Hash01(i + 2381));
+                var radius = Mathf.Lerp(26f, 86f, Hash01(i + 2423));
+                var speed = Mathf.Lerp(0.46f, 1.22f, Hash01(i + 2473));
+                var phase = Hash01(i + 2519) * Mathf.PI * 2f;
+                var particle = FindOrCreateImage(
+                    _backdropLayerRect,
+                    "OrbitParticle_" + i,
+                    new Color(0.76f, 0.97f, 1f, Mathf.Lerp(0.14f, 0.3f, Hash01(i + 2551))),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    center,
+                    new Vector2(size, size));
+                if (particle == null)
+                {
+                    continue;
+                }
+
+                if (_softOrbSprite != null)
+                {
+                    particle.sprite = _softOrbSprite;
+                    particle.type = Image.Type.Simple;
+                    particle.preserveAspect = true;
+                }
+
+                particle.raycastTarget = false;
+                _backdropOrbitParticleRects.Add(particle.rectTransform);
+                _backdropOrbitCenters.Add(center);
+                _backdropOrbitRadii.Add(radius);
+                _backdropOrbitSpeeds.Add(speed);
+                _backdropOrbitPhases.Add(phase);
+            }
         }
 
         private void AnimateProceduralBackdrop(float runTime)
@@ -1546,6 +1733,114 @@ namespace MultiplyRush
                 {
                     var alpha = 0.35f + Mathf.Abs(Mathf.Sin(runTime * (2f + i * 0.09f))) * 0.45f;
                     image.color = new Color(0.88f, 0.96f, 1f, alpha);
+                }
+            }
+
+            var cometCount = Mathf.Min(_backdropCometRects.Count, Mathf.Min(_backdropCometSpeeds.Count, _backdropCometPhases.Count));
+            for (var i = 0; i < cometCount; i++)
+            {
+                var rect = _backdropCometRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var speed = _backdropCometSpeeds[i];
+                var phase = _backdropCometPhases[i];
+                var travel = Mathf.Repeat(phase + (runTime * backdropCometDriftSpeed * speed), 2260f) - 1130f;
+                var baseY = 560f - (travel * 0.58f);
+                var amplitude = i < _backdropCometAmplitudes.Count ? _backdropCometAmplitudes[i] : 24f;
+                var y = baseY + Mathf.Sin(runTime * (0.9f + i * 0.17f)) * amplitude;
+                var x = -980f + travel;
+                rect.anchoredPosition = new Vector2(x, y);
+                rect.localRotation = Quaternion.Euler(0f, 0f, -30f + Mathf.Sin(runTime * (0.6f + i * 0.08f)) * 8f);
+
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.06f + Mathf.Abs(Mathf.Sin(runTime * (1.24f + i * 0.12f))) * 0.28f;
+                    image.color = new Color(0.78f, 0.95f, 1f, alpha);
+                }
+            }
+
+            var ringCount = Mathf.Min(_backdropPulseRingRects.Count, Mathf.Min(_backdropPulseRingSpeeds.Count, _backdropPulseRingPhases.Count));
+            for (var i = 0; i < ringCount; i++)
+            {
+                var rect = _backdropPulseRingRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var phase = Mathf.Repeat((runTime * backdropRingPulseSpeed * _backdropPulseRingSpeeds[i]) + _backdropPulseRingPhases[i], 1f);
+                var expanded = Mathf.SmoothStep(0f, 1f, phase);
+                var basePosition = i < _backdropPulseRingBasePositions.Count ? _backdropPulseRingBasePositions[i] : Vector2.zero;
+                rect.anchoredPosition = basePosition + new Vector2(
+                    Mathf.Sin(runTime * (0.22f + i * 0.08f)) * 28f,
+                    Mathf.Cos(runTime * (0.18f + i * 0.05f)) * 22f);
+                var ringScale = Mathf.Lerp(0.42f, 1.62f, expanded);
+                rect.localScale = new Vector3(ringScale, ringScale, 1f);
+
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = (1f - expanded) * 0.2f;
+                    image.color = new Color(
+                        Mathf.Lerp(0.22f, 0.56f, expanded),
+                        Mathf.Lerp(0.68f, 0.94f, expanded),
+                        1f,
+                        alpha);
+                }
+            }
+
+            var waveCount = Mathf.Min(_backdropWaveRects.Count, Mathf.Min(_backdropWaveSpeeds.Count, _backdropWavePhases.Count));
+            for (var i = 0; i < waveCount; i++)
+            {
+                var rect = _backdropWaveRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var speed = _backdropWaveSpeeds[i];
+                var phase = _backdropWavePhases[i];
+                var baseY = i < _backdropWaveBaseY.Count ? _backdropWaveBaseY[i] : 0f;
+                var sweep = Mathf.Sin((runTime * backdropWaveSweepSpeed * speed) + phase);
+                var driftX = sweep * Mathf.Lerp(120f, 220f, Hash01(i + 2633));
+                var driftY = Mathf.Cos((runTime * 0.26f * speed) + phase) * 28f;
+                rect.anchoredPosition = new Vector2(driftX, baseY + driftY);
+                rect.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(runTime * (0.2f + i * 0.08f)) * 8f);
+                rect.localScale = new Vector3(1f + Mathf.Abs(sweep) * 0.22f, 1f + Mathf.Sin(runTime * (0.42f + i * 0.05f)) * 0.16f, 1f);
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.05f + Mathf.Abs(Mathf.Sin(runTime * (0.58f + i * 0.06f))) * 0.12f;
+                    image.color = new Color(0.34f, 0.84f, 1f, alpha);
+                }
+            }
+
+            var orbitCount = Mathf.Min(_backdropOrbitParticleRects.Count, Mathf.Min(_backdropOrbitCenters.Count, _backdropOrbitRadii.Count));
+            for (var i = 0; i < orbitCount; i++)
+            {
+                var rect = _backdropOrbitParticleRects[i];
+                if (rect == null)
+                {
+                    continue;
+                }
+
+                var center = _backdropOrbitCenters[i];
+                var radius = _backdropOrbitRadii[i];
+                var speed = i < _backdropOrbitSpeeds.Count ? _backdropOrbitSpeeds[i] : 1f;
+                var phase = i < _backdropOrbitPhases.Count ? _backdropOrbitPhases[i] : 0f;
+                var angle = phase + (runTime * backdropParticleOrbitSpeed * speed);
+                rect.anchoredPosition = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+                var pulse = 0.8f + (Mathf.Sin(runTime * (1.4f + i * 0.09f)) * 0.24f);
+                rect.localScale = new Vector3(pulse, pulse, 1f);
+                var image = rect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.1f + Mathf.Abs(Mathf.Sin(runTime * (1.26f + i * 0.14f))) * 0.3f;
+                    image.color = new Color(0.76f, 0.97f, 1f, alpha);
                 }
             }
         }

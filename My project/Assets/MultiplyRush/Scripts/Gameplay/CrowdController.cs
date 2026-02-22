@@ -86,6 +86,11 @@ namespace MultiplyRush
         public int battleLossBurstCount = 18;
         public float battleLossBurstSpread = 0.44f;
         public float battleLossBurstUpwardSpeed = 2.2f;
+        public bool enableBattleDeathFx = true;
+        public int maxDeathFxPerLossWave = 14;
+        public float deathFxDuration = 0.42f;
+        public float deathFxRandomImpulse = 0.82f;
+        public float deathFxGravity = 10.5f;
 
         [Header("Status Effects")]
         public float minSpeedMultiplier = 0.55f;
@@ -150,6 +155,7 @@ namespace MultiplyRush
         private bool _suppressUnitGainPop;
         private int _activeLevelIndex = 1;
         private bool _frontShootersDirty = true;
+        private int _pendingDeathFxBudget;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -377,6 +383,7 @@ namespace MultiplyRush
             _combatActive = false;
             _combatTarget = null;
             _combatCenteringActive = false;
+            _pendingDeathFxBudget = 0;
             _betterGateHits = 0;
             _worseGateHits = 0;
             _redGateHits = 0;
@@ -421,8 +428,12 @@ namespace MultiplyRush
 
             CacheBattleLossSamplePoints(safeAmount);
             var before = _count;
+            _pendingDeathFxBudget = enableBattleDeathFx
+                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 1.8f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
+                : 0;
             SetCount(_count - safeAmount, true);
             var removed = before - _count;
+            _pendingDeathFxBudget = 0;
             if (removed > 0)
             {
                 TriggerGatePunch(new Color(1f, 0.42f, 0.36f, 1f));
@@ -574,6 +585,7 @@ namespace MultiplyRush
                 _formationSlots.RemoveAt(lastIndex);
                 _unitPhaseOffsets.RemoveAt(lastIndex);
                 _unitGainPopTimers.RemoveAt(lastIndex);
+                TrySpawnBattleLossDeathFx(unit);
                 ReturnUnitToPool(unit);
             }
 
@@ -1126,6 +1138,46 @@ namespace MultiplyRush
                 startColor = Color.Lerp(burstColorA, burstColorB, UnityEngine.Random.value)
             };
             _battleLossBurstSystem.Emit(fallbackEmitParams, Mathf.Max(4, perSampleCount * 2));
+        }
+
+        private void TrySpawnBattleLossDeathFx(Transform unit)
+        {
+            if (!enableBattleDeathFx || _pendingDeathFxBudget <= 0 || unit == null)
+            {
+                return;
+            }
+
+            _pendingDeathFxBudget--;
+            var directionalImpulse = (-transform.forward * 0.8f) + (Vector3.up * 0.2f);
+            UnitDeathFx.Spawn(
+                this,
+                unit,
+                deathFxDuration,
+                directionalImpulse,
+                deathFxRandomImpulse,
+                deathFxGravity,
+                0.55f,
+                0.05f,
+                EmitBattleDeathPoof);
+        }
+
+        private void EmitBattleDeathPoof(Vector3 position)
+        {
+            EnsureBattleLossEffects();
+            if (_battleLossBurstSystem == null)
+            {
+                return;
+            }
+
+            var emitParams = new ParticleSystem.EmitParams
+            {
+                position = position + new Vector3(
+                    UnityEngine.Random.Range(-0.05f, 0.05f),
+                    UnityEngine.Random.Range(0.05f, 0.16f),
+                    UnityEngine.Random.Range(-0.05f, 0.05f)),
+                startColor = Color.Lerp(new Color(0.84f, 0.98f, 1f, 1f), new Color(0.38f, 0.76f, 1f, 1f), UnityEngine.Random.value)
+            };
+            _battleLossBurstSystem.Emit(emitParams, UnityEngine.Random.Range(5, 12));
         }
 
         private void EnsureWeaponEffects()

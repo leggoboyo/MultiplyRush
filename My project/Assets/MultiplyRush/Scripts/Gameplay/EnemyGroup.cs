@@ -31,6 +31,13 @@ namespace MultiplyRush
         public float tracerSpread = 0.08f;
         public Color tracerColor = new Color(1f, 0.5f, 0.38f, 1f);
 
+        [Header("Death FX")]
+        public bool enableDeathFx = true;
+        public int maxDeathFxPerLossWave = 12;
+        public float deathFxDuration = 0.42f;
+        public float deathFxRandomImpulse = 0.85f;
+        public float deathFxGravity = 10.5f;
+
         private readonly List<Transform> _activeUnits = new List<Transform>(120);
         private readonly List<Transform> _unitMuzzles = new List<Transform>(120);
         private readonly List<SoldierMotionAnimator> _unitAnimators = new List<SoldierMotionAnimator>(120);
@@ -44,6 +51,7 @@ namespace MultiplyRush
         private ParticleSystem _tracerSystem;
         private ParticleSystem _lossBurstSystem;
         private float _shotAccumulator;
+        private int _pendingDeathFxBudget;
 
         public int Count => _count;
 
@@ -67,6 +75,7 @@ namespace MultiplyRush
             spacingX = Mathf.Max(0.82f, spacingX);
             spacingZ = Mathf.Max(0.86f, spacingZ);
 
+            ConfigureCountLabel();
             PrewarmPool();
             EnsureWeaponEffects();
             EnsureLossBurstEffects();
@@ -110,6 +119,7 @@ namespace MultiplyRush
             }
 
             UpdateWeaponEffects(deltaTime);
+            UpdateCountLabelPose();
         }
 
         public void SetCount(int count)
@@ -126,8 +136,12 @@ namespace MultiplyRush
             }
 
             var before = _count;
+            _pendingDeathFxBudget = enableDeathFx
+                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 1.7f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
+                : 0;
             SetCountInternal(_count - safeAmount, true);
             var removed = before - _count;
+            _pendingDeathFxBudget = 0;
             EmitLossBurst(removed);
             return removed;
         }
@@ -160,7 +174,7 @@ namespace MultiplyRush
             _count = allowZero ? Mathf.Max(0, count) : Mathf.Max(1, count);
             if (countLabel != null)
             {
-                countLabel.text = NumberFormatter.ToCompact(_count);
+                countLabel.text = "ENEMY " + NumberFormatter.ToCompact(_count);
             }
 
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
@@ -185,10 +199,12 @@ namespace MultiplyRush
                 _unitAnimators.RemoveAt(last);
                 _slots.RemoveAt(last);
                 _phaseOffsets.RemoveAt(last);
+                TrySpawnDeathFx(unit);
                 ReturnUnit(unit);
             }
 
             Relayout();
+            UpdateCountLabelPose();
         }
 
         private Transform GetUnit()
@@ -399,6 +415,89 @@ namespace MultiplyRush
                 startColor = Color.Lerp(new Color(1f, 0.8f, 0.55f, 1f), new Color(1f, 0.42f, 0.28f, 1f), Random.value)
             };
             _lossBurstSystem.Emit(emitParams, burstCount);
+        }
+
+        private void ConfigureCountLabel()
+        {
+            if (countLabel == null)
+            {
+                var labelObject = new GameObject("EnemyCountLabel");
+                labelObject.transform.SetParent(transform, false);
+                countLabel = labelObject.AddComponent<TextMesh>();
+            }
+
+            countLabel.fontSize = 84;
+            countLabel.characterSize = 0.08f;
+            countLabel.anchor = TextAnchor.MiddleCenter;
+            countLabel.alignment = TextAlignment.Center;
+            countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
+            countLabel.text = "ENEMY 0";
+            UpdateCountLabelPose();
+        }
+
+        private void UpdateCountLabelPose()
+        {
+            if (countLabel == null)
+            {
+                return;
+            }
+
+            var depth = EstimateFormationDepth(Mathf.Max(1, _count));
+            countLabel.transform.localPosition = new Vector3(
+                0f,
+                1.72f + Mathf.Clamp(depth * 0.07f, 0.08f, 0.52f),
+                Mathf.Clamp(depth * 0.4f, 0.7f, 3.2f));
+
+            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.32f, Mathf.Clamp01(_count / 220f));
+            var camera = Camera.main;
+            if (camera != null)
+            {
+                var lookDirection = countLabel.transform.position - camera.transform.position;
+                if (lookDirection.sqrMagnitude > 0.0001f)
+                {
+                    countLabel.transform.rotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
+                }
+            }
+        }
+
+        private void TrySpawnDeathFx(Transform unit)
+        {
+            if (!enableDeathFx || _pendingDeathFxBudget <= 0 || unit == null)
+            {
+                return;
+            }
+
+            _pendingDeathFxBudget--;
+            var directionalImpulse = (-transform.forward * 0.9f) + (Vector3.up * 0.22f);
+            UnitDeathFx.Spawn(
+                this,
+                unit,
+                deathFxDuration,
+                directionalImpulse,
+                deathFxRandomImpulse,
+                deathFxGravity,
+                0.55f,
+                0.06f,
+                EmitDeathPoof);
+        }
+
+        private void EmitDeathPoof(Vector3 position)
+        {
+            EnsureLossBurstEffects();
+            if (_lossBurstSystem == null)
+            {
+                return;
+            }
+
+            var emitParams = new ParticleSystem.EmitParams
+            {
+                position = position + new Vector3(
+                    Random.Range(-0.05f, 0.05f),
+                    Random.Range(0.05f, 0.18f),
+                    Random.Range(-0.05f, 0.05f)),
+                startColor = Color.Lerp(new Color(1f, 0.8f, 0.58f, 1f), new Color(1f, 0.42f, 0.28f, 1f), Random.value)
+            };
+            _lossBurstSystem.Emit(emitParams, Random.Range(6, 14));
         }
 
         private void UpdateWeaponEffects(float deltaTime)

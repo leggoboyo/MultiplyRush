@@ -188,6 +188,8 @@ namespace MultiplyRush
                 hud.SetLevel(_currentLevelIndex, _currentBuild.modifierName, _currentBuild.isMiniBoss);
                 hud.SetCount(startCount);
                 hud.SetProgress(0f);
+                hud.SetEnemyCount(_currentBuild.enemyCount, false);
+                hud.SetEnemyCountVisible(false);
             }
 
             RefreshInventoryHud();
@@ -259,6 +261,11 @@ namespace MultiplyRush
             var didWin = battleStartPlayer >= battleStartEnemy;
             var targetPlayerRemaining = Mathf.Max(0, battleStartPlayer - battleStartEnemy);
             var targetEnemyRemaining = Mathf.Max(0, battleStartEnemy - battleStartPlayer);
+            if (hud != null)
+            {
+                hud.SetEnemyCount(battleStartEnemy, true);
+                hud.SetEnemyCountVisible(true);
+            }
 
             if (enemyGroup != null)
             {
@@ -346,6 +353,12 @@ namespace MultiplyRush
                     }
                 }
 
+                if (hud != null)
+                {
+                    var hudEnemyCount = enemyGroup != null ? enemyGroup.Count : desiredEnemy;
+                    hud.SetEnemyCount(hudEnemyCount, true);
+                }
+
                 if ((enemyLoss > 0 || playerLoss > 0) && _battleHitSfxTimer <= 0f)
                 {
                     AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.48f, Random.Range(0.9f, 1.1f));
@@ -382,6 +395,11 @@ namespace MultiplyRush
                 yield return new WaitForSeconds(postBattleDelay);
             }
 
+            if (hud != null)
+            {
+                var finalEnemyCount = enemyGroup != null ? enemyGroup.Count : targetEnemyRemaining;
+                hud.SetEnemyCount(finalEnemyCount, true);
+            }
             ShowResultAfterBattle(didWin, battleStartEnemy);
             _battleRoutine = null;
         }
@@ -415,6 +433,10 @@ namespace MultiplyRush
             }
 
             RefreshInventoryHud();
+            if (hud != null)
+            {
+                hud.SetEnemyCountVisible(false);
+            }
 
             if (resultsOverlay != null)
             {

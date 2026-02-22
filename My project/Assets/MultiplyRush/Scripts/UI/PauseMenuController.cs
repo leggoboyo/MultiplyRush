@@ -66,8 +66,8 @@ namespace MultiplyRush
         private bool _hapticsEnabled = true;
         private bool _fallbackPointerWasDown;
         private Vector2 _lastSafeAreaSize = Vector2.zero;
-        private const float PanelDesignWidth = 620f;
-        private const float PanelDesignHeight = 1120f;
+        private const float PanelDesignWidth = 680f;
+        private const float PanelDesignHeight = 1360f;
 
         public bool IsPaused => _isPaused;
 
@@ -872,18 +872,18 @@ namespace MultiplyRush
                 _panelRect,
                 "Subtitle",
                 "Tune your run before diving back in.",
-                20,
+                18,
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -146f),
-                new Vector2(560f, 56f),
+                new Vector2(0f, -176f),
+                new Vector2(580f, 56f),
                 false);
             subtitle.color = new Color(0.76f, 0.86f, 0.96f, 0.94f);
 
-            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 358f), accentColor);
-            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 272f), new Color(0.25f, 0.62f, 0.95f, 1f));
-            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 186f), new Color(0.2f, 0.3f, 0.46f, 1f));
+            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 354f), accentColor);
+            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 266f), new Color(0.25f, 0.62f, 0.95f, 1f));
+            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 178f), new Color(0.2f, 0.3f, 0.46f, 1f));
 
             var optionsCard = EnsureImage(
                 _panelRect,
@@ -891,8 +891,8 @@ namespace MultiplyRush
                 new Color(0.09f, 0.14f, 0.24f, 0.96f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -214f),
-                new Vector2(560f, 672f)).rectTransform;
+                new Vector2(0f, -300f),
+                new Vector2(620f, 820f)).rectTransform;
             _optionsCardRect = optionsCard;
 
             var optionsOutline = optionsCard.GetComponent<Outline>();
@@ -908,12 +908,12 @@ namespace MultiplyRush
                 optionsCard,
                 "OptionsTitle",
                 "OPTIONS",
-                34,
+                42,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
                 new Vector2(36f, -44f),
-                new Vector2(300f, 52f),
+                new Vector2(380f, 56f),
                 true).color = new Color(0.86f, 0.95f, 1f, 1f);
 
             EnsureImage(
@@ -922,64 +922,64 @@ namespace MultiplyRush
                 new Color(0.14f, 0.22f, 0.34f, 0.54f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -146f),
-                new Vector2(500f, 84f));
+                new Vector2(0f, -170f),
+                new Vector2(544f, 112f));
             EnsureImage(
                 optionsCard,
                 "MotionRowBg",
                 new Color(0.14f, 0.22f, 0.34f, 0.54f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -246f),
-                new Vector2(500f, 84f));
+                new Vector2(0f, -302f),
+                new Vector2(544f, 112f));
             EnsureImage(
                 optionsCard,
                 "MusicRowBg",
                 new Color(0.14f, 0.22f, 0.34f, 0.54f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -346f),
-                new Vector2(500f, 84f));
+                new Vector2(0f, -434f),
+                new Vector2(544f, 104f));
             EnsureImage(
                 optionsCard,
                 "HapticsRowBg",
                 new Color(0.14f, 0.22f, 0.34f, 0.54f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -436f),
-                new Vector2(500f, 70f));
+                new Vector2(0f, -548f),
+                new Vector2(544f, 84f));
             EnsureImage(
                 optionsCard,
                 "GraphicsRowBg",
                 new Color(0.14f, 0.22f, 0.34f, 0.54f),
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -536f),
-                new Vector2(500f, 106f));
+                new Vector2(0f, -674f),
+                new Vector2(544f, 136f));
 
             EnsureText(
                 optionsCard,
                 "VolumeLabel",
                 "Master Volume",
-                22,
+                24,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(30f, -100f),
-                new Vector2(288f, 44f),
+                new Vector2(34f, -124f),
+                new Vector2(332f, 44f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _volumeSlider = EnsureSlider(optionsCard, "VolumeSlider", new Vector2(0f, 136f), new Vector2(448f, 48f), new Color(0.22f, 0.76f, 1f, 1f));
+            _volumeSlider = EnsureSlider(optionsCard, "VolumeSlider", new Vector2(0f, 176f), new Vector2(496f, 46f), new Color(0.22f, 0.76f, 1f, 1f));
             _volumeValueText = EnsureText(
                 optionsCard,
                 "VolumeValue",
                 "100%",
-                22,
+                24,
                 TextAnchor.MiddleRight,
                 new Vector2(1f, 1f),
                 new Vector2(1f, 1f),
-                new Vector2(-26f, -100f),
-                new Vector2(120f, 44f),
+                new Vector2(-30f, -124f),
+                new Vector2(132f, 44f),
                 true);
             _volumeValueText.color = Color.white;
 
@@ -987,25 +987,25 @@ namespace MultiplyRush
                 optionsCard,
                 "CameraMotionLabel",
                 "Camera Motion",
-                22,
+                24,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(30f, -200f),
-                new Vector2(288f, 44f),
+                new Vector2(34f, -256f),
+                new Vector2(332f, 44f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _cameraMotionSlider = EnsureSlider(optionsCard, "CameraMotionSlider", new Vector2(0f, 40f), new Vector2(448f, 48f), new Color(0.38f, 0.88f, 0.78f, 1f));
+            _cameraMotionSlider = EnsureSlider(optionsCard, "CameraMotionSlider", new Vector2(0f, 44f), new Vector2(496f, 46f), new Color(0.38f, 0.88f, 0.78f, 1f));
             _cameraMotionValueText = EnsureText(
                 optionsCard,
                 "CameraMotionValue",
                 "35%",
-                22,
+                24,
                 TextAnchor.MiddleRight,
                 new Vector2(1f, 1f),
                 new Vector2(1f, 1f),
-                new Vector2(-26f, -200f),
-                new Vector2(120f, 44f),
+                new Vector2(-30f, -256f),
+                new Vector2(132f, 44f),
                 true);
             _cameraMotionValueText.color = Color.white;
 
@@ -1013,27 +1013,27 @@ namespace MultiplyRush
                 optionsCard,
                 "MusicTrackLabel",
                 "Gameplay Music",
-                22,
+                24,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(30f, -300f),
-                new Vector2(288f, 44f),
+                new Vector2(34f, -390f),
+                new Vector2(332f, 44f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _musicRowRect = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, -54f), new Vector2(612f, 62f));
-            _musicPrevButton = EnsureQualityButton(_musicRowRect, "MusicPrevButton", "<", new Vector2(-212f, 0f));
-            _musicNextButton = EnsureQualityButton(_musicRowRect, "MusicNextButton", ">", new Vector2(212f, 0f));
+            _musicRowRect = EnsureRect(optionsCard, "MusicTrackRow", new Vector2(0f, -108f), new Vector2(520f, 58f));
+            _musicPrevButton = EnsureQualityButton(_musicRowRect, "MusicPrevButton", "<", new Vector2(-188f, 0f));
+            _musicNextButton = EnsureQualityButton(_musicRowRect, "MusicNextButton", ">", new Vector2(188f, 0f));
             _musicTrackValueText = EnsureText(
                 _musicRowRect,
                 "MusicTrackValue",
                 "Track",
-                22,
+                24,
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 Vector2.zero,
-                new Vector2(308f, 48f),
+                new Vector2(250f, 48f),
                 true);
             _musicTrackValueText.color = new Color(0.9f, 0.98f, 1f, 1f);
 
@@ -1041,12 +1041,12 @@ namespace MultiplyRush
                 optionsCard,
                 "GraphicsLabel",
                 "Graphics: Auto",
-                22,
+                24,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(30f, -450f),
-                new Vector2(326f, 44f),
+                new Vector2(34f, -618f),
+                new Vector2(360f, 44f),
                 false);
             _qualityValueText.color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
@@ -1054,21 +1054,21 @@ namespace MultiplyRush
                 optionsCard,
                 "HapticsLabel",
                 "Haptics",
-                22,
+                24,
                 TextAnchor.MiddleLeft,
                 new Vector2(0f, 1f),
                 new Vector2(0f, 1f),
-                new Vector2(30f, -390f),
-                new Vector2(288f, 44f),
+                new Vector2(34f, -548f),
+                new Vector2(332f, 44f),
                 false).color = new Color(0.82f, 0.9f, 0.98f, 1f);
 
-            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(252f, -100f));
+            _hapticsButton = EnsureQualityButton(optionsCard, "HapticsToggleButton", "ON", new Vector2(220f, -128f));
             var hapticsLabel = _hapticsButton != null
                 ? _hapticsButton.GetComponentInChildren<Text>()
                 : null;
             _hapticsButtonText = hapticsLabel;
 
-            _graphicsRowRect = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -292f), new Vector2(612f, 72f));
+            _graphicsRowRect = EnsureRect(optionsCard, "GraphicsRow", new Vector2(0f, -272f), new Vector2(520f, 70f));
             _autoButton = EnsureQualityButton(_graphicsRowRect, "AutoQualityButton", "Auto", new Vector2(-198f, 0f));
             _lowButton = EnsureQualityButton(_graphicsRowRect, "LowQualityButton", "Low", new Vector2(-66f, 0f));
             _mediumButton = EnsureQualityButton(_graphicsRowRect, "MediumQualityButton", "Medium", new Vector2(66f, 0f));
@@ -1078,12 +1078,12 @@ namespace MultiplyRush
                 optionsCard,
                 "Hint",
                 "Lower graphics and camera motion for older phones.",
-                18,
+                16,
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f),
-                new Vector2(0f, 18f),
-                new Vector2(500f, 38f),
+                new Vector2(0f, 20f),
+                new Vector2(548f, 36f),
                 false).color = new Color(0.74f, 0.84f, 0.95f, 0.95f);
 
             var scanline = _panelRect.Find("Scanline");
@@ -1121,21 +1121,21 @@ namespace MultiplyRush
             _pauseButtonRect.sizeDelta = new Vector2(buttonSize, buttonSize);
             _pauseButtonRect.anchoredPosition = new Vector2(-marginX, -marginY);
 
-            var panelScaleX = (width - 20f) / PanelDesignWidth;
-            var panelScaleY = (height - 28f) / PanelDesignHeight;
+            var panelScaleX = (width - 18f) / PanelDesignWidth;
+            var panelScaleY = (height - 18f) / PanelDesignHeight;
             var panelScale = Mathf.Min(1f, panelScaleX, panelScaleY);
-            panelScale = Mathf.Clamp(panelScale * 1.03f, 0.56f, 1f);
+            panelScale = Mathf.Clamp(panelScale * 1.04f, 0.56f, 1f);
             _panelBaseScale = Vector3.one * panelScale;
 
-            var compact = panelScale < 0.8f;
-            var ultraCompact = panelScale < 0.67f;
+            var compact = panelScale < 0.84f;
+            var ultraCompact = panelScale < 0.68f;
 
             if (_resumeButton != null)
             {
                 var rect = _resumeButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 328f : 376f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 322f : 354f);
                 }
             }
 
@@ -1144,7 +1144,7 @@ namespace MultiplyRush
                 var rect = _restartButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 240f : 286f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 236f : 266f);
                 }
             }
 
@@ -1153,26 +1153,26 @@ namespace MultiplyRush
                 var rect = _mainMenuButton.GetComponent<RectTransform>();
                 if (rect != null)
                 {
-                    rect.anchoredPosition = new Vector2(0f, compact ? 152f : 196f);
+                    rect.anchoredPosition = new Vector2(0f, compact ? 150f : 178f);
                 }
             }
 
             if (_optionsCardRect != null)
             {
                 _optionsCardRect.sizeDelta = new Vector2(
-                    ultraCompact ? 520f : (compact ? 540f : 560f),
-                    ultraCompact ? 606f : (compact ? 640f : 672f));
-                _optionsCardRect.anchoredPosition = new Vector2(0f, ultraCompact ? -196f : (compact ? -208f : -216f));
+                    ultraCompact ? 560f : (compact ? 590f : 620f),
+                    ultraCompact ? 740f : (compact ? 782f : 820f));
+                _optionsCardRect.anchoredPosition = new Vector2(0f, ultraCompact ? -282f : (compact ? -292f : -300f));
             }
 
             if (_musicRowRect != null)
             {
-                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 420f : (compact ? 450f : 480f), 56f);
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 456f : (compact ? 484f : 520f), 58f);
             }
 
             if (_graphicsRowRect != null)
             {
-                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 420f : (compact ? 450f : 480f), 64f);
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 456f : (compact ? 484f : 520f), 70f);
             }
 
             ApplyOptionsResponsiveLayout(compact, ultraCompact);
@@ -1194,51 +1194,51 @@ namespace MultiplyRush
                 return;
             }
 
-            var sliderWidth = ultraCompact ? 392f : (compact ? 420f : 448f);
-            var rowWidth = ultraCompact ? 420f : (compact ? 450f : 480f);
-            var rowBgWidth = ultraCompact ? 456f : (compact ? 480f : 500f);
-            var labelWidth = ultraCompact ? 240f : (compact ? 258f : 274f);
+            var sliderWidth = ultraCompact ? 438f : (compact ? 470f : 496f);
+            var rowWidth = ultraCompact ? 456f : (compact ? 484f : 520f);
+            var rowBgWidth = ultraCompact ? 486f : (compact ? 516f : 544f);
+            var labelWidth = ultraCompact ? 280f : (compact ? 306f : 332f);
 
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "VolumeRowBg"), 0f, 146f, new Vector2(rowBgWidth, 84f));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "MotionRowBg"), 0f, 246f, new Vector2(rowBgWidth, 84f));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "MusicRowBg"), 0f, 346f, new Vector2(rowBgWidth, 84f));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "HapticsRowBg"), 0f, 436f, new Vector2(rowBgWidth, 70f));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "GraphicsRowBg"), 0f, 536f, new Vector2(rowBgWidth, 106f));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "VolumeRowBg"), 0f, 170f, new Vector2(rowBgWidth, 112f));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "MotionRowBg"), 0f, 302f, new Vector2(rowBgWidth, 112f));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "MusicRowBg"), 0f, 434f, new Vector2(rowBgWidth, 104f));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "HapticsRowBg"), 0f, 548f, new Vector2(rowBgWidth, 84f));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "GraphicsRowBg"), 0f, 674f, new Vector2(rowBgWidth, 136f));
 
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "OptionsTitle"), 30f, 42f, new Vector2(300f, 52f));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), 30f, 100f, new Vector2(labelWidth, 44f));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), 26f, 100f, new Vector2(120f, 44f));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), 30f, 200f, new Vector2(labelWidth, 44f));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), 26f, 200f, new Vector2(120f, 44f));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), 30f, 300f, new Vector2(labelWidth, 44f));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), 30f, 390f, new Vector2(labelWidth, 44f));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), 30f, 450f, new Vector2(Mathf.Max(labelWidth, 300f), 44f));
-            SetBottomCenterRect(GetChildRect(_optionsCardRect, "Hint"), 0f, 18f, new Vector2(rowBgWidth, 38f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "OptionsTitle"), 34f, 44f, new Vector2(380f, 56f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), 34f, 124f, new Vector2(labelWidth, 44f));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), 30f, 124f, new Vector2(132f, 44f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), 34f, 256f, new Vector2(labelWidth, 44f));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), 30f, 256f, new Vector2(132f, 44f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), 34f, 390f, new Vector2(labelWidth, 44f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), 34f, 548f, new Vector2(labelWidth, 44f));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), 34f, 618f, new Vector2(Mathf.Max(labelWidth, 348f), 44f));
+            SetBottomCenterRect(GetChildRect(_optionsCardRect, "Hint"), 0f, 20f, new Vector2(rowBgWidth, 36f));
 
             if (_volumeSlider != null)
             {
-                SetTopCenterRect(_volumeSlider.GetComponent<RectTransform>(), 0f, 146f, new Vector2(sliderWidth, 48f));
+                SetTopCenterRect(_volumeSlider.GetComponent<RectTransform>(), 0f, 176f, new Vector2(sliderWidth, 46f));
             }
 
             if (_cameraMotionSlider != null)
             {
-                SetTopCenterRect(_cameraMotionSlider.GetComponent<RectTransform>(), 0f, 246f, new Vector2(sliderWidth, 48f));
+                SetTopCenterRect(_cameraMotionSlider.GetComponent<RectTransform>(), 0f, 306f, new Vector2(sliderWidth, 46f));
             }
 
             if (_musicRowRect != null)
             {
-                SetTopCenterRect(_musicRowRect, 0f, 346f, new Vector2(rowWidth, 56f));
-                var musicButtonOffset = Mathf.Clamp(rowWidth * 0.36f, 126f, 168f);
+                SetTopCenterRect(_musicRowRect, 0f, 438f, new Vector2(rowWidth, 58f));
+                var musicButtonOffset = Mathf.Clamp(rowWidth * 0.36f, 128f, 188f);
                 SetCenterRect(GetChildRect(_musicRowRect, "MusicPrevButton"), -musicButtonOffset, 0f, new Vector2(92f, 44f));
                 SetCenterRect(GetChildRect(_musicRowRect, "MusicNextButton"), musicButtonOffset, 0f, new Vector2(92f, 44f));
-                SetCenterRect(GetChildRect(_musicRowRect, "MusicTrackValue"), 0f, 0f, new Vector2(Mathf.Max(140f, rowWidth - (musicButtonOffset * 2f) - 30f), 48f));
+                SetCenterRect(GetChildRect(_musicRowRect, "MusicTrackValue"), 0f, 0f, new Vector2(Mathf.Max(148f, rowWidth - (musicButtonOffset * 2f) - 24f), 48f));
             }
 
             if (_graphicsRowRect != null)
             {
-                SetTopCenterRect(_graphicsRowRect, 0f, 548f, new Vector2(rowWidth, 64f));
-                var qualitySpacing = Mathf.Clamp(rowWidth * 0.22f, 88f, 104f);
-                var qualitySize = new Vector2(88f, 40f);
+                SetTopCenterRect(_graphicsRowRect, 0f, 688f, new Vector2(rowWidth, 70f));
+                var qualitySpacing = Mathf.Clamp(rowWidth * 0.22f, 92f, 108f);
+                var qualitySize = new Vector2(90f, 40f);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "AutoQualityButton"), -qualitySpacing * 1.5f, 0f, qualitySize);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "LowQualityButton"), -qualitySpacing * 0.5f, 0f, qualitySize);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "MediumQualityButton"), qualitySpacing * 0.5f, 0f, qualitySize);
@@ -1247,7 +1247,7 @@ namespace MultiplyRush
 
             if (_hapticsButton != null)
             {
-                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), 26f, 390f, new Vector2(110f, 46f));
+                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), 30f, 548f, new Vector2(110f, 46f));
             }
         }
 
