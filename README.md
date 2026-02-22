@@ -37,6 +37,14 @@ An actually-playable version of the clickbait gate-multiplier runner ads. Free, 
 4. Resolve `[WARN]` items that apply to your final submission (bundle ID, icons, metadata).
 5. Build iOS and archive in Xcode for App Store Connect upload.
 
+## CI + Hygiene
+- Offline policy is enforced in CI via `.github/workflows/offline-policy.yml`.
+- Local check command:
+  - `python tools/offline_policy_check.py`
+  - `python tools/repo_size_guard.py`
+- Extended readiness guide:
+  - `Assets/MultiplyRush/Docs/ProductionReadiness.md`
+
 ## Design Constraints
 - Offline only.
 - No ads.
