@@ -29,6 +29,7 @@ namespace MultiplyRush
         public float winnerPowerBias = 1.2f;
         public float loserPowerBias = 0.84f;
         public float battleHitSfxInterval = 0.09f;
+        public float preBattleCenterTime = 0.28f;
 
         private enum GameFlowState
         {
@@ -277,6 +278,24 @@ namespace MultiplyRush
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
             AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Battle, false);
+
+            var centerTime = Mathf.Clamp(preBattleCenterTime, 0f, 1.2f);
+            if (centerTime > 0f)
+            {
+                var centerElapsed = 0f;
+                while (centerElapsed < centerTime)
+                {
+                    var deltaTime = Time.deltaTime;
+                    if (deltaTime <= 0f)
+                    {
+                        yield return null;
+                        continue;
+                    }
+
+                    centerElapsed += deltaTime;
+                    yield return null;
+                }
+            }
 
             var duration = _currentBuild.isMiniBoss ? battleDurationMiniBoss : battleDurationNormal;
             duration = Mathf.Max(1.8f, duration);

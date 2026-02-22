@@ -78,6 +78,15 @@ namespace MultiplyRush
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
 
+        [Header("Combat")]
+        public bool autoCenterDuringCombat = true;
+        public float combatCenterX = 0f;
+        public float combatCenterSpeed = 11f;
+        [Range(4, 42)]
+        public int battleLossBurstCount = 18;
+        public float battleLossBurstSpread = 0.44f;
+        public float battleLossBurstUpwardSpeed = 2.2f;
+
         [Header("Status Effects")]
         public float minSpeedMultiplier = 0.55f;
 
@@ -92,6 +101,7 @@ namespace MultiplyRush
         private readonly List<float> _unitPhaseOffsets = new List<float>(160);
         private readonly List<float> _unitGainPopTimers = new List<float>(160);
         private readonly List<int> _frontShooterIndices = new List<int>(160);
+        private readonly List<Vector3> _battleLossSamplePositions = new List<Vector3>(32);
 
         private Transform _poolRoot;
         private Transform _leaderVisual;
@@ -126,10 +136,12 @@ namespace MultiplyRush
         private ParticleSystem _gateBurstSystem;
         private ParticleSystem _weaponTracerSystem;
         private ParticleSystem _weaponFlashSystem;
+        private ParticleSystem _battleLossBurstSystem;
         private Transform _weaponMuzzle;
         private float _weaponShotAccumulator;
         private bool _combatActive;
         private Transform _combatTarget;
+        private bool _combatCenteringActive;
         private int _betterGateHits;
         private int _worseGateHits;
         private int _redGateHits;
@@ -191,6 +203,7 @@ namespace MultiplyRush
 
             EnsureGateEffects();
             EnsureWeaponEffects();
+            EnsureBattleLossEffects();
 
             unitVisualScale = Mathf.Clamp(unitVisualScale, 1.45f, 2.2f);
             unitSpacingX = Mathf.Clamp(unitSpacingX, 0.62f, 0.95f);
@@ -267,6 +280,15 @@ namespace MultiplyRush
             }
             else
             {
+                if (_combatCenteringActive)
+                {
+                    var pos = transform.position;
+                    var targetCenterX = Mathf.Clamp(combatCenterX, -trackHalfWidth, trackHalfWidth);
+                    var centerBlend = 1f - Mathf.Exp(-Mathf.Max(1f, combatCenterSpeed) * deltaTime);
+                    pos.x = Mathf.Lerp(pos.x, targetCenterX, centerBlend);
+                    transform.position = pos;
+                }
+
                 var settleBlend = 1f - Mathf.Exp(-12f * deltaTime);
                 _smoothedStrafeVelocity = Mathf.Lerp(_smoothedStrafeVelocity, 0f, settleBlend);
             }
@@ -354,6 +376,7 @@ namespace MultiplyRush
             _nextShooterIndex = 0;
             _combatActive = false;
             _combatTarget = null;
+            _combatCenteringActive = false;
             _betterGateHits = 0;
             _worseGateHits = 0;
             _redGateHits = 0;
@@ -375,6 +398,8 @@ namespace MultiplyRush
             _isRunning = false;
             _combatActive = true;
             _combatTarget = target;
+            _combatCenteringActive = autoCenterDuringCombat;
+            _targetX = Mathf.Clamp(combatCenterX, -trackHalfWidth, trackHalfWidth);
             _weaponShotAccumulator = 0f;
         }
 
@@ -382,6 +407,7 @@ namespace MultiplyRush
         {
             _combatActive = false;
             _combatTarget = null;
+            _combatCenteringActive = false;
             _weaponShotAccumulator = 0f;
         }
 
@@ -393,14 +419,17 @@ namespace MultiplyRush
                 return 0;
             }
 
+            CacheBattleLossSamplePoints(safeAmount);
             var before = _count;
             SetCount(_count - safeAmount, true);
             var removed = before - _count;
             if (removed > 0)
             {
                 TriggerGatePunch(new Color(1f, 0.42f, 0.36f, 1f));
+                EmitBattleLossBurst(removed);
             }
 
+            _battleLossSamplePositions.Clear();
             return removed;
         }
 
@@ -941,6 +970,162 @@ namespace MultiplyRush
                 startColor = color
             };
             _gateBurstSystem.Emit(emitParams, Mathf.Clamp(gateBurstCount, 4, 28));
+        }
+
+        private void CacheBattleLossSamplePoints(int requestedLosses)
+        {
+            _battleLossSamplePositions.Clear();
+            var visibleUnits = _activeUnits.Count;
+            if (visibleUnits <= 0 || requestedLosses <= 0)
+            {
+                return;
+            }
+
+            var removableVisible = Mathf.Min(visibleUnits, requestedLosses);
+            var sampleCount = Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(removableVisible) * 2.2f), 1, 24);
+            var maxOffset = Mathf.Max(0, removableVisible - 1);
+            for (var i = 0; i < sampleCount; i++)
+            {
+                var normalized = sampleCount == 1 ? 0f : i / (sampleCount - 1f);
+                var removalOffset = Mathf.RoundToInt(normalized * maxOffset);
+                var sourceIndex = visibleUnits - 1 - removalOffset;
+                if (sourceIndex < 0 || sourceIndex >= _activeUnits.Count)
+                {
+                    continue;
+                }
+
+                var unit = _activeUnits[sourceIndex];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                _battleLossSamplePositions.Add(unit.position + new Vector3(
+                    UnityEngine.Random.Range(-0.08f, 0.08f),
+                    UnityEngine.Random.Range(0.34f, 0.74f),
+                    UnityEngine.Random.Range(-0.1f, 0.16f)));
+            }
+        }
+
+        private void EnsureBattleLossEffects()
+        {
+            if (_battleLossBurstSystem != null)
+            {
+                return;
+            }
+
+            var burstObject = new GameObject("BattleLossBurstFX");
+            burstObject.transform.SetParent(transform, false);
+            burstObject.transform.localPosition = new Vector3(0f, 0.42f, 0f);
+            burstObject.SetActive(false);
+            _battleLossBurstSystem = burstObject.AddComponent<ParticleSystem>();
+            var renderer = burstObject.GetComponent<ParticleSystemRenderer>();
+            if (renderer != null)
+            {
+                renderer.renderMode = ParticleSystemRenderMode.Billboard;
+                renderer.material = CreateEffectMaterial(
+                    "CrowdLossBurstMaterial",
+                    new Color(0.54f, 0.86f, 1f, 1f),
+                    0.12f,
+                    1f);
+            }
+
+            ConfigureBattleLossBurstSystem(_battleLossBurstSystem);
+            burstObject.SetActive(true);
+        }
+
+        private static void ConfigureBattleLossBurstSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.36f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.16f, 0.34f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 3.3f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.13f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.62f, 0.92f, 1f, 1f));
+            main.maxParticles = 360;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = false;
+
+            var colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(0.76f, 0.98f, 1f, 1f), 0f),
+                    new GradientColorKey(new Color(0.34f, 0.72f, 1f, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0.88f, 0.35f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+        }
+
+        private void EmitBattleLossBurst(int removedUnits)
+        {
+            if (removedUnits <= 0)
+            {
+                return;
+            }
+
+            EnsureBattleLossEffects();
+            if (_battleLossBurstSystem == null)
+            {
+                return;
+            }
+
+            var perSampleCount = Mathf.Clamp(
+                Mathf.RoundToInt(Mathf.Sqrt(Mathf.Max(1, removedUnits)) * 1.5f),
+                2,
+                Mathf.Max(2, battleLossBurstCount));
+            var burstColorA = new Color(0.78f, 0.98f, 1f, 1f);
+            var burstColorB = new Color(0.32f, 0.7f, 1f, 1f);
+
+            if (_battleLossSamplePositions.Count > 0)
+            {
+                for (var i = 0; i < _battleLossSamplePositions.Count; i++)
+                {
+                    var emitParams = new ParticleSystem.EmitParams
+                    {
+                        position = _battleLossSamplePositions[i],
+                        velocity = new Vector3(
+                            UnityEngine.Random.Range(-battleLossBurstSpread, battleLossBurstSpread),
+                            UnityEngine.Random.Range(0.8f, Mathf.Max(1f, battleLossBurstUpwardSpeed)),
+                            UnityEngine.Random.Range(-battleLossBurstSpread, battleLossBurstSpread)),
+                        startColor = Color.Lerp(burstColorA, burstColorB, UnityEngine.Random.value)
+                    };
+                    _battleLossBurstSystem.Emit(emitParams, perSampleCount);
+                }
+                return;
+            }
+
+            var fallbackEmitParams = new ParticleSystem.EmitParams
+            {
+                position = transform.position + new Vector3(
+                    UnityEngine.Random.Range(-0.6f, 0.6f),
+                    UnityEngine.Random.Range(0.35f, 0.8f),
+                    UnityEngine.Random.Range(-0.5f, 0.6f)),
+                startColor = Color.Lerp(burstColorA, burstColorB, UnityEngine.Random.value)
+            };
+            _battleLossBurstSystem.Emit(fallbackEmitParams, Mathf.Max(4, perSampleCount * 2));
         }
 
         private void EnsureWeaponEffects()
