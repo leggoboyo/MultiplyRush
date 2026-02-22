@@ -276,7 +276,8 @@ namespace MultiplyRush
             ProgressionStore.SetGameplayMusicTrack(_selectedGameplayTrackIndex, GameplayMusicTrackCount);
             if (refreshActiveCue && _currentCue == AudioMusicCue.Gameplay)
             {
-                SetMusicCue(AudioMusicCue.Gameplay, false);
+                // Force a refresh when staying on the gameplay cue so the newly selected track swaps immediately.
+                SetMusicCue(AudioMusicCue.Gameplay, true);
             }
         }
 

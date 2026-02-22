@@ -133,8 +133,12 @@ namespace MultiplyRush
         public float hazardChanceAtHighDifficulty = 0.34f;
         public float hazardWidth = 2.6f;
         public float hazardDepth = 2.4f;
-        public float slowHazardMultiplier = 0.74f;
-        public float slowHazardDuration = 1.45f;
+        [Range(0.02f, 0.95f)]
+        public float pitLossFractionAtStart = 0.08f;
+        [Range(0.02f, 0.95f)]
+        public float pitLossFractionAtHighDifficulty = 0.24f;
+        public int pitFlatLossAtStart = 6;
+        public int pitFlatLossAtHighDifficulty = 26;
         public float knockbackHazardStrength = 1.9f;
 
         [Header("Modifier Milestones")]
@@ -1644,15 +1648,15 @@ namespace MultiplyRush
             {
                 var spec = hazards[i];
                 var hazard = GetHazard();
-                hazard.slowColor = _hazardSlowColor;
+                hazard.pitColor = _hazardSlowColor;
                 hazard.knockbackColor = _hazardKnockbackColor;
                 var laneX = Mathf.Clamp(LaneToX(spec.lane), minX, maxX);
                 var worldPosition = new Vector3(laneX, -0.01f, spec.z);
                 var worldScale = new Vector3(spec.width, 0.04f, spec.depth);
                 hazard.Configure(
                     spec.type,
-                    spec.slowMultiplier,
-                    spec.duration,
+                    spec.unitLossFraction,
+                    spec.flatLoss,
                     spec.knockbackDeltaX,
                     worldPosition,
                     worldScale,
@@ -1771,7 +1775,7 @@ namespace MultiplyRush
             var labelRoot = new GameObject("Label");
             labelRoot.transform.SetParent(hazardObject.transform, false);
             var label = labelRoot.AddComponent<TextMesh>();
-            label.text = "SLOW";
+            label.text = "PIT";
             hazard.labelText = label;
 
             hazardObject.SetActive(false);
@@ -1945,21 +1949,33 @@ namespace MultiplyRush
                     {
                         var pressureLane = GetMostPressuredLane();
                         var lane = enableAdaptiveLanePressure && random.NextDouble() < 0.6 ? pressureLane : random.Next(0, 3);
-                        var hazardType = random.NextDouble() < 0.64 ? HazardType.SlowField : HazardType.KnockbackStrip;
+                        var hazardType = HazardType.UnitPit;
                         var sideSign = lane == 0 ? 1f : lane == 2 ? -1f : (random.NextDouble() < 0.5 ? -1f : 1f);
+                        var pitFraction = Mathf.Lerp(pitLossFractionAtStart, pitLossFractionAtHighDifficulty, gateDifficulty01);
+                        if (modifier.hazardRush)
+                        {
+                            pitFraction *= 1.12f;
+                        }
+
+                        pitFraction = Mathf.Clamp(pitFraction, 0.03f, 0.92f);
+                        var pitFlatLoss = Mathf.RoundToInt(Mathf.Lerp(pitFlatLossAtStart, pitFlatLossAtHighDifficulty, gateDifficulty01));
+                        if (modifier.hazardRush)
+                        {
+                            pitFlatLoss = Mathf.RoundToInt(pitFlatLoss * 1.18f);
+                        }
+
+                        pitFlatLoss = Mathf.Clamp(pitFlatLoss, 2, 1000000);
+                        var pitSizeMultiplier = 1f + (gateDifficulty01 * 0.4f) + (modifier.hazardRush ? 0.2f : 0f);
                         generated.hazards.Add(new HazardSpec
                         {
                             lane = lane,
                             z = hazardZ,
                             type = hazardType,
-                            slowMultiplier = Mathf.Clamp(
-                                slowHazardMultiplier - (gateDifficulty01 * 0.08f) - (modifier.hazardRush ? 0.06f : 0f),
-                                0.45f,
-                                0.9f),
-                            duration = slowHazardDuration + (gateDifficulty01 * 0.4f) + (modifier.hazardRush ? 0.3f : 0f),
+                            unitLossFraction = pitFraction,
+                            flatLoss = pitFlatLoss,
                             knockbackDeltaX = knockbackHazardStrength * sideSign * (modifier.hazardRush ? 1.2f : 1f),
-                            width = Mathf.Max(1.1f, hazardWidth * (isMiniBoss ? 1.08f : 1f)),
-                            depth = Mathf.Max(1f, hazardDepth * (isMiniBoss ? 1.1f : 1f)),
+                            width = Mathf.Max(1.1f, hazardWidth * pitSizeMultiplier * (isMiniBoss ? 1.08f : 1f)),
+                            depth = Mathf.Max(1f, hazardDepth * pitSizeMultiplier * (isMiniBoss ? 1.1f : 1f)),
                             emphasize = isMiniBoss || modifier.hazardRush
                         });
                         lastHazardZ = hazardZ;
@@ -3359,8 +3375,8 @@ namespace MultiplyRush
             public int lane;
             public float z;
             public HazardType type;
-            public float slowMultiplier;
-            public float duration;
+            public float unitLossFraction;
+            public int flatLoss;
             public float knockbackDeltaX;
             public float width;
             public float depth;

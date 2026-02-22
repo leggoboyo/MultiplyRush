@@ -78,10 +78,22 @@ namespace MultiplyRush
         private RectTransform _badgeRect;
         private RectTransform _studioRect;
         private RectTransform _taglineRect;
+        private Button _progressButton;
+        private RectTransform _progressOverlayRect;
+        private CanvasGroup _progressOverlayGroup;
+        private RectTransform _progressPanelRect;
+        private Text _progressSummaryText;
+        private readonly List<RectTransform> _progressRowRects = new List<RectTransform>(12);
+        private readonly List<Text> _progressLevelTexts = new List<Text>(12);
+        private readonly List<Text> _progressScoreTexts = new List<Text>(12);
+        private readonly List<Button> _progressReplayButtons = new List<Button>(12);
+        private int _requestedReplayLevel = -1;
         private RectTransform _backdropLayerRect;
         private RectTransform _backdropNebulaARect;
         private RectTransform _backdropNebulaBRect;
         private RectTransform _backdropHorizonRect;
+        private RectTransform _backdropAuroraARect;
+        private RectTransform _backdropAuroraBRect;
         private readonly List<RectTransform> _backdropStripRects = new List<RectTransform>(16);
         private readonly List<float> _backdropStripSpeeds = new List<float>(16);
         private readonly List<float> _backdropStripPhases = new List<float>(16);
@@ -90,6 +102,10 @@ namespace MultiplyRush
         private readonly List<float> _backdropStarSpeeds = new List<float>(40);
         private readonly List<float> _backdropStarPhases = new List<float>(40);
         private readonly List<float> _backdropStarBaseX = new List<float>(40);
+        private Sprite _softOrbSprite;
+        private Sprite _starOrbSprite;
+        private Texture2D _softOrbTexture;
+        private Texture2D _starOrbTexture;
         private Image _metaCardImage;
         private Text _titleText;
         private Text _taglineText;
@@ -105,6 +121,7 @@ namespace MultiplyRush
         private Vector2 _lastSafeAreaSize = new Vector2(-1f, -1f);
         private Vector2 _titleBasePosition;
         private Vector2 _taglineBasePosition;
+        private float _nextMusicLabelRefreshTime;
 
         private void Start()
         {
@@ -153,9 +170,10 @@ namespace MultiplyRush
             }
 
             UpdateVideoBackgroundState();
-            if (_musicTrackLabel != null && string.IsNullOrWhiteSpace(_musicTrackLabel.text))
+            if (Time.unscaledTime >= _nextMusicLabelRefreshTime)
             {
                 RefreshMusicTrackLabel();
+                _nextMusicLabelRefreshTime = Time.unscaledTime + 0.4f;
             }
             RefreshResponsiveLayout();
             AnimateMenu(Time.unscaledTime);
@@ -166,6 +184,16 @@ namespace MultiplyRush
             if (_isStartingGame)
             {
                 return;
+            }
+
+            if (_requestedReplayLevel > 0)
+            {
+                ProgressionStore.SetRequestedStartLevel(_requestedReplayLevel);
+                _requestedReplayLevel = -1;
+            }
+            else
+            {
+                ProgressionStore.ClearRequestedStartLevel();
             }
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.78f, 1.04f);
@@ -492,6 +520,14 @@ namespace MultiplyRush
                 new Vector2(0.2f, 0.35f),
                 Vector2.zero,
                 new Vector2(560f, 560f)).rectTransform;
+            var leftGlowImage = _leftGlowRect != null ? _leftGlowRect.GetComponent<Image>() : null;
+            if (leftGlowImage != null)
+            {
+                EnsureBackdropSprites();
+                leftGlowImage.sprite = _softOrbSprite;
+                leftGlowImage.type = Image.Type.Simple;
+                leftGlowImage.preserveAspect = true;
+            }
 
             _rightGlowRect = FindOrCreateImage(
                 _safeAreaRoot,
@@ -501,6 +537,14 @@ namespace MultiplyRush
                 new Vector2(0.82f, 0.73f),
                 Vector2.zero,
                 new Vector2(420f, 420f)).rectTransform;
+            var rightGlowImage = _rightGlowRect != null ? _rightGlowRect.GetComponent<Image>() : null;
+            if (rightGlowImage != null)
+            {
+                EnsureBackdropSprites();
+                rightGlowImage.sprite = _softOrbSprite;
+                rightGlowImage.type = Image.Type.Simple;
+                rightGlowImage.preserveAspect = true;
+            }
 
             _scanlineRect = FindOrCreateImage(
                 _safeAreaRoot,
@@ -523,6 +567,12 @@ namespace MultiplyRush
                 new Vector2(640f, 44f)).rectTransform;
             if (_badgeRect != null)
             {
+                var badgeImage = _badgeRect.GetComponent<Image>();
+                if (badgeImage != null)
+                {
+                    badgeImage.color = new Color(0.18f, 0.52f, 0.86f, 0.2f);
+                }
+
                 var leftAccent = FindOrCreateImage(
                     _badgeRect,
                     "LeftAccent",
@@ -547,6 +597,26 @@ namespace MultiplyRush
                 if (rightAccent != null)
                 {
                     rightAccent.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 4f);
+                }
+
+                for (var i = 0; i < _badgeRect.childCount; i++)
+                {
+                    var child = _badgeRect.GetChild(i);
+                    if (child == null)
+                    {
+                        continue;
+                    }
+
+                    if (child.name == "LeftAccent" || child.name == "RightAccent")
+                    {
+                        continue;
+                    }
+
+                    var staleText = child.GetComponent<Text>();
+                    if (staleText != null)
+                    {
+                        staleText.gameObject.SetActive(false);
+                    }
                 }
             }
 
@@ -614,6 +684,32 @@ namespace MultiplyRush
             StyleBodyText(_footerText, 24, false);
             _footerText.color = new Color(0.72f, 0.83f, 0.95f, 0f);
             _footerText.gameObject.SetActive(false);
+
+            EnsureProgressOverlay();
+            Text progressLabel;
+            _progressButton = EnsureDifficultyButton(
+                _safeAreaRoot,
+                "ProgressButton",
+                "PROGRESS",
+                new Vector2(0f, -208f),
+                out progressLabel);
+            if (_progressButton != null)
+            {
+                var progressRect = _progressButton.GetComponent<RectTransform>();
+                if (progressRect != null)
+                {
+                    progressRect.sizeDelta = new Vector2(260f, 58f);
+                }
+
+                _progressButton.onClick.RemoveAllListeners();
+                _progressButton.onClick.AddListener(ToggleProgressOverlay);
+            }
+
+            if (progressLabel != null)
+            {
+                progressLabel.fontSize = 30;
+                progressLabel.fontStyle = FontStyle.Bold;
+            }
 
             if (_backdropLayerRect != null)
             {
@@ -953,8 +1049,9 @@ namespace MultiplyRush
                 next += trackCount;
             }
 
-            audio.SetGameplayTrackIndex(next, false);
-            audio.PreviewGameplayTrack(1.35f, AudioMusicCue.MainMenu);
+            audio.SetGameplayTrackIndex(next, true);
+            audio.StopGameplayPreview();
+            audio.SetMusicCue(AudioMusicCue.Gameplay, false);
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             RefreshMusicTrackLabel();
@@ -1084,6 +1181,28 @@ namespace MultiplyRush
                 _footerRect.anchoredPosition = new Vector2(0f, 34f);
                 _footerRect.gameObject.SetActive(false);
             }
+
+            if (_progressButton != null)
+            {
+                var progressRect = _progressButton.GetComponent<RectTransform>();
+                if (progressRect != null)
+                {
+                    progressRect.anchoredPosition = new Vector2(0f, compact ? -206f : -236f);
+                    progressRect.sizeDelta = new Vector2(Mathf.Clamp(width - 430f, 236f, 300f), compact ? 54f : 58f);
+                }
+            }
+
+            if (_progressPanelRect != null)
+            {
+                _progressPanelRect.sizeDelta = new Vector2(
+                    Mathf.Clamp(width - 110f, 540f, 860f),
+                    Mathf.Clamp(height - 240f, 760f, 1320f));
+            }
+
+            if (_progressSummaryText != null)
+            {
+                _progressSummaryText.rectTransform.sizeDelta = new Vector2(Mathf.Clamp(width - 180f, 480f, 760f), 64f);
+            }
         }
 
         private void EnsureProceduralBackdrop()
@@ -1126,34 +1245,111 @@ namespace MultiplyRush
                 _backdropLayerRect.SetAsFirstSibling();
             }
 
-            _backdropNebulaARect = FindOrCreateImage(
+            EnsureBackdropSprites();
+
+            var nebulaAImage = FindOrCreateImage(
                 _backdropLayerRect,
                 "NebulaA",
                 new Color(0.24f, 0.55f, 1f, 0.2f),
                 new Vector2(0.16f, 0.77f),
                 new Vector2(0.16f, 0.77f),
                 Vector2.zero,
-                new Vector2(820f, 820f)).rectTransform;
+                new Vector2(820f, 820f));
+            if (nebulaAImage != null)
+            {
+                if (_softOrbSprite != null)
+                {
+                    nebulaAImage.sprite = _softOrbSprite;
+                    nebulaAImage.type = Image.Type.Simple;
+                    nebulaAImage.preserveAspect = true;
+                }
 
-            _backdropNebulaBRect = FindOrCreateImage(
+                _backdropNebulaARect = nebulaAImage.rectTransform;
+            }
+
+            var nebulaBImage = FindOrCreateImage(
                 _backdropLayerRect,
                 "NebulaB",
                 new Color(0.04f, 0.82f, 0.96f, 0.14f),
                 new Vector2(0.82f, 0.28f),
                 new Vector2(0.82f, 0.28f),
                 Vector2.zero,
-                new Vector2(670f, 670f)).rectTransform;
+                new Vector2(670f, 670f));
+            if (nebulaBImage != null)
+            {
+                if (_softOrbSprite != null)
+                {
+                    nebulaBImage.sprite = _softOrbSprite;
+                    nebulaBImage.type = Image.Type.Simple;
+                    nebulaBImage.preserveAspect = true;
+                }
 
-            _backdropHorizonRect = FindOrCreateImage(
+                _backdropNebulaBRect = nebulaBImage.rectTransform;
+            }
+
+            var horizonImage = FindOrCreateImage(
                 _backdropLayerRect,
                 "HorizonGlow",
                 new Color(0.1f, 0.46f, 0.9f, 0.16f),
                 new Vector2(0.5f, 0.56f),
                 new Vector2(0.5f, 0.56f),
                 Vector2.zero,
-                new Vector2(1560f, 210f)).rectTransform;
+                new Vector2(1560f, 210f));
+            if (horizonImage != null)
+            {
+                if (_softOrbSprite != null)
+                {
+                    horizonImage.sprite = _softOrbSprite;
+                    horizonImage.type = Image.Type.Simple;
+                    horizonImage.preserveAspect = false;
+                }
 
-            const int stripCount = 12;
+                _backdropHorizonRect = horizonImage.rectTransform;
+            }
+
+            var auroraA = FindOrCreateImage(
+                _backdropLayerRect,
+                "AuroraA",
+                new Color(0.26f, 0.86f, 1f, 0.12f),
+                new Vector2(0.5f, 0.64f),
+                new Vector2(0.5f, 0.64f),
+                Vector2.zero,
+                new Vector2(1660f, 390f));
+            if (auroraA != null)
+            {
+                if (_softOrbSprite != null)
+                {
+                    auroraA.sprite = _softOrbSprite;
+                    auroraA.type = Image.Type.Simple;
+                    auroraA.preserveAspect = false;
+                }
+
+                _backdropAuroraARect = auroraA.rectTransform;
+                _backdropAuroraARect.localRotation = Quaternion.Euler(0f, 0f, -6f);
+            }
+
+            var auroraB = FindOrCreateImage(
+                _backdropLayerRect,
+                "AuroraB",
+                new Color(0.18f, 0.68f, 1f, 0.11f),
+                new Vector2(0.5f, 0.48f),
+                new Vector2(0.5f, 0.48f),
+                Vector2.zero,
+                new Vector2(1540f, 340f));
+            if (auroraB != null)
+            {
+                if (_softOrbSprite != null)
+                {
+                    auroraB.sprite = _softOrbSprite;
+                    auroraB.type = Image.Type.Simple;
+                    auroraB.preserveAspect = false;
+                }
+
+                _backdropAuroraBRect = auroraB.rectTransform;
+                _backdropAuroraBRect.localRotation = Quaternion.Euler(0f, 0f, 7f);
+            }
+
+            const int stripCount = 14;
             _backdropStripRects.Clear();
             _backdropStripSpeeds.Clear();
             _backdropStripPhases.Clear();
@@ -1167,23 +1363,29 @@ namespace MultiplyRush
                 var phaseHash = Hash01(i + 251);
                 var baseX = Mathf.Lerp(-460f, 460f, xHash);
                 var baseY = Mathf.Lerp(-620f, 620f, yHash);
-                var width = Mathf.Lerp(44f, 148f, widthHash);
-                var height = Mathf.Lerp(360f, 760f, 1f - widthHash);
+                var size = Mathf.Lerp(120f, 360f, widthHash);
 
                 var strip = FindOrCreateImage(
                     _backdropLayerRect,
                     "DriftStrip_" + i,
-                    new Color(0.4f, 0.78f, 1f, Mathf.Lerp(0.07f, 0.19f, Hash01(i + 317))),
+                    new Color(0.4f, 0.78f, 1f, Mathf.Lerp(0.05f, 0.15f, Hash01(i + 317))),
                     new Vector2(0.5f, 0.5f),
                     new Vector2(0.5f, 0.5f),
                     new Vector2(baseX, baseY),
-                    new Vector2(width, height));
+                    new Vector2(size, size));
                 if (strip == null)
                 {
                     continue;
                 }
 
-                strip.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-12f, 12f, Hash01(i + 347)));
+                if (_softOrbSprite != null)
+                {
+                    strip.sprite = _softOrbSprite;
+                    strip.type = Image.Type.Simple;
+                    strip.preserveAspect = true;
+                }
+
+                strip.rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-22f, 22f, Hash01(i + 347)));
                 strip.raycastTarget = false;
                 _backdropStripRects.Add(strip.rectTransform);
                 _backdropStripSpeeds.Add(Mathf.Lerp(0.68f, 1.28f, speedHash));
@@ -1191,7 +1393,7 @@ namespace MultiplyRush
                 _backdropStripBaseX.Add(baseX);
             }
 
-            const int starCount = 28;
+            const int starCount = 84;
             _backdropStarRects.Clear();
             _backdropStarSpeeds.Clear();
             _backdropStarPhases.Clear();
@@ -1218,6 +1420,13 @@ namespace MultiplyRush
                 if (star == null)
                 {
                     continue;
+                }
+
+                if (_starOrbSprite != null)
+                {
+                    star.sprite = _starOrbSprite;
+                    star.type = Image.Type.Simple;
+                    star.preserveAspect = true;
                 }
 
                 star.raycastTarget = false;
@@ -1264,6 +1473,40 @@ namespace MultiplyRush
                 }
             }
 
+            if (_backdropAuroraARect != null)
+            {
+                _backdropAuroraARect.anchoredPosition = new Vector2(
+                    Mathf.Sin(runTime * 0.18f) * 110f,
+                    20f + (Mathf.Cos(runTime * 0.13f) * 34f));
+                _backdropAuroraARect.localScale = new Vector3(
+                    1.04f + (Mathf.Sin(runTime * 0.42f) * 0.12f),
+                    1f + (Mathf.Cos(runTime * 0.36f) * 0.07f),
+                    1f);
+                var image = _backdropAuroraARect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.1f + (Mathf.Abs(Mathf.Sin(runTime * 0.6f)) * 0.16f);
+                    image.color = new Color(0.26f, 0.86f, 1f, alpha);
+                }
+            }
+
+            if (_backdropAuroraBRect != null)
+            {
+                _backdropAuroraBRect.anchoredPosition = new Vector2(
+                    Mathf.Cos(runTime * 0.17f) * 130f,
+                    -40f + (Mathf.Sin(runTime * 0.11f) * 28f));
+                _backdropAuroraBRect.localScale = new Vector3(
+                    1f + (Mathf.Cos(runTime * 0.38f) * 0.1f),
+                    1f + (Mathf.Sin(runTime * 0.44f) * 0.08f),
+                    1f);
+                var image = _backdropAuroraBRect.GetComponent<Image>();
+                if (image != null)
+                {
+                    var alpha = 0.08f + (Mathf.Abs(Mathf.Sin(runTime * 0.52f)) * 0.14f);
+                    image.color = new Color(0.18f, 0.68f, 1f, alpha);
+                }
+            }
+
             var stripCount = Mathf.Min(_backdropStripRects.Count, Mathf.Min(_backdropStripSpeeds.Count, _backdropStripBaseX.Count));
             for (var i = 0; i < stripCount; i++)
             {
@@ -1275,13 +1518,13 @@ namespace MultiplyRush
 
                 var phase = i < _backdropStripPhases.Count ? _backdropStripPhases[i] : 0f;
                 var y = Mathf.Repeat(phase + (runTime * backdropStripDriftSpeed * _backdropStripSpeeds[i]), 1560f) - 780f;
-                var x = _backdropStripBaseX[i] + Mathf.Sin(runTime * (0.55f + i * 0.06f)) * 26f;
+                var x = _backdropStripBaseX[i] + Mathf.Sin(runTime * (0.55f + i * 0.06f)) * 34f;
                 rect.anchoredPosition = new Vector2(x, y);
-                var alphaPulse = 0.06f + Mathf.Abs(Mathf.Sin(runTime * (1.2f + i * 0.11f))) * 0.14f;
+                var alphaPulse = 0.04f + Mathf.Abs(Mathf.Sin(runTime * (1.2f + i * 0.11f))) * 0.12f;
                 var image = rect.GetComponent<Image>();
                 if (image != null)
                 {
-                    image.color = new Color(0.36f, 0.78f, 1f, alphaPulse);
+                    image.color = new Color(0.42f, 0.8f, 1f, alphaPulse);
                 }
             }
 
@@ -1311,6 +1554,73 @@ namespace MultiplyRush
         {
             var value = Mathf.Sin(seed * 12.9898f) * 43758.5453f;
             return value - Mathf.Floor(value);
+        }
+
+        private void EnsureBackdropSprites()
+        {
+            if (_softOrbSprite != null && _starOrbSprite != null)
+            {
+                return;
+            }
+
+            if (_softOrbTexture == null)
+            {
+                _softOrbTexture = BuildRadialTexture(160, 0.92f, 3.4f);
+            }
+
+            if (_starOrbTexture == null)
+            {
+                _starOrbTexture = BuildRadialTexture(72, 1f, 6.4f);
+            }
+
+            if (_softOrbTexture != null && _softOrbSprite == null)
+            {
+                _softOrbSprite = Sprite.Create(
+                    _softOrbTexture,
+                    new Rect(0f, 0f, _softOrbTexture.width, _softOrbTexture.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+
+            if (_starOrbTexture != null && _starOrbSprite == null)
+            {
+                _starOrbSprite = Sprite.Create(
+                    _starOrbTexture,
+                    new Rect(0f, 0f, _starOrbTexture.width, _starOrbTexture.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+        }
+
+        private static Texture2D BuildRadialTexture(int size, float edgeAlpha, float falloffPower)
+        {
+            var safeSize = Mathf.Clamp(size, 32, 256);
+            var texture = new Texture2D(safeSize, safeSize, TextureFormat.RGBA32, false, true)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            var colors = new Color[safeSize * safeSize];
+            var center = (safeSize - 1f) * 0.5f;
+            var invRadius = 1f / Mathf.Max(1f, center);
+            var index = 0;
+            for (var y = 0; y < safeSize; y++)
+            {
+                for (var x = 0; x < safeSize; x++)
+                {
+                    var dx = (x - center) * invRadius;
+                    var dy = (y - center) * invRadius;
+                    var dist = Mathf.Clamp01(Mathf.Sqrt((dx * dx) + (dy * dy)));
+                    var alpha = Mathf.Pow(1f - dist, Mathf.Max(1f, falloffPower));
+                    alpha = Mathf.Clamp01(alpha * edgeAlpha);
+                    colors[index++] = new Color(1f, 1f, 1f, alpha);
+                }
+            }
+
+            texture.SetPixels(colors);
+            texture.Apply(false, false);
+            return texture;
         }
 
         private void RefreshMusicTrackLabel()
@@ -1344,6 +1654,290 @@ namespace MultiplyRush
             _musicTrackLabel.gameObject.SetActive(true);
         }
 
+        private void ToggleProgressOverlay()
+        {
+            if (_progressOverlayRect == null || _progressOverlayGroup == null)
+            {
+                return;
+            }
+
+            var show = !_progressOverlayRect.gameObject.activeSelf;
+            _progressOverlayRect.gameObject.SetActive(show);
+            _progressOverlayGroup.alpha = show ? 1f : 0f;
+            _progressOverlayGroup.interactable = show;
+            _progressOverlayGroup.blocksRaycasts = show;
+            if (show)
+            {
+                RefreshProgressOverlay();
+                AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.6f, 1.04f);
+            }
+        }
+
+        private void EnsureProgressOverlay()
+        {
+            if (_safeAreaRoot == null || _progressOverlayRect != null)
+            {
+                return;
+            }
+
+            var overlayObject = new GameObject("ProgressOverlay", typeof(RectTransform), typeof(CanvasGroup));
+            overlayObject.transform.SetParent(_safeAreaRoot, false);
+            _progressOverlayRect = overlayObject.GetComponent<RectTransform>();
+            _progressOverlayRect.anchorMin = Vector2.zero;
+            _progressOverlayRect.anchorMax = Vector2.one;
+            _progressOverlayRect.offsetMin = Vector2.zero;
+            _progressOverlayRect.offsetMax = Vector2.zero;
+            _progressOverlayGroup = overlayObject.GetComponent<CanvasGroup>();
+
+            var dim = FindOrCreateImage(
+                _progressOverlayRect,
+                "Dim",
+                new Color(0f, 0f, 0f, 0.76f),
+                Vector2.zero,
+                Vector2.one,
+                Vector2.zero,
+                Vector2.zero);
+            if (dim != null)
+            {
+                dim.raycastTarget = true;
+            }
+
+            var panel = FindOrCreateImage(
+                _progressOverlayRect,
+                "Panel",
+                new Color(0.05f, 0.12f, 0.24f, 0.96f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                Vector2.zero,
+                new Vector2(760f, 1120f));
+            _progressPanelRect = panel != null ? panel.rectTransform : null;
+            if (_progressPanelRect == null)
+            {
+                return;
+            }
+
+            var outline = panel.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = panel.gameObject.AddComponent<Outline>();
+            }
+
+            outline.effectColor = new Color(0f, 0f, 0f, 0.65f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            var title = FindOrCreateText(
+                _progressPanelRect,
+                "Title",
+                "RUN PROGRESSION",
+                56,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -64f),
+                new Vector2(680f, 88f));
+            StyleHeadline(title, 56);
+
+            _progressSummaryText = FindOrCreateText(
+                _progressPanelRect,
+                "Summary",
+                string.Empty,
+                28,
+                TextAnchor.MiddleCenter,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -126f),
+                new Vector2(700f, 64f));
+            StyleBodyText(_progressSummaryText, 28, true);
+
+            _progressRowRects.Clear();
+            _progressLevelTexts.Clear();
+            _progressScoreTexts.Clear();
+            _progressReplayButtons.Clear();
+
+            for (var i = 0; i < 10; i++)
+            {
+                var y = 352f - (i * 84f);
+                var row = FindOrCreateImage(
+                    _progressPanelRect,
+                    "Row_" + i,
+                    i % 2 == 0
+                        ? new Color(0.12f, 0.26f, 0.42f, 0.84f)
+                        : new Color(0.09f, 0.2f, 0.35f, 0.82f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, y),
+                    new Vector2(674f, 72f));
+                if (row == null)
+                {
+                    continue;
+                }
+
+                var rowRect = row.rectTransform;
+                _progressRowRects.Add(rowRect);
+                var rowOutline = row.GetComponent<Outline>();
+                if (rowOutline == null)
+                {
+                    rowOutline = row.gameObject.AddComponent<Outline>();
+                }
+
+                rowOutline.effectColor = new Color(0f, 0f, 0f, 0.48f);
+                rowOutline.effectDistance = new Vector2(1.2f, -1.2f);
+
+                EnsureBackdropSprites();
+                var nodeGlow = FindOrCreateImage(
+                    rowRect,
+                    "NodeGlow",
+                    new Color(0.36f, 0.84f, 1f, 0.62f),
+                    new Vector2(0f, 0.5f),
+                    new Vector2(0f, 0.5f),
+                    new Vector2(12f, 0f),
+                    new Vector2(36f, 36f));
+                if (nodeGlow != null && _softOrbSprite != null)
+                {
+                    nodeGlow.sprite = _softOrbSprite;
+                    nodeGlow.type = Image.Type.Simple;
+                    nodeGlow.preserveAspect = true;
+                }
+
+                var levelLabel = FindOrCreateText(
+                    rowRect,
+                    "LevelLabel",
+                    "LEVEL",
+                    30,
+                    TextAnchor.MiddleLeft,
+                    new Vector2(0f, 0.5f),
+                    new Vector2(0f, 0.5f),
+                    new Vector2(22f, 0f),
+                    new Vector2(232f, 56f));
+                StyleBodyText(levelLabel, 30, true);
+                _progressLevelTexts.Add(levelLabel);
+
+                var scoreLabel = FindOrCreateText(
+                    rowRect,
+                    "ScoreLabel",
+                    "Best 0",
+                    23,
+                    TextAnchor.MiddleCenter,
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(-20f, 0f),
+                    new Vector2(260f, 54f));
+                StyleBodyText(scoreLabel, 23, false);
+                _progressScoreTexts.Add(scoreLabel);
+
+                var replayButton = EnsureDifficultyButton(rowRect, "ReplayButton", "REPLAY", new Vector2(244f, 0f), out var replayLabel);
+                if (replayButton != null)
+                {
+                    var replayRect = replayButton.GetComponent<RectTransform>();
+                    if (replayRect != null)
+                    {
+                        replayRect.sizeDelta = new Vector2(156f, 50f);
+                    }
+
+                    if (replayLabel != null)
+                    {
+                        replayLabel.fontSize = 22;
+                    }
+
+                    var indexCopy = i;
+                    replayButton.onClick.RemoveAllListeners();
+                    replayButton.onClick.AddListener(() =>
+                    {
+                        var unlocked = ProgressionStore.GetUnlockedLevel();
+                        var level = Mathf.Max(1, unlocked - indexCopy);
+                        _requestedReplayLevel = level;
+                        ToggleProgressOverlay();
+                        Play();
+                    });
+                    _progressReplayButtons.Add(replayButton);
+                }
+            }
+
+            var closeButton = EnsureDifficultyButton(_progressPanelRect, "CloseButton", "CLOSE", new Vector2(0f, -504f), out var closeLabel);
+            if (closeButton != null)
+            {
+                var closeRect = closeButton.GetComponent<RectTransform>();
+                if (closeRect != null)
+                {
+                    closeRect.sizeDelta = new Vector2(232f, 58f);
+                }
+
+                closeButton.onClick.RemoveAllListeners();
+                closeButton.onClick.AddListener(ToggleProgressOverlay);
+            }
+
+            if (closeLabel != null)
+            {
+                closeLabel.fontSize = 27;
+            }
+
+            _progressOverlayRect.gameObject.SetActive(false);
+            _progressOverlayGroup.alpha = 0f;
+            _progressOverlayGroup.interactable = false;
+            _progressOverlayGroup.blocksRaycasts = false;
+        }
+
+        private void RefreshProgressOverlay()
+        {
+            var unlocked = ProgressionStore.GetUnlockedLevel();
+            var best = ProgressionStore.GetBestLevel();
+            if (_progressSummaryText != null)
+            {
+                _progressSummaryText.text = "Unlocked " + unlocked + "   •   Best " + best;
+            }
+
+            for (var i = 0; i < _progressRowRects.Count; i++)
+            {
+                var level = unlocked - i;
+                var visible = level >= 1;
+                var rowRect = _progressRowRects[i];
+                if (rowRect != null)
+                {
+                    rowRect.gameObject.SetActive(visible);
+                    var rowImage = rowRect.GetComponent<Image>();
+                    if (rowImage != null)
+                    {
+                        var baseColor = i % 2 == 0
+                            ? new Color(0.12f, 0.26f, 0.42f, 0.84f)
+                            : new Color(0.09f, 0.2f, 0.35f, 0.82f);
+                        rowImage.color = baseColor;
+                    }
+                }
+
+                if (!visible)
+                {
+                    continue;
+                }
+
+                if (i < _progressLevelTexts.Count && _progressLevelTexts[i] != null)
+                {
+                    _progressLevelTexts[i].text = "LEVEL " + level;
+                }
+
+                var bestSurvivors = ProgressionStore.GetBestSurvivorsForLevel(level);
+                if (i < _progressScoreTexts.Count && _progressScoreTexts[i] != null)
+                {
+                    _progressScoreTexts[i].text = bestSurvivors > 0
+                        ? "Best Survivors " + NumberFormatter.ToCompact(bestSurvivors)
+                        : "No clear yet";
+                }
+
+                if (i < _progressReplayButtons.Count && _progressReplayButtons[i] != null)
+                {
+                    var replayButton = _progressReplayButtons[i];
+                    var canReplay = level <= unlocked;
+                    replayButton.interactable = canReplay;
+                    var replayImage = replayButton.GetComponent<Image>();
+                    if (replayImage != null)
+                    {
+                        replayImage.color = canReplay
+                            ? new Color(0.22f, 0.74f, 1f, 0.96f)
+                            : new Color(0.22f, 0.32f, 0.45f, 0.65f);
+                    }
+                }
+            }
+        }
+
         private void OnDisable()
         {
             if (_menuVideoPlayer != null && _menuVideoPlayer.isPlaying)
@@ -1355,6 +1949,29 @@ namespace MultiplyRush
         private void OnDestroy()
         {
             ReleaseVideoRenderTexture();
+            if (_softOrbSprite != null)
+            {
+                Destroy(_softOrbSprite);
+                _softOrbSprite = null;
+            }
+
+            if (_starOrbSprite != null)
+            {
+                Destroy(_starOrbSprite);
+                _starOrbSprite = null;
+            }
+
+            if (_softOrbTexture != null)
+            {
+                Destroy(_softOrbTexture);
+                _softOrbTexture = null;
+            }
+
+            if (_starOrbTexture != null)
+            {
+                Destroy(_starOrbTexture);
+                _starOrbTexture = null;
+            }
         }
 
         private void SelectDifficulty(DifficultyMode mode)
@@ -1445,6 +2062,8 @@ namespace MultiplyRush
             label.verticalOverflow = VerticalWrapMode.Overflow;
             label.color = new Color(0.9f, 0.96f, 1f, 1f);
             label.text = textValue;
+            label.enabled = true;
+            label.gameObject.SetActive(true);
 
             var outline = label.GetComponent<Outline>();
             if (outline == null)
@@ -1688,6 +2307,8 @@ namespace MultiplyRush
             label.horizontalOverflow = HorizontalWrapMode.Wrap;
             label.verticalOverflow = VerticalWrapMode.Overflow;
             label.text = value;
+            label.enabled = true;
+            label.gameObject.SetActive(true);
             return label;
         }
 

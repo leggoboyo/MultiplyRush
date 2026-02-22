@@ -23,6 +23,8 @@ namespace MultiplyRush
         private const string CameraMotionKey = "mr_camera_motion";
         private const string HapticsEnabledKey = "mr_haptics_enabled";
         private const string GameplayMusicTrackKey = "mr_gameplay_music_track";
+        private const string RequestedStartLevelKey = "mr_requested_start_level";
+        private const string LevelBestSurvivorsPrefix = "mr_level_best_survivors_";
 
         public static int GetUnlockedLevel()
         {
@@ -42,6 +44,56 @@ namespace MultiplyRush
             PlayerPrefs.SetInt(UnlockedLevelKey, unlocked);
             PlayerPrefs.SetInt(BestLevelKey, best);
             PlayerPrefs.Save();
+        }
+
+        public static int GetBestSurvivorsForLevel(int levelIndex)
+        {
+            var safeLevel = Mathf.Max(1, levelIndex);
+            return Mathf.Max(0, PlayerPrefs.GetInt(LevelBestSurvivorsPrefix + safeLevel, 0));
+        }
+
+        public static void RecordBestSurvivorsForLevel(int levelIndex, int survivors)
+        {
+            var safeLevel = Mathf.Max(1, levelIndex);
+            var safeSurvivors = Mathf.Max(0, survivors);
+            var key = LevelBestSurvivorsPrefix + safeLevel;
+            var existing = Mathf.Max(0, PlayerPrefs.GetInt(key, 0));
+            if (safeSurvivors <= existing)
+            {
+                return;
+            }
+
+            PlayerPrefs.SetInt(key, safeSurvivors);
+            PlayerPrefs.Save();
+        }
+
+        public static void SetRequestedStartLevel(int levelIndex)
+        {
+            PlayerPrefs.SetInt(RequestedStartLevelKey, Mathf.Max(0, levelIndex));
+            PlayerPrefs.Save();
+        }
+
+        public static void ClearRequestedStartLevel()
+        {
+            if (!PlayerPrefs.HasKey(RequestedStartLevelKey))
+            {
+                return;
+            }
+
+            PlayerPrefs.DeleteKey(RequestedStartLevelKey);
+            PlayerPrefs.Save();
+        }
+
+        public static int ConsumeRequestedStartLevel()
+        {
+            var level = Mathf.Max(0, PlayerPrefs.GetInt(RequestedStartLevelKey, 0));
+            if (level > 0)
+            {
+                PlayerPrefs.DeleteKey(RequestedStartLevelKey);
+                PlayerPrefs.Save();
+            }
+
+            return level;
         }
 
         public static int GetReinforcementKits()

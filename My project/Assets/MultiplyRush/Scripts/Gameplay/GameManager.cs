@@ -82,7 +82,10 @@ namespace MultiplyRush
 
         private void Start()
         {
-            _currentLevelIndex = ProgressionStore.GetUnlockedLevel();
+            var requestedLevel = ProgressionStore.ConsumeRequestedStartLevel();
+            _currentLevelIndex = requestedLevel > 0
+                ? requestedLevel
+                : ProgressionStore.GetUnlockedLevel();
             StartLevel(_currentLevelIndex);
         }
 
@@ -372,6 +375,7 @@ namespace MultiplyRush
             if (didWin)
             {
                 ProgressionStore.MarkLevelWon(_currentLevelIndex);
+                ProgressionStore.RecordBestSurvivorsForLevel(_currentLevelIndex, playerCount);
                 _carryoverFromLastWin = Mathf.Max(0, playerCount);
                 if (_currentBuild.isMiniBoss)
                 {
