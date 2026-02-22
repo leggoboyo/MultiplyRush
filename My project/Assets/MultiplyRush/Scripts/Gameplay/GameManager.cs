@@ -29,7 +29,7 @@ namespace MultiplyRush
         public float winnerPowerBias = 1.2f;
         public float loserPowerBias = 0.84f;
         public float battleHitSfxInterval = 0.09f;
-        public float preBattleCenterTime = 0.28f;
+        public float preBattleCenterTime = 0.46f;
 
         private enum GameFlowState
         {
@@ -340,12 +340,12 @@ namespace MultiplyRush
                 var pacingScale = Mathf.Max(1f, duration);
                 var maxPlayerLossPerStep = Mathf.Clamp(
                     Mathf.CeilToInt((Mathf.Max(1f, battleStartPlayer) * deltaTime / pacingScale) * 2.3f),
-                    1,
-                    24);
+                    2,
+                    36);
                 var maxEnemyLossPerStep = Mathf.Clamp(
                     Mathf.CeilToInt((Mathf.Max(1f, battleStartEnemy) * deltaTime / pacingScale) * 2.3f),
-                    1,
-                    24);
+                    2,
+                    36);
                 playerLoss = Mathf.Min(playerLoss, maxPlayerLossPerStep);
                 enemyLoss = Mathf.Min(enemyLoss, maxEnemyLossPerStep);
                 if (enemyLoss > 0)

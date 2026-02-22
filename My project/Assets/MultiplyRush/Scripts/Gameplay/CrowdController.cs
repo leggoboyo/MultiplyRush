@@ -64,16 +64,16 @@ namespace MultiplyRush
         public float shotsPerVisibleUnit = 0.055f;
         public float maxShotsPerSecond = 16f;
         public float combatBaseShotsPerSecond = 14f;
-        public float combatShotsPerVisibleUnit = 1.2f;
-        public float combatMaxShotsPerSecond = 160f;
+        public float combatShotsPerVisibleUnit = 2.4f;
+        public float combatMaxShotsPerSecond = 320f;
         public float tracerSpeed = 35f;
         public float tracerLifetime = 0.15f;
         public float tracerSpread = 0.1f;
         public float tracerMuzzleJitter = 0.07f;
         public float tracerSpawnForwardOffset = 0.18f;
         public float gateShotRayDistance = 88f;
-        [Range(8, 160)]
-        public int maxCombatShotsPerFrame = 72;
+        [Range(8, 220)]
+        public int maxCombatShotsPerFrame = 92;
 
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
@@ -81,13 +81,13 @@ namespace MultiplyRush
         [Header("Combat")]
         public bool autoCenterDuringCombat = true;
         public float combatCenterX = 0f;
-        public float combatCenterSpeed = 11f;
+        public float combatCenterSpeed = 14f;
         [Range(4, 42)]
         public int battleLossBurstCount = 18;
         public float battleLossBurstSpread = 0.44f;
         public float battleLossBurstUpwardSpeed = 2.2f;
         public bool enableBattleDeathFx = true;
-        public int maxDeathFxPerLossWave = 14;
+        public int maxDeathFxPerLossWave = 18;
         public float deathFxDuration = 0.42f;
         public float deathFxRandomImpulse = 0.82f;
         public float deathFxGravity = 10.5f;
@@ -225,10 +225,10 @@ namespace MultiplyRush
             baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 0.6f, 5f);
             shotsPerVisibleUnit = Mathf.Clamp(shotsPerVisibleUnit, 0.02f, 0.16f);
             maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 6f, 30f);
-            combatBaseShotsPerSecond = Mathf.Clamp(combatBaseShotsPerSecond, 8f, 36f);
-            combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.2f, 2.4f);
-            combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 40f, 220f);
-            maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 16, 140);
+            combatBaseShotsPerSecond = Mathf.Clamp(combatBaseShotsPerSecond, 8f, 44f);
+            combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.2f, 4.6f);
+            combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 40f, 480f);
+            maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 16, 220);
 
             PrewarmPool();
 
@@ -437,7 +437,7 @@ namespace MultiplyRush
             CacheBattleLossSamplePoints(safeAmount);
             var before = _count;
             _pendingDeathFxBudget = enableBattleDeathFx
-                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 1.8f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
+                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 2.35f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
                 : 0;
             SetCount(_count - safeAmount, true);
             var removed = before - _count;
@@ -1361,20 +1361,30 @@ namespace MultiplyRush
                 ? Mathf.Max(8f, combatMaxShotsPerSecond)
                 : Mathf.Max(2f, maxShotsPerSecond);
             var dynamicShotCap = _combatActive
-                ? Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 2.4f, 24f, 220f))
+                ? Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 5.2f, 42f, 520f))
                 : Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 0.42f, 8f, 28f));
             var shotsPerSecond = Mathf.Clamp(baseRate + (activeShooters * perUnitFireRate), 1f, Mathf.Max(1f, dynamicShotCap));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
             var maxShotsPerFrame = _combatActive
-                ? Mathf.Clamp(maxCombatShotsPerFrame, 8, 80)
+                ? Mathf.Clamp(maxCombatShotsPerFrame, 12, 180)
                 : 16;
+
             var shotCount = Mathf.Clamp(Mathf.FloorToInt(_weaponShotAccumulator), 0, maxShotsPerFrame);
+            if (_combatActive)
+            {
+                var minCombatShotsPerFrame = Mathf.Clamp(Mathf.RoundToInt(activeShooters * 0.16f), 2, maxShotsPerFrame);
+                if (shotCount < minCombatShotsPerFrame)
+                {
+                    shotCount = minCombatShotsPerFrame;
+                }
+            }
+
             if (shotCount <= 0)
             {
                 return;
             }
 
-            _weaponShotAccumulator -= shotCount;
+            _weaponShotAccumulator = Mathf.Max(0f, _weaponShotAccumulator - shotCount);
             for (var i = 0; i < shotCount; i++)
             {
                 if (!TryGetWeaponEmissionPose(out var emitPosition, out var emitDirection))
@@ -1392,7 +1402,7 @@ namespace MultiplyRush
                     UnityEngine.Random.Range(-tracerSpread * 0.2f, tracerSpread * 0.2f),
                     0f)).normalized;
                 emitPosition += emitDirection * Mathf.Max(0f, tracerSpawnForwardOffset);
-                emitPosition.z = Mathf.Max(emitPosition.z, transform.position.z + 0.06f);
+                emitPosition.z = Mathf.Max(emitPosition.z, transform.position.z + 0.16f);
                 var speedVariance = _combatActive
                     ? UnityEngine.Random.Range(0.84f, 1.2f)
                     : UnityEngine.Random.Range(0.96f, 1.28f);
@@ -1419,7 +1429,9 @@ namespace MultiplyRush
 
             if (_weaponFlashSystem != null)
             {
-                var flashCount = Mathf.Clamp(Mathf.CeilToInt(shotCount * 0.9f), 1, 28);
+                var flashCount = _combatActive
+                    ? Mathf.Clamp(Mathf.CeilToInt(shotCount * 0.72f), 4, 64)
+                    : Mathf.Clamp(Mathf.CeilToInt(shotCount * 0.9f), 1, 28);
                 for (var i = 0; i < flashCount; i++)
                 {
                     if (!TryGetWeaponEmissionPose(out var flashPosition, out var flashDirection))
@@ -1485,7 +1497,7 @@ namespace MultiplyRush
                         : unit.position + (Vector3.forward * 0.2f) + new Vector3(0f, 0.52f, 0f);
 
                     // The runner always advances on world +Z, so force tracer spawn to never sit behind a unit.
-                    var minForwardZ = unit.position.z + 0.22f;
+                    var minForwardZ = unit.position.z + 0.32f;
                     if (position.z < minForwardZ)
                     {
                         position.z = minForwardZ;
@@ -1510,7 +1522,7 @@ namespace MultiplyRush
             if (_weaponMuzzle != null)
             {
                 position = _weaponMuzzle.position;
-                var minForwardZ = transform.position.z + 0.22f;
+                var minForwardZ = transform.position.z + 0.3f;
                 if (position.z < minForwardZ)
                 {
                     position.z = minForwardZ;

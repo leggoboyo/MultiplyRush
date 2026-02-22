@@ -24,16 +24,16 @@ namespace MultiplyRush
         [Header("Weapon VFX")]
         public bool enableWeaponVfx = true;
         public float baseShotsPerSecond = 11f;
-        public float shotsPerUnit = 0.8f;
-        public float maxShotsPerSecond = 96f;
+        public float shotsPerUnit = 2.1f;
+        public float maxShotsPerSecond = 260f;
         public float tracerSpeed = 31f;
-        public float tracerLifetime = 0.24f;
+        public float tracerLifetime = 0.2f;
         public float tracerSpread = 0.08f;
         public Color tracerColor = new Color(1f, 0.5f, 0.38f, 1f);
 
         [Header("Death FX")]
         public bool enableDeathFx = true;
-        public int maxDeathFxPerLossWave = 12;
+        public int maxDeathFxPerLossWave = 18;
         public float deathFxDuration = 0.42f;
         public float deathFxRandomImpulse = 0.85f;
         public float deathFxGravity = 10.5f;
@@ -77,8 +77,8 @@ namespace MultiplyRush
             spacingX = Mathf.Max(0.82f, spacingX);
             spacingZ = Mathf.Max(0.86f, spacingZ);
             baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 4f, 28f);
-            shotsPerUnit = Mathf.Clamp(shotsPerUnit, 0.1f, 1.8f);
-            maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 24f, 160f);
+            shotsPerUnit = Mathf.Clamp(shotsPerUnit, 0.1f, 4.4f);
+            maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 24f, 420f);
             tracerLifetime = Mathf.Clamp(tracerLifetime, 0.12f, 0.38f);
 
             ConfigureCountLabel();
@@ -143,7 +143,7 @@ namespace MultiplyRush
 
             var before = _count;
             _pendingDeathFxBudget = enableDeathFx
-                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 1.7f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
+                ? Mathf.Clamp(Mathf.RoundToInt(Mathf.Sqrt(safeAmount) * 2.3f), 1, Mathf.Max(1, maxDeathFxPerLossWave))
                 : 0;
             SetCountInternal(_count - safeAmount, true);
             var removed = before - _count;
@@ -443,8 +443,8 @@ namespace MultiplyRush
                 countLabel = labelObject.AddComponent<TextMesh>();
             }
 
-            countLabel.fontSize = 84;
-            countLabel.characterSize = 0.11f;
+            countLabel.fontSize = 96;
+            countLabel.characterSize = 0.125f;
             countLabel.anchor = TextAnchor.MiddleCenter;
             countLabel.alignment = TextAlignment.Center;
             countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
@@ -491,10 +491,10 @@ namespace MultiplyRush
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                1.78f + Mathf.Clamp(depth * 0.08f, 0.1f, 0.64f),
-                Mathf.Clamp(depth * 0.44f, 0.82f, 3.8f));
+                1.92f + Mathf.Clamp(depth * 0.09f, 0.12f, 0.78f),
+                Mathf.Clamp(depth * 0.52f, 0.96f, 4.4f));
 
-            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.42f, Mathf.Clamp01(_count / 220f));
+            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1.05f, 1.62f, Mathf.Clamp01(_count / 240f));
             var camera = Camera.main;
             if (camera != null)
             {
@@ -569,15 +569,22 @@ namespace MultiplyRush
             var shotsPerSecond = Mathf.Clamp(
                 baseShotsPerSecond + (_activeUnits.Count * Mathf.Max(0.01f, shotsPerUnit)),
                 2f,
-                Mathf.Max(2f, Mathf.Max(maxShotsPerSecond, _activeUnits.Count * 2.2f)));
+                Mathf.Max(2f, Mathf.Max(maxShotsPerSecond, _activeUnits.Count * 5.1f)));
             _shotAccumulator += deltaTime * shotsPerSecond;
-            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_shotAccumulator), 0, 60);
+            var maxShotsPerFrame = Mathf.Clamp(Mathf.RoundToInt(_activeUnits.Count * 0.45f), 12, 120);
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_shotAccumulator), 0, maxShotsPerFrame);
+            var minShotsPerFrame = Mathf.Clamp(Mathf.RoundToInt(_activeUnits.Count * 0.18f), 2, maxShotsPerFrame);
+            if (shotCount < minShotsPerFrame)
+            {
+                shotCount = minShotsPerFrame;
+            }
+
             if (shotCount <= 0)
             {
                 return;
             }
 
-            _shotAccumulator -= shotCount;
+            _shotAccumulator = Mathf.Max(0f, _shotAccumulator - shotCount);
             for (var i = 0; i < shotCount; i++)
             {
                 if (!TryGetShotPose(out var origin, out var direction))
@@ -630,7 +637,7 @@ namespace MultiplyRush
                             UnityEngine.Random.Range(-0.03f, 0.03f),
                             0.5f + UnityEngine.Random.Range(-0.03f, 0.07f),
                             0.17f + UnityEngine.Random.Range(-0.02f, 0.05f)));
-                    origin.z = Mathf.Max(origin.z, unit.position.z + 0.22f);
+                    origin.z = Mathf.Max(origin.z, unit.position.z + 0.32f);
                     direction = _combatTarget != null
                         ? (_combatTarget.position + Vector3.up * 0.55f - origin).normalized
                         : -transform.forward;
@@ -644,7 +651,7 @@ namespace MultiplyRush
             }
 
             origin = transform.position + Vector3.up * 0.55f;
-            origin.z = Mathf.Max(origin.z, transform.position.z + 0.22f);
+            origin.z = Mathf.Max(origin.z, transform.position.z + 0.3f);
             direction = _combatTarget != null
                 ? (_combatTarget.position + Vector3.up * 0.5f - origin).normalized
                 : Vector3.back;

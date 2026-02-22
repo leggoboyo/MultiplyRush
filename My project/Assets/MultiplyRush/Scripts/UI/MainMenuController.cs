@@ -1063,14 +1063,14 @@ namespace MultiplyRush
         {
             var audio = AudioDirector.Instance ?? AudioDirector.EnsureInstance();
             var trackCount = Mathf.Max(1, audio.GetGameplayTrackCount());
-            var current = ProgressionStore.GetGameplayMusicTrack(0, trackCount);
+            var current = Mathf.Clamp(audio.GetSelectedGameplayTrackIndex(), 0, trackCount - 1);
             var next = (current + delta) % trackCount;
             if (next < 0)
             {
                 next += trackCount;
             }
 
-            audio.SetGameplayTrackIndex(next, true);
+            audio.SetGameplayTrackIndex(next, false);
             audio.StopGameplayPreview();
             audio.SetMusicCue(AudioMusicCue.Gameplay, true);
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
@@ -1994,7 +1994,7 @@ namespace MultiplyRush
                 return;
             }
 
-            var index = ProgressionStore.GetGameplayMusicTrack(0, audio.GetGameplayTrackCount());
+            var index = Mathf.Clamp(audio.GetSelectedGameplayTrackIndex(), 0, Mathf.Max(0, audio.GetGameplayTrackCount() - 1));
             var trackName = audio.GetGameplayTrackName(index);
             if (string.IsNullOrWhiteSpace(trackName))
             {
