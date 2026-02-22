@@ -43,3 +43,9 @@ An actually-playable version of the clickbait gate-multiplier runner ads. Free, 
 - No analytics/telemetry.
 - No IAP.
 - No network requirement.
+
+## Offline Verification Checklist
+1. Enable Airplane Mode on your iPhone.
+2. Launch the app and play multiple levels (menu -> gameplay -> pause -> win/lose).
+3. Confirm no popups, no network prompts, no ad surfaces, and no gameplay interruptions.
+4. In Unity, run `Multiply Rush -> Release -> Run Release Audit` and verify no `[FAIL]` in offline checks.

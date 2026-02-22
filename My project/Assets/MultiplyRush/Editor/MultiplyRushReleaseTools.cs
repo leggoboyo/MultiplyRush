@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
@@ -41,6 +42,9 @@ public static class MultiplyRushReleaseTools
         PlayerSettings.iOS.targetOSVersionString = "13.0";
         PlayerSettings.iOS.appleEnableAutomaticSigning = true;
         PlayerSettings.iOS.targetDevice = iOSTargetDevice.iPhoneAndiPad;
+        PlayerSettings.iOS.requiresPersistentWiFi = false;
+        PlayerSettings.Android.forceInternetPermission = false;
+        PlayerSettings.Android.forceSDCardPermission = false;
 
         SetScriptingBackendIos(ScriptingImplementation.IL2CPP);
         SetManagedStrippingLevelIos(ManagedStrippingLevel.Medium);
@@ -59,7 +63,11 @@ public static class MultiplyRushReleaseTools
             PlayerSettings.iOS.buildNumber = "1";
         }
 
+        RemoveManifestDependency("com.unity.multiplayer.center");
+        ApplyUnityConnectOfflineDefaults();
+
         AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
         Debug.Log("Multiply Rush: Applied iOS publish defaults.");
     }
 
@@ -347,10 +355,12 @@ public static class MultiplyRushReleaseTools
         var bannedPackages = new[]
         {
             "com.unity.ads",
+            "com.unity.services.core",
             "com.unity.services.analytics",
             "com.unity.purchasing",
-            "com.unity.modules.unitywebrequest",
-            "com.unity.services.core"
+            "com.unity.remote-config",
+            "com.google.firebase",
+            "com.unity.multiplayer.center"
         };
 
         var foundBanned = new List<string>();
@@ -363,11 +373,25 @@ public static class MultiplyRushReleaseTools
         }
 
         issues.Add(new AuditItem(
-            foundBanned.Count == 0 ? AuditSeverity.Pass : AuditSeverity.Warning,
+            foundBanned.Count == 0 ? AuditSeverity.Pass : AuditSeverity.Fail,
             "Package Compliance",
             foundBanned.Count == 0
-                ? "No obvious ads/analytics/IAP packages found in manifest dependencies scan."
-                : "Review/remove these packages if unused: " + string.Join(", ", foundBanned)));
+                ? "No ads/analytics/IAP/cloud-service packages detected in manifest dependencies."
+                : "Remove these packages for strict offline mode: " + string.Join(", ", foundBanned)));
+
+        issues.Add(new AuditItem(
+            PlayerSettings.Android.forceInternetPermission ? AuditSeverity.Fail : AuditSeverity.Pass,
+            "Android INTERNET Permission",
+            PlayerSettings.Android.forceInternetPermission
+                ? "ForceInternetPermission is enabled. Disable to keep app fully offline-by-default."
+                : "ForceInternetPermission is disabled."));
+
+        issues.Add(new AuditItem(
+            PlayerSettings.iOS.requiresPersistentWiFi ? AuditSeverity.Fail : AuditSeverity.Pass,
+            "iOS Persistent Wi-Fi Requirement",
+            PlayerSettings.iOS.requiresPersistentWiFi
+                ? "UIRequiresPersistentWiFi is enabled. Disable to avoid network requirement."
+                : "UIRequiresPersistentWiFi is disabled."));
 
         var scriptsRoot = Path.Combine(Application.dataPath, "MultiplyRush", "Scripts");
         var networkHits = ScanForPatterns(scriptsRoot, new[]
@@ -385,11 +409,13 @@ public static class MultiplyRushReleaseTools
         });
 
         issues.Add(new AuditItem(
-            networkHits.Count == 0 ? AuditSeverity.Pass : AuditSeverity.Warning,
+            networkHits.Count == 0 ? AuditSeverity.Pass : AuditSeverity.Fail,
             "Offline Code Scan",
             networkHits.Count == 0
                 ? "No obvious networking/ads/analytics API usage found in Assets/MultiplyRush/Scripts."
                 : "Review references: " + string.Join(" | ", networkHits)));
+
+        AuditUnityConnectSettings(issues, root.FullName);
     }
 
     private static List<string> ScanForPatterns(string directory, string[] patterns)
@@ -433,6 +459,108 @@ public static class MultiplyRushReleaseTools
         {
             AssetDatabase.CreateFolder("Assets/MultiplyRush", "Docs");
         }
+    }
+
+    private static void ApplyUnityConnectOfflineDefaults()
+    {
+        var root = Directory.GetParent(Application.dataPath);
+        if (root == null)
+        {
+            return;
+        }
+
+        var unityConnectPath = Path.Combine(root.FullName, "ProjectSettings", "UnityConnectSettings.asset");
+        if (!File.Exists(unityConnectPath))
+        {
+            return;
+        }
+
+        var content = File.ReadAllText(unityConnectPath);
+        var updated = content;
+        updated = ForceYamlValue(updated, "m_Enabled", "0");
+        updated = ForceYamlValue(updated, "m_TestMode", "0");
+        updated = ForceYamlValue(updated, "m_InitializeOnStartup", "0");
+        updated = ForceYamlValue(updated, "m_EngineDiagnosticsEnabled", "0");
+        updated = ForceYamlValue(updated, "m_EnableCloudDiagnosticsReporting", "0");
+
+        if (updated == content)
+        {
+            return;
+        }
+
+        File.WriteAllText(unityConnectPath, updated);
+        Debug.Log("Multiply Rush: enforced UnityConnect offline defaults.");
+    }
+
+    private static string ForceYamlValue(string yaml, string key, string value)
+    {
+        var pattern = @"(?m)^(\s*" + Regex.Escape(key) + @":\s*)(.+)$";
+        return Regex.Replace(yaml, pattern, "$1" + value);
+    }
+
+    private static void AuditUnityConnectSettings(List<AuditItem> issues, string projectRoot)
+    {
+        var unityConnectPath = Path.Combine(projectRoot, "ProjectSettings", "UnityConnectSettings.asset");
+        if (!File.Exists(unityConnectPath))
+        {
+            issues.Add(new AuditItem(
+                AuditSeverity.Warning,
+                "UnityConnect Settings",
+                "ProjectSettings/UnityConnectSettings.asset not found."));
+            return;
+        }
+
+        var content = File.ReadAllText(unityConnectPath);
+        var allEnabledZero = !Regex.IsMatch(content, @"(?m)^\s*m_Enabled:\s*1\s*$");
+        issues.Add(new AuditItem(
+            allEnabledZero ? AuditSeverity.Pass : AuditSeverity.Fail,
+            "Unity Services Enabled Flags",
+            allEnabledZero
+                ? "All UnityConnect service enable flags are disabled."
+                : "One or more UnityConnect service m_Enabled flags are set to 1."));
+
+        var initOnStartupCount = Regex.Matches(content, @"(?m)^\s*m_InitializeOnStartup:\s*0\s*$").Count;
+        issues.Add(new AuditItem(
+            initOnStartupCount >= 2 ? AuditSeverity.Pass : AuditSeverity.Warning,
+            "Service Auto-Initialize",
+            initOnStartupCount >= 2
+                ? "Analytics/Ads initialize-on-startup flags are disabled."
+                : "Expected analytics/ads m_InitializeOnStartup flags to be 0."));
+
+        var diagnosticsDisabled = Regex.IsMatch(content, @"(?m)^\s*m_EngineDiagnosticsEnabled:\s*0\s*$");
+        issues.Add(new AuditItem(
+            diagnosticsDisabled ? AuditSeverity.Pass : AuditSeverity.Warning,
+            "Engine Diagnostics",
+            diagnosticsDisabled
+                ? "Engine diagnostics upload is disabled."
+                : "m_EngineDiagnosticsEnabled is not 0."));
+    }
+
+    private static void RemoveManifestDependency(string packageName)
+    {
+        var root = Directory.GetParent(Application.dataPath);
+        if (root == null)
+        {
+            return;
+        }
+
+        var manifestPath = Path.Combine(root.FullName, "Packages", "manifest.json");
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var manifest = File.ReadAllText(manifestPath);
+        var pattern = @"(?m)^\s*""" + Regex.Escape(packageName) + @"""\s*:\s*""[^""]+""\s*,?\s*$\r?\n?";
+        var updated = Regex.Replace(manifest, pattern, string.Empty);
+        updated = Regex.Replace(updated, @"(?m),\s*(\r?\n\s*})", "$1");
+        if (updated == manifest)
+        {
+            return;
+        }
+
+        File.WriteAllText(manifestPath, updated);
+        Debug.Log("Multiply Rush: removed package dependency from manifest: " + packageName);
     }
 
     private static void ApplyBuildSceneDefaults()
