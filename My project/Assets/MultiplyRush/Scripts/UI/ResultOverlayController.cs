@@ -39,6 +39,8 @@ namespace MultiplyRush
         private RectTransform _panelRect;
         private Vector3 _panelBaseScale = Vector3.one;
         private Vector2 _panelBasePosition;
+        private RectTransform _layoutRootRect;
+        private Vector2 _lastLayoutSize = new Vector2(-1f, -1f);
         private RectTransform _titleRect;
         private Vector3 _titleBaseScale = Vector3.one;
         private RectTransform _scanlineRect;
@@ -112,7 +114,13 @@ namespace MultiplyRush
                 _panelBaseScale = _panelRect != null ? _panelRect.localScale : Vector3.one;
             }
 
+            if (_panelRect != null)
+            {
+                _layoutRootRect = _panelRect.parent as RectTransform;
+            }
+
             EnsureVisualPolish();
+            RefreshResponsiveLayout(true);
             EnsureBuffButtons();
 
             if (rootPanel != null && !rootPanel.activeSelf)
@@ -125,6 +133,8 @@ namespace MultiplyRush
 
         private void Update()
         {
+            RefreshResponsiveLayout();
+
             if (_isAnimatingIn)
             {
                 AnimateIn(Time.unscaledDeltaTime);
@@ -265,7 +275,7 @@ namespace MultiplyRush
 
             SetBuffOptions(0, 0);
             RefreshPrimaryButtonStyles();
-            ApplyResultLayout();
+            RefreshResponsiveLayout(true);
             TriggerWinBurst(didWin);
         }
 
@@ -325,7 +335,7 @@ namespace MultiplyRush
                 shieldButtonLabel.text = "Use Shield (" + shieldCount + ")";
             }
 
-            ApplyResultLayout();
+            RefreshResponsiveLayout(true);
         }
 
         private static string BuildDetailText(
@@ -785,30 +795,140 @@ namespace MultiplyRush
             }
         }
 
-        private void ApplyResultLayout()
+        private void RefreshResponsiveLayout(bool force = false)
+        {
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            if (_layoutRootRect == null)
+            {
+                _layoutRootRect = _panelRect.parent as RectTransform;
+            }
+
+            var container = _layoutRootRect != null ? _layoutRootRect.rect.size : _panelRect.rect.size;
+            if (!force && (container - _lastLayoutSize).sqrMagnitude < 1f)
+            {
+                return;
+            }
+
+            _lastLayoutSize = container;
+            var width = Mathf.Max(320f, container.x);
+            var height = Mathf.Max(560f, container.y);
+            var layoutProfile = IPhoneLayoutCatalog.ResolveCurrent();
+
+            var compact = layoutProfile.compact || height < 1220f;
+            var ultraCompact = layoutProfile.ultraCompact || height < 920f;
+            var panelScale = Mathf.Clamp(layoutProfile.resultScale, 0.84f, 1.12f);
+
+            var panelWidth = Mathf.Clamp((width - (ultraCompact ? 34f : 50f)) * panelScale, 520f, 920f);
+            var panelHeight = Mathf.Clamp((height - (ultraCompact ? 200f : 230f)) * panelScale, ultraCompact ? 620f : 700f, 920f);
+            _panelRect.sizeDelta = new Vector2(panelWidth, panelHeight);
+
+            if (_titleRect != null && titleText != null)
+            {
+                _titleRect.anchoredPosition = new Vector2(0f, -(panelHeight * 0.12f));
+                titleText.fontSize = ultraCompact ? 74 : (compact ? 86 : 102);
+            }
+
+            if (detailText != null)
+            {
+                var detailRect = detailText.rectTransform;
+                if (detailRect != null)
+                {
+                    detailRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    detailRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    detailRect.anchoredPosition = new Vector2(0f, panelHeight * 0.02f);
+                    detailRect.sizeDelta = new Vector2(
+                        Mathf.Clamp(panelWidth - 140f, 400f, 780f),
+                        Mathf.Clamp(panelHeight * 0.42f, 230f, 390f));
+                }
+            }
+
+            if (_headerGlow != null)
+            {
+                _headerGlow.rectTransform.anchorMin = new Vector2(0.5f, 1f);
+                _headerGlow.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+                _headerGlow.rectTransform.anchoredPosition = new Vector2(0f, -(panelHeight * 0.12f));
+                _headerGlow.rectTransform.sizeDelta = new Vector2(panelWidth - 140f, Mathf.Clamp(panelHeight * 0.2f, 130f, 190f));
+            }
+
+            if (_scanlineRect != null)
+            {
+                _scanlineRect.sizeDelta = new Vector2(panelWidth - 140f, Mathf.Clamp(panelHeight * 0.045f, 30f, 44f));
+            }
+
+            if (_loseNoiseBandRect != null)
+            {
+                _loseNoiseBandRect.sizeDelta = new Vector2(panelWidth - 120f, Mathf.Clamp(panelHeight * 0.044f, 30f, 42f));
+            }
+
+            if (_winSweepRect != null)
+            {
+                _winSweepRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.21f, 140f, 210f), Mathf.Clamp(panelHeight * 0.64f, 430f, 600f));
+            }
+
+            if (_loseBandPrimaryRect != null)
+            {
+                _loseBandPrimaryRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.15f, 92f, 130f), Mathf.Clamp(panelHeight * 0.44f, 280f, 400f));
+            }
+
+            if (_loseBandSecondaryRect != null)
+            {
+                _loseBandSecondaryRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.14f, 88f, 122f), Mathf.Clamp(panelHeight * 0.42f, 260f, 380f));
+            }
+
+            if (_winBurst != null)
+            {
+                var burstRect = _winBurst.GetComponent<RectTransform>();
+                if (burstRect != null)
+                {
+                    burstRect.anchoredPosition = new Vector2(0f, panelHeight * 0.07f);
+                }
+            }
+
+            ApplyResultLayout(panelWidth, panelHeight, compact, ultraCompact);
+        }
+
+        private void ApplyResultLayout(float panelWidth, float panelHeight, bool compact, bool ultraCompact)
         {
             var showBuffButtons = !_lastDidWin &&
                                   ((reinforcementButton != null && reinforcementButton.gameObject.activeSelf) ||
                                    (shieldButton != null && shieldButton.gameObject.activeSelf));
 
+            var primaryButtonSize = new Vector2(
+                Mathf.Clamp(panelWidth * 0.38f, 300f, 344f),
+                ultraCompact ? 74f : (compact ? 80f : 86f));
+            var secondaryButtonSize = new Vector2(
+                Mathf.Clamp(panelWidth * 0.3f, 240f, 286f),
+                ultraCompact ? 60f : 68f);
+
+            var primaryY = -(panelHeight * (showBuffButtons ? 0.39f : 0.41f));
+            var secondaryY = primaryY - (ultraCompact ? 74f : 82f);
+
             if (_lastDidWin)
             {
-                ApplyButtonRect(nextButton, new Vector2(330f, 86f), new Vector2(0f, -344f));
-                ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -426f));
+                ApplyButtonRect(nextButton, primaryButtonSize, new Vector2(0f, primaryY));
+                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, secondaryY));
                 return;
             }
 
             if (showBuffButtons)
             {
-                ApplyButtonRect(reinforcementButton, new Vector2(248f, 64f), new Vector2(-152f, -264f));
-                ApplyButtonRect(shieldButton, new Vector2(248f, 64f), new Vector2(152f, -264f));
-                ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -352f));
-                ApplyButtonRect(retryButton, new Vector2(330f, 84f), new Vector2(0f, -430f));
+                var buffWidth = Mathf.Clamp(panelWidth * 0.34f, 220f, 262f);
+                var buffHeight = ultraCompact ? 56f : 64f;
+                var buffOffset = Mathf.Clamp(panelWidth * 0.19f, 124f, 162f);
+                var buffY = -(panelHeight * 0.28f);
+                ApplyButtonRect(reinforcementButton, new Vector2(buffWidth, buffHeight), new Vector2(-buffOffset, buffY));
+                ApplyButtonRect(shieldButton, new Vector2(buffWidth, buffHeight), new Vector2(buffOffset, buffY));
+                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, -(panelHeight * 0.4f)));
+                ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, -(panelHeight * 0.5f)));
                 return;
             }
 
-            ApplyButtonRect(retryButton, new Vector2(330f, 86f), new Vector2(0f, -350f));
-            ApplyButtonRect(mainMenuButton, new Vector2(270f, 68f), new Vector2(0f, -430f));
+            ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, primaryY));
+            ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, secondaryY));
         }
 
         private static void ApplyButtonRect(Button button, Vector2 size, Vector2 anchoredPosition)
@@ -826,6 +946,12 @@ namespace MultiplyRush
 
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
+
+            var label = button.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.fontSize = Mathf.RoundToInt(Mathf.Clamp(size.y * 0.45f, 25f, 38f));
+            }
         }
 
         private static void StylePrimaryButton(Button button, Color color, string labelText)

@@ -1094,25 +1094,31 @@ namespace MultiplyRush
             _lastSafeAreaSize = safeSize;
             var width = Mathf.Max(320f, safeSize.x);
             var height = Mathf.Max(560f, safeSize.y);
-            var compact = height < 1280f;
+            var layoutProfile = IPhoneLayoutCatalog.ResolveCurrent();
+            var compact = layoutProfile.compact || height < 1280f;
+            var ultraCompact = layoutProfile.ultraCompact || height < 980f;
+            var layoutScale = Mathf.Clamp(layoutProfile.menuScale, 0.88f, 1.08f);
+            var topInsetPadding = Mathf.Lerp(0f, 22f, Mathf.Clamp01((layoutProfile.topInsetRatio - 0.03f) * 45f));
 
             if (_titleRect != null)
             {
-                _titleRect.anchoredPosition = new Vector2(0f, compact ? 296f : 332f);
+                _titleRect.anchoredPosition = new Vector2(0f, ((compact ? 296f : 332f) - topInsetPadding) * layoutScale);
                 _titleBasePosition = _titleRect.anchoredPosition;
                 if (_titleText != null)
                 {
-                    _titleText.fontSize = compact ? 88 : 104;
+                    _titleText.fontSize = Mathf.RoundToInt((compact ? 88f : 104f) * layoutScale);
                 }
             }
 
             if (_taglineRect != null)
             {
-                _taglineRect.anchoredPosition = new Vector2(0f, compact ? 214f : 244f);
-                _taglineRect.sizeDelta = new Vector2(Mathf.Clamp(width - 120f, 420f, 980f), compact ? 66f : 76f);
+                _taglineRect.anchoredPosition = new Vector2(0f, ((compact ? 214f : 244f) - topInsetPadding) * layoutScale);
+                _taglineRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 104f : 120f)) * layoutScale, 400f, 980f),
+                    (compact ? 66f : 76f) * layoutScale);
                 if (_taglineText != null)
                 {
-                    _taglineText.fontSize = compact ? 31 : 36;
+                    _taglineText.fontSize = Mathf.RoundToInt((compact ? 31f : 36f) * layoutScale);
                 }
 
                 _taglineBasePosition = _taglineRect.anchoredPosition;
@@ -1120,8 +1126,10 @@ namespace MultiplyRush
 
             if (_metaCardRect != null)
             {
-                _metaCardRect.anchoredPosition = new Vector2(0f, compact ? -6f : 12f);
-                _metaCardRect.sizeDelta = new Vector2(Mathf.Clamp(width - 90f, 560f, 840f), compact ? 346f : 380f);
+                _metaCardRect.anchoredPosition = new Vector2(0f, (compact ? -4f : 10f) * layoutScale);
+                _metaCardRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 74f : 90f)) * layoutScale, 520f, 860f),
+                    (compact ? 346f : 380f) * layoutScale);
             }
 
             if (bestLevelText != null)
@@ -1135,57 +1143,69 @@ namespace MultiplyRush
                 _bestLevelRect.anchorMin = new Vector2(0.5f, 0.5f);
                 _bestLevelRect.anchorMax = new Vector2(0.5f, 0.5f);
                 _bestLevelRect.pivot = new Vector2(0.5f, 0.5f);
-                _bestLevelRect.anchoredPosition = new Vector2(0f, compact ? 126f : 136f);
-                _bestLevelRect.sizeDelta = new Vector2(460f, 58f);
+                _bestLevelRect.anchoredPosition = new Vector2(0f, (compact ? 126f : 136f) * layoutScale);
+                _bestLevelRect.sizeDelta = new Vector2(460f * layoutScale, 58f * layoutScale);
                 if (bestLevelText != null)
                 {
-                    bestLevelText.fontSize = compact ? 52 : 56;
+                    bestLevelText.fontSize = Mathf.RoundToInt((compact ? 52f : 56f) * layoutScale);
                 }
             }
 
             if (_musicRow != null)
             {
-                _musicRow.sizeDelta = new Vector2(Mathf.Clamp(width - 190f, 540f, 680f), compact ? 122f : 134f);
-                _musicRow.anchoredPosition = new Vector2(0f, compact ? 28f : 34f);
+                _musicRow.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 164f : 190f)) * layoutScale, 500f, 700f),
+                    (compact ? 122f : 134f) * layoutScale);
+                _musicRow.anchoredPosition = new Vector2(0f, (compact ? 28f : 34f) * layoutScale);
             }
 
             if (_musicTrackPlateRect != null)
             {
-                _musicTrackPlateRect.sizeDelta = new Vector2(Mathf.Clamp(width - 350f, 360f, 460f), 58f);
+                _musicTrackPlateRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 318f : 350f)) * layoutScale, 330f, 470f),
+                    58f * layoutScale);
             }
 
             if (_difficultyRow != null)
             {
-                _difficultyRow.sizeDelta = new Vector2(Mathf.Clamp(width - 210f, 480f, 590f), compact ? 130f : 144f);
-                _difficultyRow.anchoredPosition = new Vector2(0f, compact ? -96f : -108f);
+                _difficultyRow.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 186f : 210f)) * layoutScale, 450f, 610f),
+                    (compact ? 130f : 144f) * layoutScale);
+                _difficultyRow.anchoredPosition = new Vector2(0f, (compact ? -96f : -108f) * layoutScale);
             }
 
             if (_playButtonRect != null)
             {
-                _playButtonRect.sizeDelta = new Vector2(Mathf.Clamp(width - 240f, 360f, 520f), compact ? 132f : 150f);
-                _buttonBasePosition = new Vector2(0f, compact ? -262f : -314f);
+                _playButtonRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 210f : 240f)) * layoutScale, 340f, 540f),
+                    (compact ? 132f : 150f) * layoutScale);
+                _buttonBasePosition = new Vector2(0f, (compact ? -262f : -314f) * layoutScale);
             }
 
             if (_playButtonLabel != null)
             {
-                _playButtonLabel.fontSize = compact ? 50 : 58;
+                _playButtonLabel.fontSize = Mathf.RoundToInt((compact ? 50f : 58f) * layoutScale);
             }
 
             if (_badgeRect != null)
             {
                 _badgeRect.anchorMin = new Vector2(0.5f, 1f);
                 _badgeRect.anchorMax = new Vector2(0.5f, 1f);
-                _badgeRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 420f, 760f), compact ? 34f : 40f);
-                _badgeRect.anchoredPosition = new Vector2(0f, compact ? -68f : -78f);
+                _badgeRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 120f : 140f)) * layoutScale, 400f, 780f),
+                    (compact ? 34f : 40f) * layoutScale);
+                _badgeRect.anchoredPosition = new Vector2(0f, ((compact ? -68f : -78f) - topInsetPadding) * layoutScale);
             }
 
             if (_studioRect != null)
             {
-                _studioRect.anchoredPosition = new Vector2(0f, compact ? 256f : 286f);
-                _studioRect.sizeDelta = new Vector2(Mathf.Clamp(width - 220f, 420f, 780f), compact ? 52f : 56f);
+                _studioRect.anchoredPosition = new Vector2(0f, ((compact ? 256f : 286f) - topInsetPadding) * layoutScale);
+                _studioRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 196f : 220f)) * layoutScale, 410f, 820f),
+                    (compact ? 52f : 56f) * layoutScale);
                 if (_studioText != null)
                 {
-                    _studioText.fontSize = compact ? 26 : 30;
+                    _studioText.fontSize = Mathf.RoundToInt((compact ? 26f : 30f) * layoutScale);
                 }
             }
 
@@ -1198,8 +1218,8 @@ namespace MultiplyRush
             {
                 _footerRect.anchorMin = new Vector2(0.5f, 0f);
                 _footerRect.anchorMax = new Vector2(0.5f, 0f);
-                _footerRect.sizeDelta = new Vector2(Mathf.Clamp(width - 140f, 460f, 920f), 56f);
-                _footerRect.anchoredPosition = new Vector2(0f, 34f);
+                _footerRect.sizeDelta = new Vector2(Mathf.Clamp((width - 140f) * layoutScale, 460f, 940f), 56f * layoutScale);
+                _footerRect.anchoredPosition = new Vector2(0f, 34f * layoutScale);
                 _footerRect.gameObject.SetActive(false);
             }
 
@@ -1208,21 +1228,25 @@ namespace MultiplyRush
                 var progressRect = _progressButton.GetComponent<RectTransform>();
                 if (progressRect != null)
                 {
-                    progressRect.anchoredPosition = new Vector2(0f, compact ? -206f : -236f);
-                    progressRect.sizeDelta = new Vector2(Mathf.Clamp(width - 430f, 236f, 300f), compact ? 54f : 58f);
+                    progressRect.anchoredPosition = new Vector2(0f, (compact ? -206f : -236f) * layoutScale);
+                    progressRect.sizeDelta = new Vector2(
+                        Mathf.Clamp((width - (ultraCompact ? 392f : 430f)) * layoutScale, 220f, 320f),
+                        (compact ? 54f : 58f) * layoutScale);
                 }
             }
 
             if (_progressPanelRect != null)
             {
                 _progressPanelRect.sizeDelta = new Vector2(
-                    Mathf.Clamp(width - 110f, 540f, 860f),
-                    Mathf.Clamp(height - 240f, 760f, 1320f));
+                    Mathf.Clamp((width - 110f) * layoutScale, 520f, 900f),
+                    Mathf.Clamp((height - 240f) * layoutScale, 740f, 1360f));
             }
 
             if (_progressSummaryText != null)
             {
-                _progressSummaryText.rectTransform.sizeDelta = new Vector2(Mathf.Clamp(width - 180f, 480f, 760f), 64f);
+                _progressSummaryText.rectTransform.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - 180f) * layoutScale, 450f, 780f),
+                    64f * layoutScale);
             }
         }
 
