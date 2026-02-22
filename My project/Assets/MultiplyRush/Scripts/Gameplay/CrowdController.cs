@@ -63,17 +63,17 @@ namespace MultiplyRush
         public float baseShotsPerSecond = 2.1f;
         public float shotsPerVisibleUnit = 0.055f;
         public float maxShotsPerSecond = 16f;
-        public float combatBaseShotsPerSecond = 8.5f;
-        public float combatShotsPerVisibleUnit = 0.45f;
-        public float combatMaxShotsPerSecond = 58f;
+        public float combatBaseShotsPerSecond = 14f;
+        public float combatShotsPerVisibleUnit = 1.2f;
+        public float combatMaxShotsPerSecond = 160f;
         public float tracerSpeed = 35f;
-        public float tracerLifetime = 0.11f;
+        public float tracerLifetime = 0.15f;
         public float tracerSpread = 0.1f;
         public float tracerMuzzleJitter = 0.07f;
         public float tracerSpawnForwardOffset = 0.18f;
         public float gateShotRayDistance = 88f;
-        [Range(8, 80)]
-        public int maxCombatShotsPerFrame = 40;
+        [Range(8, 160)]
+        public int maxCombatShotsPerFrame = 72;
 
         [Header("Gate Rules")]
         public bool allowOnlyOneGatePerRow = true;
@@ -156,6 +156,7 @@ namespace MultiplyRush
         private int _activeLevelIndex = 1;
         private bool _frontShootersDirty = true;
         private int _pendingDeathFxBudget;
+        private Camera _cachedMainCamera;
 
         public event Action<int> CountChanged;
         public event Action<int> FinishReached;
@@ -210,23 +211,24 @@ namespace MultiplyRush
             EnsureGateEffects();
             EnsureWeaponEffects();
             EnsureBattleLossEffects();
+            _cachedMainCamera = Camera.main;
 
             unitVisualScale = Mathf.Clamp(unitVisualScale, 1.45f, 2.2f);
             unitSpacingX = Mathf.Clamp(unitSpacingX, 0.62f, 0.95f);
             unitSpacingZ = Mathf.Clamp(unitSpacingZ, 0.68f, 1.05f);
-            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 60, 140);
+            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 60, 160);
             unitVisualScale = Mathf.Min(unitVisualScale, 1.62f);
             unitSpacingX = Mathf.Min(unitSpacingX, 0.78f);
             unitSpacingZ = Mathf.Min(unitSpacingZ, 0.84f);
-            maxVisibleUnits = Mathf.Max(maxVisibleUnits, 96);
+            maxVisibleUnits = Mathf.Max(maxVisibleUnits, 110);
             shooterFrontRows = Mathf.Clamp(shooterFrontRows, 1, 4);
             baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 0.6f, 5f);
             shotsPerVisibleUnit = Mathf.Clamp(shotsPerVisibleUnit, 0.02f, 0.16f);
             maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 6f, 30f);
-            combatBaseShotsPerSecond = Mathf.Clamp(combatBaseShotsPerSecond, 4f, 22f);
-            combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.12f, 1.1f);
-            combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 20f, 100f);
-            maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 8, 80);
+            combatBaseShotsPerSecond = Mathf.Clamp(combatBaseShotsPerSecond, 8f, 36f);
+            combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.2f, 2.4f);
+            combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 40f, 220f);
+            maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 16, 140);
 
             PrewarmPool();
 
@@ -249,9 +251,15 @@ namespace MultiplyRush
 
             if (_isRunning)
             {
-                if (dragInput != null && dragInput.TryGetPrimaryPointerNormalizedX(out var normalizedPointerX))
+                if (dragInput != null && dragInput.TryGetPrimaryPointerScreenPosition(out var pointerScreenPosition))
                 {
-                    _targetX = Mathf.Lerp(-trackHalfWidth, trackHalfWidth, normalizedPointerX);
+                    if (!TryProjectPointerToRunnerX(pointerScreenPosition, out var projectedX))
+                    {
+                        var normalizedPointerX = Mathf.Clamp01(pointerScreenPosition.x / Mathf.Max(1f, Screen.width));
+                        projectedX = Mathf.Lerp(-trackHalfWidth, trackHalfWidth, normalizedPointerX);
+                    }
+
+                    _targetX = projectedX;
                 }
 
                 _targetX = Mathf.Clamp(_targetX, -trackHalfWidth, trackHalfWidth);
@@ -1208,8 +1216,8 @@ namespace MultiplyRush
                 if (tracerRenderer != null)
                 {
                     tracerRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-                    tracerRenderer.lengthScale = 1.65f;
-                    tracerRenderer.velocityScale = 0.42f;
+                    tracerRenderer.lengthScale = 0.64f;
+                    tracerRenderer.velocityScale = 0.1f;
                     tracerRenderer.material = CreateEffectMaterial("WeaponTracerMaterial", new Color(1f, 0.95f, 0.55f, 1f), 0.18f, 1.2f);
                 }
 
@@ -1251,9 +1259,9 @@ namespace MultiplyRush
             main.playOnAwake = false;
             main.loop = false;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.07f, 0.16f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(24f, 52f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.024f, 0.046f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.08f, 0.2f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(22f, 46f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.026f, 0.05f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.95f, 0.56f, 1f));
             main.maxParticles = 1500;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -1353,7 +1361,7 @@ namespace MultiplyRush
                 ? Mathf.Max(8f, combatMaxShotsPerSecond)
                 : Mathf.Max(2f, maxShotsPerSecond);
             var dynamicShotCap = _combatActive
-                ? Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 1.3f, 12f, 120f))
+                ? Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 2.4f, 24f, 220f))
                 : Mathf.Max(maxRate, Mathf.Clamp(activeShooters * 0.42f, 8f, 28f));
             var shotsPerSecond = Mathf.Clamp(baseRate + (activeShooters * perUnitFireRate), 1f, Mathf.Max(1f, dynamicShotCap));
             _weaponShotAccumulator += deltaTime * shotsPerSecond;
@@ -1477,7 +1485,7 @@ namespace MultiplyRush
                         : unit.position + (Vector3.forward * 0.2f) + new Vector3(0f, 0.52f, 0f);
 
                     // The runner always advances on world +Z, so force tracer spawn to never sit behind a unit.
-                    var minForwardZ = unit.position.z + 0.14f;
+                    var minForwardZ = unit.position.z + 0.22f;
                     if (position.z < minForwardZ)
                     {
                         position.z = minForwardZ;
@@ -1502,7 +1510,7 @@ namespace MultiplyRush
             if (_weaponMuzzle != null)
             {
                 position = _weaponMuzzle.position;
-                var minForwardZ = transform.position.z + 0.14f;
+                var minForwardZ = transform.position.z + 0.22f;
                 if (position.z < minForwardZ)
                 {
                     position.z = minForwardZ;
@@ -1695,6 +1703,40 @@ namespace MultiplyRush
             }
 
             _frontShootersDirty = false;
+        }
+
+        private bool TryProjectPointerToRunnerX(Vector2 pointerScreenPosition, out float projectedX)
+        {
+            var activeCamera = _cachedMainCamera;
+            if (activeCamera == null)
+            {
+                activeCamera = Camera.main;
+                _cachedMainCamera = activeCamera;
+            }
+
+            if (activeCamera == null)
+            {
+                projectedX = 0f;
+                return false;
+            }
+
+            var ray = activeCamera.ScreenPointToRay(pointerScreenPosition);
+            var denominator = ray.direction.z;
+            if (Mathf.Abs(denominator) < 0.0001f)
+            {
+                projectedX = 0f;
+                return false;
+            }
+
+            var distance = (transform.position.z - ray.origin.z) / denominator;
+            if (distance < 0f)
+            {
+                projectedX = 0f;
+                return false;
+            }
+
+            projectedX = (ray.origin + (ray.direction * distance)).x;
+            return true;
         }
 
         private void AnimateGateEffects(float deltaTime)

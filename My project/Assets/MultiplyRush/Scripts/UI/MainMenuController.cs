@@ -987,7 +987,7 @@ namespace MultiplyRush
                 _musicRow.anchorMin = new Vector2(0.5f, 0.5f);
                 _musicRow.anchorMax = new Vector2(0.5f, 0.5f);
                 _musicRow.pivot = new Vector2(0.5f, 0.5f);
-                _musicRow.sizeDelta = new Vector2(640f, 112f);
+                _musicRow.sizeDelta = new Vector2(640f, 126f);
             }
             else
             {
@@ -1015,7 +1015,7 @@ namespace MultiplyRush
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 4f),
-                new Vector2(430f, 58f));
+                new Vector2(450f, 62f));
             if (musicTrackPlate != null)
             {
                 _musicTrackPlateRect = musicTrackPlate.rectTransform;
@@ -1040,7 +1040,7 @@ namespace MultiplyRush
             {
                 _musicTrackLabel.color = new Color(0.88f, 0.98f, 1f, 1f);
                 _musicTrackLabel.fontStyle = FontStyle.Bold;
-                _musicTrackLabel.rectTransform.sizeDelta = new Vector2(620f, 62f);
+                _musicTrackLabel.rectTransform.sizeDelta = new Vector2(640f, 64f);
             }
 
             _musicPrevButton = EnsureMusicNavButton(_musicRow, "MusicPrevButton", "<", new Vector2(-258f, 4f));
@@ -1072,7 +1072,7 @@ namespace MultiplyRush
 
             audio.SetGameplayTrackIndex(next, true);
             audio.StopGameplayPreview();
-            audio.SetMusicCue(AudioMusicCue.Gameplay, false);
+            audio.SetMusicCue(AudioMusicCue.Gameplay, true);
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             RefreshMusicTrackLabel();
@@ -1157,6 +1157,44 @@ namespace MultiplyRush
                     Mathf.Clamp((width - (ultraCompact ? 164f : 190f)) * layoutScale, 500f, 700f),
                     (compact ? 122f : 134f) * layoutScale);
                 _musicRow.anchoredPosition = new Vector2(0f, (compact ? 28f : 34f) * layoutScale);
+
+                var rowWidth = _musicRow.sizeDelta.x;
+                var navOffset = Mathf.Clamp((rowWidth * 0.39f) - 12f, 176f, 286f);
+                var navSize = new Vector2(Mathf.Clamp(rowWidth * 0.17f, 88f, 118f), 52f * layoutScale);
+                var trackWidth = Mathf.Max(220f, rowWidth - (navOffset * 2f) - 54f);
+
+                if (_musicPrevButton != null)
+                {
+                    var prevRect = _musicPrevButton.GetComponent<RectTransform>();
+                    if (prevRect != null)
+                    {
+                        prevRect.anchoredPosition = new Vector2(-navOffset, 4f * layoutScale);
+                        prevRect.sizeDelta = navSize;
+                    }
+                }
+
+                if (_musicNextButton != null)
+                {
+                    var nextRect = _musicNextButton.GetComponent<RectTransform>();
+                    if (nextRect != null)
+                    {
+                        nextRect.anchoredPosition = new Vector2(navOffset, 4f * layoutScale);
+                        nextRect.sizeDelta = navSize;
+                    }
+                }
+
+                if (_musicLabel != null)
+                {
+                    _musicLabel.rectTransform.anchoredPosition = new Vector2(0f, 46f * layoutScale);
+                    _musicLabel.fontSize = Mathf.RoundToInt((compact ? 30f : 32f) * layoutScale);
+                }
+
+                if (_musicTrackLabel != null)
+                {
+                    _musicTrackLabel.rectTransform.anchoredPosition = new Vector2(0f, 4f * layoutScale);
+                    _musicTrackLabel.rectTransform.sizeDelta = new Vector2(trackWidth, 62f * layoutScale);
+                    _musicTrackLabel.fontSize = Mathf.RoundToInt((compact ? 32f : 35f) * layoutScale);
+                }
             }
 
             if (_musicTrackPlateRect != null)
@@ -1969,6 +2007,8 @@ namespace MultiplyRush
                 _musicTrackLabel.text = "#1  Hyper Neon";
             }
 
+            _musicTrackLabel.color = new Color(0.92f, 0.98f, 1f, 1f);
+            _musicTrackLabel.fontStyle = FontStyle.Bold;
             _musicTrackLabel.enabled = true;
             _musicTrackLabel.gameObject.SetActive(true);
         }

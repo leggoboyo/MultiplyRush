@@ -35,6 +35,7 @@ namespace MultiplyRush
         private RectTransform _optionsCardRect;
         private RectTransform _musicRowRect;
         private RectTransform _graphicsRowRect;
+        private Text _subtitleText;
         private Button _pauseButton;
         private RectTransform _pauseButtonRect;
         private Image _pauseButtonImage;
@@ -66,8 +67,8 @@ namespace MultiplyRush
         private bool _hapticsEnabled = true;
         private bool _fallbackPointerWasDown;
         private Vector2 _lastSafeAreaSize = Vector2.zero;
-        private const float PanelDesignWidth = 680f;
-        private const float PanelDesignHeight = 1360f;
+        private const float PanelDesignWidth = 700f;
+        private const float PanelDesignHeight = 1500f;
 
         public bool IsPaused => _isPaused;
 
@@ -442,7 +443,7 @@ namespace MultiplyRush
             audio.StopGameplayPreview();
             if (_isPaused)
             {
-                audio.SetMusicCue(AudioMusicCue.Gameplay, false);
+                audio.SetMusicCue(AudioMusicCue.Gameplay, true);
             }
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.62f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
@@ -863,12 +864,12 @@ namespace MultiplyRush
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -86f),
+                new Vector2(0f, -92f),
                 new Vector2(540f, 114f),
                 true);
             title.color = new Color(0.82f, 0.93f, 1f, 1f);
 
-            var subtitle = EnsureText(
+            _subtitleText = EnsureText(
                 _panelRect,
                 "Subtitle",
                 "Tune your run before diving back in.",
@@ -876,14 +877,14 @@ namespace MultiplyRush
                 TextAnchor.MiddleCenter,
                 new Vector2(0.5f, 1f),
                 new Vector2(0.5f, 1f),
-                new Vector2(0f, -176f),
-                new Vector2(580f, 56f),
+                new Vector2(0f, -184f),
+                new Vector2(596f, 56f),
                 false);
-            subtitle.color = new Color(0.76f, 0.86f, 0.96f, 0.94f);
+            _subtitleText.color = new Color(0.76f, 0.86f, 0.96f, 0.94f);
 
-            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 354f), accentColor);
-            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 266f), new Color(0.25f, 0.62f, 0.95f, 1f));
-            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 178f), new Color(0.2f, 0.3f, 0.46f, 1f));
+            _resumeButton = EnsureActionButton(_panelRect, "ResumeButton", "RESUME", new Vector2(0f, 448f), accentColor);
+            _restartButton = EnsureActionButton(_panelRect, "RestartButton", "RESTART LEVEL", new Vector2(0f, 346f), new Color(0.25f, 0.62f, 0.95f, 1f));
+            _mainMenuButton = EnsureActionButton(_panelRect, "MainMenuButton", "MAIN MENU", new Vector2(0f, 244f), new Color(0.2f, 0.3f, 0.46f, 1f));
 
             var optionsCard = EnsureImage(
                 _panelRect,
@@ -891,8 +892,8 @@ namespace MultiplyRush
                 new Color(0.09f, 0.14f, 0.24f, 0.96f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -300f),
-                new Vector2(620f, 820f)).rectTransform;
+                new Vector2(0f, -286f),
+                new Vector2(636f, 920f)).rectTransform;
             _optionsCardRect = optionsCard;
 
             var optionsOutline = optionsCard.GetComponent<Outline>();
@@ -1037,7 +1038,7 @@ namespace MultiplyRush
                 true);
             _musicTrackValueText.color = new Color(0.9f, 0.98f, 1f, 1f);
 
-                _qualityValueText = EnsureText(
+            _qualityValueText = EnsureText(
                 optionsCard,
                 "GraphicsLabel",
                 "Graphics: Auto",
@@ -1126,13 +1127,19 @@ namespace MultiplyRush
             var panelScaleX = (width - 18f) / PanelDesignWidth;
             var panelScaleY = (height - 18f) / PanelDesignHeight;
             var panelScale = Mathf.Min(1f, panelScaleX, panelScaleY);
-            panelScale = Mathf.Clamp(panelScale * 1.04f * layoutProfile.pauseScale, 0.56f, 1f);
+            panelScale = Mathf.Clamp(panelScale * 1.06f * layoutProfile.pauseScale, 0.62f, 1.02f);
             _panelBaseScale = Vector3.one * panelScale;
 
-            var compact = panelScale < 0.84f || layoutProfile.compact;
-            var ultraCompact = panelScale < 0.68f || layoutProfile.ultraCompact;
-            var buttonStride = ultraCompact ? 78f : (compact ? 84f : 88f);
-            var topButtonY = ultraCompact ? 326f : (compact ? 346f : 362f);
+            var compact = panelScale < 0.9f || layoutProfile.compact;
+            var ultraCompact = panelScale < 0.76f || layoutProfile.ultraCompact;
+            var buttonStride = ultraCompact ? 86f : (compact ? 94f : 102f);
+            var topButtonY = ultraCompact ? 428f : (compact ? 452f : 472f);
+
+            if (_subtitleText != null)
+            {
+                _subtitleText.gameObject.SetActive(!ultraCompact);
+                _subtitleText.fontSize = compact ? 17 : 18;
+            }
 
             if (_resumeButton != null)
             {
@@ -1163,22 +1170,22 @@ namespace MultiplyRush
 
             if (_optionsCardRect != null)
             {
-                var optionsHeight = ultraCompact ? 726f : (compact ? 772f : 808f);
-                var optionsWidth = ultraCompact ? 560f : (compact ? 592f : 620f);
+                var optionsHeight = ultraCompact ? 780f : (compact ? 850f : 920f);
+                var optionsWidth = ultraCompact ? 568f : (compact ? 606f : 636f);
                 var mainMenuY = topButtonY - (buttonStride * 2f);
-                var optionsTop = mainMenuY - 52f;
+                var optionsTop = mainMenuY - 72f;
                 _optionsCardRect.sizeDelta = new Vector2(optionsWidth, optionsHeight);
                 _optionsCardRect.anchoredPosition = new Vector2(0f, optionsTop - (optionsHeight * 0.5f));
             }
 
             if (_musicRowRect != null)
             {
-                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 456f : (compact ? 484f : 520f), 58f);
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 452f : (compact ? 492f : 528f), 62f);
             }
 
             if (_graphicsRowRect != null)
             {
-                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 456f : (compact ? 484f : 520f), 70f);
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 452f : (compact ? 492f : 528f), 76f);
             }
 
             ApplyOptionsResponsiveLayout(compact, ultraCompact, layoutProfile.pauseScale);
@@ -1200,65 +1207,65 @@ namespace MultiplyRush
                 return;
             }
 
-            var designHeight = 808f;
-            var contentScaleY = Mathf.Clamp(_optionsCardRect.sizeDelta.y / designHeight, 0.86f, 1.08f);
-            var sliderWidth = ultraCompact ? 438f : (compact ? 470f : 496f);
-            var rowWidth = ultraCompact ? 456f : (compact ? 484f : 520f);
-            var rowBgWidth = ultraCompact ? 486f : (compact ? 516f : 544f);
-            var labelWidth = ultraCompact ? 280f : (compact ? 306f : 332f);
-            var rowHeightScale = Mathf.Clamp(contentScaleY * (0.96f + ((pauseScale - 1f) * 0.22f)), 0.86f, 1.1f);
-            var fontScale = Mathf.Clamp(contentScaleY * (compact ? 0.94f : 1f), 0.84f, 1.06f);
+            var cardWidth = _optionsCardRect.sizeDelta.x;
+            var cardHeight = _optionsCardRect.sizeDelta.y;
+            var layoutScale = Mathf.Clamp(cardHeight / 920f, 0.82f, 1.08f);
+            var fontScale = Mathf.Clamp(layoutScale * (compact ? 0.95f : 1f) * Mathf.Lerp(0.96f, 1.04f, pauseScale), 0.86f, 1.08f);
 
-            float ScaledY(float value)
-            {
-                return value * contentScaleY;
-            }
+            var sidePadding = Mathf.Clamp(cardWidth * 0.065f, 28f, 44f);
+            var rowWidth = Mathf.Max(420f, cardWidth - (sidePadding * 2f));
+            var rowBgWidth = Mathf.Min(cardWidth - 26f, rowWidth + 26f);
+            var sliderWidth = rowWidth - 36f;
+            var labelWidth = Mathf.Clamp(rowWidth * 0.56f, 242f, 356f);
 
-            float ScaledHeight(float value)
-            {
-                return value * rowHeightScale;
-            }
+            var row1Y = 176f * layoutScale;
+            var rowSpacing = 126f * layoutScale;
+            var row2Y = row1Y + rowSpacing;
+            var row3Y = row2Y + rowSpacing;
+            var row4Y = row3Y + (112f * layoutScale);
+            var row5Y = row4Y + (126f * layoutScale);
 
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "VolumeRowBg"), 0f, ScaledY(156f), new Vector2(rowBgWidth, ScaledHeight(110f)));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "MotionRowBg"), 0f, ScaledY(276f), new Vector2(rowBgWidth, ScaledHeight(110f)));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "MusicRowBg"), 0f, ScaledY(396f), new Vector2(rowBgWidth, ScaledHeight(100f)));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "HapticsRowBg"), 0f, ScaledY(500f), new Vector2(rowBgWidth, ScaledHeight(82f)));
-            SetTopCenterRect(GetChildRect(_optionsCardRect, "GraphicsRowBg"), 0f, ScaledY(616f), new Vector2(rowBgWidth, ScaledHeight(128f)));
+            var rowHeight = 104f * layoutScale;
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "VolumeRowBg"), 0f, row1Y, new Vector2(rowBgWidth, rowHeight));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "MotionRowBg"), 0f, row2Y, new Vector2(rowBgWidth, rowHeight));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "MusicRowBg"), 0f, row3Y, new Vector2(rowBgWidth, 96f * layoutScale));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "HapticsRowBg"), 0f, row4Y, new Vector2(rowBgWidth, 84f * layoutScale));
+            SetTopCenterRect(GetChildRect(_optionsCardRect, "GraphicsRowBg"), 0f, row5Y, new Vector2(rowBgWidth, 140f * layoutScale));
 
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "OptionsTitle"), 34f, ScaledY(42f), new Vector2(380f, 56f * contentScaleY));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), 34f, ScaledY(116f), new Vector2(labelWidth, 44f * contentScaleY));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), 30f, ScaledY(116f), new Vector2(132f, 44f * contentScaleY));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), 34f, ScaledY(236f), new Vector2(labelWidth, 44f * contentScaleY));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), 30f, ScaledY(236f), new Vector2(132f, 44f * contentScaleY));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), 34f, ScaledY(356f), new Vector2(labelWidth, 44f * contentScaleY));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), 34f, ScaledY(500f), new Vector2(labelWidth, 44f * contentScaleY));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), 34f, ScaledY(560f), new Vector2(Mathf.Max(labelWidth, 348f), 44f * contentScaleY));
-            SetBottomCenterRect(GetChildRect(_optionsCardRect, "Hint"), 0f, 20f, new Vector2(rowBgWidth, 36f * contentScaleY));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "OptionsTitle"), sidePadding, 44f * layoutScale, new Vector2(380f, 56f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), sidePadding, row1Y - (40f * layoutScale), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), sidePadding, row1Y - (40f * layoutScale), new Vector2(132f, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), sidePadding, row2Y - (40f * layoutScale), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), sidePadding, row2Y - (40f * layoutScale), new Vector2(132f, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), sidePadding, row3Y - (40f * layoutScale), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), sidePadding, row4Y - (24f * layoutScale), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), sidePadding, row5Y - (74f * layoutScale), new Vector2(Mathf.Max(labelWidth, 352f), 44f * layoutScale));
+            SetBottomCenterRect(GetChildRect(_optionsCardRect, "Hint"), 0f, 22f * layoutScale, new Vector2(rowBgWidth, 36f * layoutScale));
 
             if (_volumeSlider != null)
             {
-                SetTopCenterRect(_volumeSlider.GetComponent<RectTransform>(), 0f, ScaledY(156f), new Vector2(sliderWidth, 46f));
+                SetTopCenterRect(_volumeSlider.GetComponent<RectTransform>(), 0f, row1Y, new Vector2(sliderWidth, 44f * layoutScale));
             }
 
             if (_cameraMotionSlider != null)
             {
-                SetTopCenterRect(_cameraMotionSlider.GetComponent<RectTransform>(), 0f, ScaledY(276f), new Vector2(sliderWidth, 46f));
+                SetTopCenterRect(_cameraMotionSlider.GetComponent<RectTransform>(), 0f, row2Y, new Vector2(sliderWidth, 44f * layoutScale));
             }
 
             if (_musicRowRect != null)
             {
-                SetTopCenterRect(_musicRowRect, 0f, ScaledY(396f), new Vector2(rowWidth, 58f));
-                var musicButtonOffset = Mathf.Clamp(rowWidth * 0.36f, 128f, 188f);
-                SetCenterRect(GetChildRect(_musicRowRect, "MusicPrevButton"), -musicButtonOffset, 0f, new Vector2(92f, 44f));
-                SetCenterRect(GetChildRect(_musicRowRect, "MusicNextButton"), musicButtonOffset, 0f, new Vector2(92f, 44f));
-                SetCenterRect(GetChildRect(_musicRowRect, "MusicTrackValue"), 0f, 0f, new Vector2(Mathf.Max(148f, rowWidth - (musicButtonOffset * 2f) - 24f), 48f));
+                SetTopCenterRect(_musicRowRect, 0f, row3Y, new Vector2(rowWidth, 60f * layoutScale));
+                var musicButtonOffset = Mathf.Clamp(rowWidth * 0.36f, 128f, 194f);
+                SetCenterRect(GetChildRect(_musicRowRect, "MusicPrevButton"), -musicButtonOffset, 0f, new Vector2(96f, 46f * layoutScale));
+                SetCenterRect(GetChildRect(_musicRowRect, "MusicNextButton"), musicButtonOffset, 0f, new Vector2(96f, 46f * layoutScale));
+                SetCenterRect(GetChildRect(_musicRowRect, "MusicTrackValue"), 0f, 0f, new Vector2(Mathf.Max(148f, rowWidth - (musicButtonOffset * 2f) - 28f), 48f * layoutScale));
             }
 
             if (_graphicsRowRect != null)
             {
-                SetTopCenterRect(_graphicsRowRect, 0f, ScaledY(622f), new Vector2(rowWidth, 70f));
-                var qualitySpacing = Mathf.Clamp(rowWidth * 0.22f, 92f, 108f);
-                var qualitySize = new Vector2(90f, 40f);
+                SetTopCenterRect(_graphicsRowRect, 0f, row5Y, new Vector2(rowWidth, 74f * layoutScale));
+                var qualitySpacing = Mathf.Clamp(rowWidth * 0.22f, 90f, 112f);
+                var qualitySize = new Vector2(94f, 42f * layoutScale);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "AutoQualityButton"), -qualitySpacing * 1.5f, 0f, qualitySize);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "LowQualityButton"), -qualitySpacing * 0.5f, 0f, qualitySize);
                 SetCenterRect(GetChildRect(_graphicsRowRect, "MediumQualityButton"), qualitySpacing * 0.5f, 0f, qualitySize);
@@ -1267,67 +1274,42 @@ namespace MultiplyRush
 
             if (_hapticsButton != null)
             {
-                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), 30f, ScaledY(500f), new Vector2(110f, 46f));
+                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), sidePadding, row4Y - (24f * layoutScale), new Vector2(112f, 48f * layoutScale));
             }
 
-            var optionsTitle = GetChildRect(_optionsCardRect, "OptionsTitle");
-            if (optionsTitle != null)
+            void SetFont(string objectName, float size)
             {
-                var text = optionsTitle.GetComponent<Text>();
+                var rect = GetChildRect(_optionsCardRect, objectName);
+                if (rect == null)
+                {
+                    return;
+                }
+
+                var text = rect.GetComponent<Text>();
                 if (text != null)
                 {
-                    text.fontSize = Mathf.RoundToInt(42f * fontScale);
+                    text.fontSize = Mathf.RoundToInt(size);
                 }
             }
 
-            var volumeLabel = GetChildRect(_optionsCardRect, "VolumeLabel");
-            if (volumeLabel != null)
+            SetFont("OptionsTitle", 42f * fontScale);
+            SetFont("VolumeLabel", 24f * fontScale);
+            SetFont("VolumeValue", 24f * fontScale);
+            SetFont("CameraMotionLabel", 24f * fontScale);
+            SetFont("CameraMotionValue", 24f * fontScale);
+            SetFont("MusicTrackLabel", 24f * fontScale);
+            SetFont("GraphicsLabel", 24f * fontScale);
+            SetFont("HapticsLabel", 24f * fontScale);
+            SetFont("Hint", 16f * fontScale);
+
+            if (_musicTrackValueText != null)
             {
-                var text = volumeLabel.GetComponent<Text>();
-                if (text != null)
-                {
-                    text.fontSize = Mathf.RoundToInt(24f * fontScale);
-                }
+                _musicTrackValueText.fontSize = Mathf.RoundToInt(24f * fontScale);
             }
 
-            var cameraLabel = GetChildRect(_optionsCardRect, "CameraMotionLabel");
-            if (cameraLabel != null)
+            if (_qualityValueText != null)
             {
-                var text = cameraLabel.GetComponent<Text>();
-                if (text != null)
-                {
-                    text.fontSize = Mathf.RoundToInt(24f * fontScale);
-                }
-            }
-
-            var musicLabel = GetChildRect(_optionsCardRect, "MusicTrackLabel");
-            if (musicLabel != null)
-            {
-                var text = musicLabel.GetComponent<Text>();
-                if (text != null)
-                {
-                    text.fontSize = Mathf.RoundToInt(24f * fontScale);
-                }
-            }
-
-            var graphicsLabel = GetChildRect(_optionsCardRect, "GraphicsLabel");
-            if (graphicsLabel != null)
-            {
-                var text = graphicsLabel.GetComponent<Text>();
-                if (text != null)
-                {
-                    text.fontSize = Mathf.RoundToInt(24f * fontScale);
-                }
-            }
-
-            var hapticsLabel = GetChildRect(_optionsCardRect, "HapticsLabel");
-            if (hapticsLabel != null)
-            {
-                var text = hapticsLabel.GetComponent<Text>();
-                if (text != null)
-                {
-                    text.fontSize = Mathf.RoundToInt(24f * fontScale);
-                }
+                _qualityValueText.fontSize = Mathf.RoundToInt(24f * fontScale);
             }
         }
 
@@ -1400,7 +1382,7 @@ namespace MultiplyRush
             handleArea.offsetMin = new Vector2(12f, 2f);
             handleArea.offsetMax = new Vector2(-12f, -2f);
 
-            var handle = EnsureImage(handleArea, "Handle", new Color(0.9f, 0.96f, 1f, 1f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(30f, 50f));
+            var handle = EnsureImage(handleArea, "Handle", new Color(0.9f, 0.96f, 1f, 1f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), Vector2.zero, new Vector2(26f, 42f));
 
             var slider = sliderRect.GetComponent<Slider>();
             if (slider == null)

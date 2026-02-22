@@ -22,9 +22,12 @@ namespace MultiplyRush
         private int _lastProgressPercent = -1;
         private RectTransform _countRect;
         private RectTransform _enemyCountRect;
+        private RectTransform _enemyBadgeRect;
         private Vector3 _countBaseScale = Vector3.one;
         private Color _countBaseColor = Color.white;
         private Color _enemyCountBaseColor = new Color(1f, 0.42f, 0.38f, 1f);
+        private Color _enemyBadgeBaseColor = new Color(0.28f, 0.04f, 0.08f, 0.72f);
+        private Image _enemyBadgeImage;
         private Color _countFlashColor = Color.white;
         private int _targetCount;
         private float _displayCount;
@@ -57,6 +60,7 @@ namespace MultiplyRush
             }
 
             EnsureEnemyCountLabel();
+            EnsureEnemyCountBackdrop();
             if (enemyCountText != null)
             {
                 _enemyCountRect = enemyCountText.rectTransform;
@@ -64,9 +68,15 @@ namespace MultiplyRush
                 enemyCountText.gameObject.SetActive(false);
             }
 
+            if (_enemyBadgeImage != null)
+            {
+                _enemyBadgeRect = _enemyBadgeImage.rectTransform;
+                _enemyBadgeImage.gameObject.SetActive(false);
+            }
+
             ApplyTextStyle(levelText, 20, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
-            ApplyTextStyle(enemyCountText, 30, FontStyle.Bold, new Color(1f, 0.42f, 0.38f, 1f));
+            ApplyTextStyle(enemyCountText, 34, FontStyle.Bold, new Color(1f, 0.42f, 0.38f, 1f));
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
             if (enemyCountText != null)
             {
@@ -174,6 +184,10 @@ namespace MultiplyRush
             {
                 enemyCountText.gameObject.SetActive(visible);
             }
+            if (_enemyBadgeImage != null)
+            {
+                _enemyBadgeImage.gameObject.SetActive(visible);
+            }
 
             if (!_enemyCountInitialized)
             {
@@ -201,6 +215,10 @@ namespace MultiplyRush
             if (enemyCountText != null)
             {
                 enemyCountText.gameObject.SetActive(visible);
+            }
+            if (_enemyBadgeImage != null)
+            {
+                _enemyBadgeImage.gameObject.SetActive(visible);
             }
         }
 
@@ -287,6 +305,17 @@ namespace MultiplyRush
             {
                 enemyCountText.color = Color.Lerp(_enemyCountBaseColor, Color.white, _enemyCountFlash * 0.5f);
             }
+
+            if (_enemyBadgeRect != null)
+            {
+                var pulse = 1f + (_enemyCountFlash * 0.08f);
+                _enemyBadgeRect.localScale = Vector3.one * pulse;
+            }
+
+            if (_enemyBadgeImage != null)
+            {
+                _enemyBadgeImage.color = Color.Lerp(_enemyBadgeBaseColor, new Color(0.48f, 0.08f, 0.12f, 0.9f), _enemyCountFlash * 0.65f);
+            }
         }
 
         private void EnsureDeltaLabel()
@@ -327,8 +356,8 @@ namespace MultiplyRush
             enemyRect.anchorMin = countText.rectTransform.anchorMin;
             enemyRect.anchorMax = countText.rectTransform.anchorMax;
             enemyRect.pivot = countText.rectTransform.pivot;
-            enemyRect.sizeDelta = new Vector2(460f, 52f);
-            enemyRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -84f);
+            enemyRect.sizeDelta = new Vector2(520f, 66f);
+            enemyRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -112f);
 
             enemyCountText = enemyObject.AddComponent<Text>();
             enemyCountText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -337,6 +366,62 @@ namespace MultiplyRush
             enemyCountText.verticalOverflow = VerticalWrapMode.Overflow;
             enemyCountText.text = "Enemy: 0";
             enemyCountText.raycastTarget = false;
+        }
+
+        private void EnsureEnemyCountBackdrop()
+        {
+            if (enemyCountText == null)
+            {
+                return;
+            }
+
+            var parent = enemyCountText.transform.parent as RectTransform;
+            if (parent == null)
+            {
+                return;
+            }
+
+            var existing = parent.Find("EnemyCountBadge");
+            if (existing != null)
+            {
+                _enemyBadgeImage = existing.GetComponent<Image>();
+                if (_enemyBadgeImage == null)
+                {
+                    _enemyBadgeImage = existing.gameObject.AddComponent<Image>();
+                }
+            }
+            else
+            {
+                var badgeObject = new GameObject("EnemyCountBadge", typeof(RectTransform), typeof(Image));
+                badgeObject.transform.SetParent(parent, false);
+                _enemyBadgeImage = badgeObject.GetComponent<Image>();
+            }
+
+            if (_enemyBadgeImage == null)
+            {
+                return;
+            }
+
+            _enemyBadgeImage.color = _enemyBadgeBaseColor;
+            _enemyBadgeImage.raycastTarget = false;
+
+            var badgeRect = _enemyBadgeImage.rectTransform;
+            badgeRect.anchorMin = enemyCountText.rectTransform.anchorMin;
+            badgeRect.anchorMax = enemyCountText.rectTransform.anchorMax;
+            badgeRect.pivot = enemyCountText.rectTransform.pivot;
+            badgeRect.anchoredPosition = enemyCountText.rectTransform.anchoredPosition + new Vector2(0f, 0f);
+            badgeRect.sizeDelta = new Vector2(560f, 72f);
+
+            var outline = _enemyBadgeImage.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = _enemyBadgeImage.gameObject.AddComponent<Outline>();
+            }
+
+            outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
+            outline.effectDistance = new Vector2(2f, -2f);
+            var enemyIndex = enemyCountText.transform.GetSiblingIndex();
+            _enemyBadgeImage.transform.SetSiblingIndex(Mathf.Max(0, enemyIndex - 1));
         }
 
         private void ShowCountDelta(int delta)

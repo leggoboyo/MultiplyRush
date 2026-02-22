@@ -337,6 +337,17 @@ namespace MultiplyRush
 
                 var playerLoss = Mathf.Max(0, playerAlive - desiredPlayer);
                 var enemyLoss = Mathf.Max(0, enemyAlive - desiredEnemy);
+                var pacingScale = Mathf.Max(1f, duration);
+                var maxPlayerLossPerStep = Mathf.Clamp(
+                    Mathf.CeilToInt((Mathf.Max(1f, battleStartPlayer) * deltaTime / pacingScale) * 2.3f),
+                    1,
+                    24);
+                var maxEnemyLossPerStep = Mathf.Clamp(
+                    Mathf.CeilToInt((Mathf.Max(1f, battleStartEnemy) * deltaTime / pacingScale) * 2.3f),
+                    1,
+                    24);
+                playerLoss = Mathf.Min(playerLoss, maxPlayerLossPerStep);
+                enemyLoss = Mathf.Min(enemyLoss, maxEnemyLossPerStep);
                 if (enemyLoss > 0)
                 {
                     if (enemyGroup != null)

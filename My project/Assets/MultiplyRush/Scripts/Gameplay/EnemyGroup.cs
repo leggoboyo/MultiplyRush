@@ -9,7 +9,7 @@ namespace MultiplyRush
         public GameObject enemyUnitPrefab;
         public Transform unitsRoot;
         public TextMesh countLabel;
-        public int maxVisibleUnits = 90;
+        public int maxVisibleUnits = 120;
         public int initialPoolSize = 70;
         public int maxColumns = 8;
         public float spacingX = 0.74f;
@@ -23,11 +23,11 @@ namespace MultiplyRush
 
         [Header("Weapon VFX")]
         public bool enableWeaponVfx = true;
-        public float baseShotsPerSecond = 6f;
-        public float shotsPerUnit = 0.3f;
-        public float maxShotsPerSecond = 34f;
+        public float baseShotsPerSecond = 11f;
+        public float shotsPerUnit = 0.8f;
+        public float maxShotsPerSecond = 96f;
         public float tracerSpeed = 31f;
-        public float tracerLifetime = 0.2f;
+        public float tracerLifetime = 0.24f;
         public float tracerSpread = 0.08f;
         public Color tracerColor = new Color(1f, 0.5f, 0.38f, 1f);
 
@@ -52,6 +52,8 @@ namespace MultiplyRush
         private ParticleSystem _lossBurstSystem;
         private float _shotAccumulator;
         private int _pendingDeathFxBudget;
+        private int _nextShooterIndex;
+        private TextMesh _countLabelShadow;
 
         public int Count => _count;
 
@@ -70,10 +72,14 @@ namespace MultiplyRush
                 _poolRoot.SetParent(transform, false);
             }
 
-            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 36, 90);
+            maxVisibleUnits = Mathf.Clamp(maxVisibleUnits, 36, 140);
             unitVisualScale = Mathf.Clamp(unitVisualScale, 1.35f, 2.35f);
             spacingX = Mathf.Max(0.82f, spacingX);
             spacingZ = Mathf.Max(0.86f, spacingZ);
+            baseShotsPerSecond = Mathf.Clamp(baseShotsPerSecond, 4f, 28f);
+            shotsPerUnit = Mathf.Clamp(shotsPerUnit, 0.1f, 1.8f);
+            maxShotsPerSecond = Mathf.Clamp(maxShotsPerSecond, 24f, 160f);
+            tracerLifetime = Mathf.Clamp(tracerLifetime, 0.12f, 0.38f);
 
             ConfigureCountLabel();
             PrewarmPool();
@@ -151,6 +157,7 @@ namespace MultiplyRush
             _combatTarget = target;
             _combatActive = true;
             _shotAccumulator = 0f;
+            _nextShooterIndex = 0;
         }
 
         public void EndCombat()
@@ -174,7 +181,12 @@ namespace MultiplyRush
             _count = allowZero ? Mathf.Max(0, count) : Mathf.Max(1, count);
             if (countLabel != null)
             {
-                countLabel.text = "ENEMY " + NumberFormatter.ToCompact(_count);
+                countLabel.text = "ENEMY: " + NumberFormatter.ToCompact(_count);
+            }
+
+            if (_countLabelShadow != null)
+            {
+                _countLabelShadow.text = countLabel != null ? countLabel.text : ("ENEMY: " + NumberFormatter.ToCompact(_count));
             }
 
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
@@ -201,6 +213,11 @@ namespace MultiplyRush
                 _phaseOffsets.RemoveAt(last);
                 TrySpawnDeathFx(unit);
                 ReturnUnit(unit);
+            }
+
+            if (_nextShooterIndex >= _activeUnits.Count)
+            {
+                _nextShooterIndex = 0;
             }
 
             Relayout();
@@ -290,8 +307,8 @@ namespace MultiplyRush
             if (renderer != null)
             {
                 renderer.renderMode = ParticleSystemRenderMode.Stretch;
-                renderer.lengthScale = 3.2f;
-                renderer.velocityScale = 0.52f;
+                renderer.lengthScale = 0.66f;
+                renderer.velocityScale = 0.12f;
                 renderer.material = CreateEffectMaterial("EnemyTracerMaterial", tracerColor, 0.18f, 0.9f);
             }
 
@@ -313,9 +330,9 @@ namespace MultiplyRush
             main.playOnAwake = false;
             main.loop = false;
             main.duration = 1f;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.25f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(18f, 36f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.02f, 0.045f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.3f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(18f, 34f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.024f, 0.05f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.55f, 0.36f, 1f));
             main.maxParticles = 280;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -427,11 +444,40 @@ namespace MultiplyRush
             }
 
             countLabel.fontSize = 84;
-            countLabel.characterSize = 0.08f;
+            countLabel.characterSize = 0.11f;
             countLabel.anchor = TextAnchor.MiddleCenter;
             countLabel.alignment = TextAlignment.Center;
             countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
-            countLabel.text = "ENEMY 0";
+            countLabel.text = "ENEMY: 0";
+
+            var shadowTransform = countLabel.transform.parent != null
+                ? countLabel.transform.parent.Find("EnemyCountShadow")
+                : null;
+            if (shadowTransform == null)
+            {
+                var shadowObject = new GameObject("EnemyCountShadow");
+                shadowObject.transform.SetParent(countLabel.transform.parent != null ? countLabel.transform.parent : transform, false);
+                _countLabelShadow = shadowObject.AddComponent<TextMesh>();
+            }
+            else
+            {
+                _countLabelShadow = shadowTransform.GetComponent<TextMesh>();
+                if (_countLabelShadow == null)
+                {
+                    _countLabelShadow = shadowTransform.gameObject.AddComponent<TextMesh>();
+                }
+            }
+
+            if (_countLabelShadow != null)
+            {
+                _countLabelShadow.fontSize = countLabel.fontSize;
+                _countLabelShadow.characterSize = countLabel.characterSize;
+                _countLabelShadow.anchor = countLabel.anchor;
+                _countLabelShadow.alignment = countLabel.alignment;
+                _countLabelShadow.color = new Color(0f, 0f, 0f, 0.68f);
+                _countLabelShadow.text = countLabel.text;
+            }
+
             UpdateCountLabelPose();
         }
 
@@ -445,10 +491,10 @@ namespace MultiplyRush
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                1.72f + Mathf.Clamp(depth * 0.07f, 0.08f, 0.52f),
-                Mathf.Clamp(depth * 0.4f, 0.7f, 3.2f));
+                1.78f + Mathf.Clamp(depth * 0.08f, 0.1f, 0.64f),
+                Mathf.Clamp(depth * 0.44f, 0.82f, 3.8f));
 
-            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.32f, Mathf.Clamp01(_count / 220f));
+            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.42f, Mathf.Clamp01(_count / 220f));
             var camera = Camera.main;
             if (camera != null)
             {
@@ -457,6 +503,13 @@ namespace MultiplyRush
                 {
                     countLabel.transform.rotation = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
                 }
+            }
+
+            if (_countLabelShadow != null)
+            {
+                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.03f, -0.05f, 0.02f);
+                _countLabelShadow.transform.localRotation = countLabel.transform.localRotation;
+                _countLabelShadow.transform.localScale = countLabel.transform.localScale;
             }
         }
 
@@ -515,10 +568,10 @@ namespace MultiplyRush
 
             var shotsPerSecond = Mathf.Clamp(
                 baseShotsPerSecond + (_activeUnits.Count * Mathf.Max(0.01f, shotsPerUnit)),
-                1f,
-                Mathf.Max(1f, maxShotsPerSecond));
+                2f,
+                Mathf.Max(2f, Mathf.Max(maxShotsPerSecond, _activeUnits.Count * 2.2f)));
             _shotAccumulator += deltaTime * shotsPerSecond;
-            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_shotAccumulator), 0, 30);
+            var shotCount = Mathf.Clamp(Mathf.FloorToInt(_shotAccumulator), 0, 60);
             if (shotCount <= 0)
             {
                 return;
@@ -552,7 +605,12 @@ namespace MultiplyRush
         {
             if (_activeUnits.Count > 0)
             {
-                var index = UnityEngine.Random.Range(0, _activeUnits.Count);
+                if (_nextShooterIndex >= _activeUnits.Count)
+                {
+                    _nextShooterIndex = 0;
+                }
+
+                var index = _nextShooterIndex++;
                 var unit = _activeUnits[index];
                 if (unit != null)
                 {
@@ -572,6 +630,7 @@ namespace MultiplyRush
                             UnityEngine.Random.Range(-0.03f, 0.03f),
                             0.5f + UnityEngine.Random.Range(-0.03f, 0.07f),
                             0.17f + UnityEngine.Random.Range(-0.02f, 0.05f)));
+                    origin.z = Mathf.Max(origin.z, unit.position.z + 0.22f);
                     direction = _combatTarget != null
                         ? (_combatTarget.position + Vector3.up * 0.55f - origin).normalized
                         : -transform.forward;
@@ -585,6 +644,7 @@ namespace MultiplyRush
             }
 
             origin = transform.position + Vector3.up * 0.55f;
+            origin.z = Mathf.Max(origin.z, transform.position.z + 0.22f);
             direction = _combatTarget != null
                 ? (_combatTarget.position + Vector3.up * 0.5f - origin).normalized
                 : Vector3.back;

@@ -15,6 +15,39 @@ namespace MultiplyRush
 
         public bool IsPointerDown => _wasPointerDownLastFrame;
 
+        public bool TryGetPrimaryPointerScreenPosition(out Vector2 pointerPosition)
+        {
+            var hasPointer = TryGetPrimaryPointerX(out var pointerX);
+            if (!hasPointer)
+            {
+                if (_wasPointerDownLastFrame)
+                {
+                    DragEnded?.Invoke();
+                }
+
+                _wasPointerDownLastFrame = false;
+                _isDraggingFromCurrentPress = false;
+                pointerPosition = Vector2.zero;
+                return false;
+            }
+
+            if (!_wasPointerDownLastFrame)
+            {
+                _wasPointerDownLastFrame = true;
+                _isDraggingFromCurrentPress = true;
+                _lastX = pointerX;
+                DragStarted?.Invoke();
+            }
+            else if (!_isDraggingFromCurrentPress)
+            {
+                _isDraggingFromCurrentPress = true;
+                _lastX = pointerX;
+            }
+
+            pointerPosition = new Vector2(pointerX, GetPrimaryPointerY());
+            return true;
+        }
+
         public bool TryGetPrimaryPointerNormalizedX(out float normalizedX)
         {
             var hasPointer = TryGetPrimaryPointerX(out var pointerX);
@@ -106,6 +139,27 @@ namespace MultiplyRush
 
             pointerX = 0f;
             return false;
+        }
+
+        private static float GetPrimaryPointerY()
+        {
+            var touchscreen = Touchscreen.current;
+            if (touchscreen != null)
+            {
+                var touch = touchscreen.primaryTouch;
+                if (touch.press.isPressed)
+                {
+                    return touch.position.ReadValue().y;
+                }
+            }
+
+            var mouse = Mouse.current;
+            if (mouse != null && mouse.leftButton.isPressed)
+            {
+                return mouse.position.ReadValue().y;
+            }
+
+            return 0f;
         }
     }
 }
