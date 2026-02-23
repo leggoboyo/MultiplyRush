@@ -60,6 +60,7 @@ namespace MultiplyRush
         private MaterialPropertyBlock _pitSwirlOuterBlock;
         private MaterialPropertyBlock _pitSwirlInnerBlock;
         private MaterialPropertyBlock _pitGlowBlock;
+        private ParticleSystem _pitSwallowSystem;
         private float _pitTickTimer;
         private int _pitUnitsPerTick = 6;
         private Vector3 _pitRimBaseScale = new Vector3(1.08f, 0.04f, 1.08f);
@@ -240,6 +241,11 @@ namespace MultiplyRush
             }
 
             var removed = crowd.ApplyPitOverlapLoss(pitBounds, _pitUnitsPerTick, pitBounds.center);
+            if (removed > 0)
+            {
+                EmitPitSwallowBurst(pitBounds.center, removed);
+            }
+
             return removed > 0;
         }
 
@@ -411,6 +417,19 @@ namespace MultiplyRush
             StripCollider(glowObj);
             _pitGlowRenderer = glowObj.GetComponent<MeshRenderer>();
 
+            var swallowObj = new GameObject("PitSwallowFX");
+            swallowObj.transform.SetParent(_pitVisualRoot, false);
+            swallowObj.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+            _pitSwallowSystem = swallowObj.AddComponent<ParticleSystem>();
+            var swallowRenderer = swallowObj.GetComponent<ParticleSystemRenderer>();
+            if (swallowRenderer != null && zoneRenderer != null)
+            {
+                swallowRenderer.renderMode = ParticleSystemRenderMode.Billboard;
+                swallowRenderer.material = zoneRenderer.sharedMaterial;
+            }
+
+            ConfigurePitSwallowSystem(_pitSwallowSystem);
+
             if (zoneRenderer != null)
             {
                 var shared = zoneRenderer.sharedMaterial;
@@ -455,6 +474,76 @@ namespace MultiplyRush
             if (collider != null)
             {
                 Destroy(collider);
+            }
+        }
+
+        private static void ConfigurePitSwallowSystem(ParticleSystem particleSystem)
+        {
+            if (particleSystem == null)
+            {
+                return;
+            }
+
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            particleSystem.Clear(true);
+
+            var main = particleSystem.main;
+            main.playOnAwake = false;
+            main.loop = false;
+            main.duration = 0.42f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.12f, 0.24f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.045f, 0.12f);
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.16f, 0.22f, 0.28f, 1f));
+            main.maxParticles = 240;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+            var emission = particleSystem.emission;
+            emission.enabled = false;
+
+            var shape = particleSystem.shape;
+            shape.enabled = false;
+
+            var colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(new Color(0.38f, 0.5f, 0.62f, 1f), 0f),
+                    new GradientColorKey(new Color(0.12f, 0.16f, 0.2f, 1f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(0.88f, 0f),
+                    new GradientAlphaKey(0.6f, 0.32f),
+                    new GradientAlphaKey(0f, 1f)
+                });
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(gradient);
+        }
+
+        private void EmitPitSwallowBurst(Vector3 center, int removedUnits)
+        {
+            if (_pitSwallowSystem == null || removedUnits <= 0)
+            {
+                return;
+            }
+
+            var emitCount = Mathf.Clamp(removedUnits * 2, 4, 64);
+            for (var i = 0; i < emitCount; i++)
+            {
+                var radial = Random.insideUnitCircle * 0.42f;
+                var emitParams = new ParticleSystem.EmitParams
+                {
+                    position = new Vector3(center.x + radial.x, center.y + 0.02f, center.z + radial.y),
+                    velocity = new Vector3(
+                        (center.x - (center.x + radial.x)) * Random.Range(1.1f, 2.3f),
+                        Random.Range(-0.18f, 0.24f),
+                        (center.z - (center.z + radial.y)) * Random.Range(1.1f, 2.3f)),
+                    startSize = Random.Range(0.045f, 0.11f),
+                    startLifetime = Random.Range(0.12f, 0.26f)
+                };
+                _pitSwallowSystem.Emit(emitParams, 1);
             }
         }
 

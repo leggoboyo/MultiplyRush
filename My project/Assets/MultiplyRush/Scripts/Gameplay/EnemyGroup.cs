@@ -491,8 +491,8 @@ namespace MultiplyRush
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                2.35f + Mathf.Clamp(depth * 0.1f, 0.12f, 0.94f),
-                Mathf.Clamp(depth * 0.68f, 1.2f, 5.3f));
+                3.05f + Mathf.Clamp(depth * 0.16f, 0.22f, 1.5f),
+                Mathf.Clamp((depth * 0.82f) + 0.82f, 2.2f, 7.6f));
 
             countLabel.transform.localScale = Vector3.one * Mathf.Lerp(0.92f, 1.26f, Mathf.Clamp01(_count / 260f));
             var camera = Camera.main;

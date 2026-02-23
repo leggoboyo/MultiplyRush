@@ -17,7 +17,8 @@ namespace MultiplyRush
             float endScale,
             Action<Vector3> onFinished = null,
             float upwardImpulseMin = 1f,
-            float upwardImpulseMax = 2.8f)
+            float upwardImpulseMax = 2.8f,
+            float startDelay = 0f)
         {
             if (host == null || sourceUnit == null || sourceUnit.gameObject == null)
             {
@@ -43,7 +44,8 @@ namespace MultiplyRush
                 endScale,
                 onFinished,
                 upwardImpulseMin,
-                upwardImpulseMax));
+                upwardImpulseMax,
+                startDelay));
         }
 
         private static void StripInteractiveComponents(GameObject clone)
@@ -104,7 +106,8 @@ namespace MultiplyRush
             float endScale,
             Action<Vector3> onFinished,
             float upwardImpulseMin,
-            float upwardImpulseMax)
+            float upwardImpulseMax,
+            float startDelay)
         {
             if (clone == null)
             {
@@ -116,6 +119,21 @@ namespace MultiplyRush
             var targetScale = Vector3.one * Mathf.Clamp(endScale, 0f, 0.85f);
             var baseScale = clone.localScale;
             var elapsed = 0f;
+            if (startDelay > 0f)
+            {
+                var remainingDelay = Mathf.Max(0f, startDelay);
+                while (remainingDelay > 0f)
+                {
+                    if (clone == null)
+                    {
+                        yield break;
+                    }
+
+                    remainingDelay -= Mathf.Max(0.001f, Time.deltaTime);
+                    yield return null;
+                }
+            }
+
             var safeUpMin = Mathf.Min(upwardImpulseMin, upwardImpulseMax);
             var safeUpMax = Mathf.Max(upwardImpulseMin, upwardImpulseMax);
             var velocity = directionalImpulse + new Vector3(

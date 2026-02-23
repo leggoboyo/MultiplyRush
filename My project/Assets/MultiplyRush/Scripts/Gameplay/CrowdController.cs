@@ -574,10 +574,7 @@ namespace MultiplyRush
 
             _hazardOverlapIndices.Sort();
             var safeRemovalCount = Mathf.Min(maxUnitsToRemove, _hazardOverlapIndices.Count, _count);
-            var removalFxBudget = Mathf.Clamp(
-                Mathf.RoundToInt(Mathf.Sqrt(Mathf.Max(1, safeRemovalCount)) * 2.35f),
-                1,
-                Mathf.Max(1, maxDeathFxPerLossWave));
+            var removalFxBudget = Mathf.Clamp(safeRemovalCount, 1, Mathf.Max(1, maxDeathFxPerLossWave * 3));
             var removed = 0;
 
             for (var i = safeRemovalCount - 1; i >= 0; i--)
@@ -588,7 +585,8 @@ namespace MultiplyRush
                     continue;
                 }
 
-                RemoveVisibleUnitAtIndex(visibleIndex, removalFxBudget > 0, pitCenterWorld);
+                var fallDelay = (safeRemovalCount - 1 - i) * 0.012f;
+                RemoveVisibleUnitAtIndex(visibleIndex, removalFxBudget > 0, pitCenterWorld, fallDelay);
                 removalFxBudget--;
                 removed++;
             }
@@ -1257,7 +1255,7 @@ namespace MultiplyRush
                 EmitBattleDeathPoof);
         }
 
-        private void RemoveVisibleUnitAtIndex(int visibleIndex, bool spawnPitFallFx, Vector3 pitCenterWorld)
+        private void RemoveVisibleUnitAtIndex(int visibleIndex, bool spawnPitFallFx, Vector3 pitCenterWorld, float fallDelay = 0f)
         {
             if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
             {
@@ -1274,14 +1272,14 @@ namespace MultiplyRush
 
             if (spawnPitFallFx)
             {
-                SpawnPitFallDeathFx(unit, pitCenterWorld);
+                SpawnPitFallDeathFx(unit, pitCenterWorld, fallDelay);
             }
 
             ReturnUnitToPool(unit);
             _frontShootersDirty = true;
         }
 
-        private void SpawnPitFallDeathFx(Transform unit, Vector3 pitCenterWorld)
+        private void SpawnPitFallDeathFx(Transform unit, Vector3 pitCenterWorld, float fallDelay)
         {
             if (!enableBattleDeathFx || unit == null)
             {
@@ -1295,19 +1293,20 @@ namespace MultiplyRush
                 lateralPull = lateralPull.normalized;
             }
 
-            var directionalImpulse = (lateralPull * UnityEngine.Random.Range(0.3f, 0.95f)) + (Vector3.down * UnityEngine.Random.Range(1.4f, 2.35f));
+            var directionalImpulse = (lateralPull * UnityEngine.Random.Range(0.55f, 1.35f)) + (Vector3.down * UnityEngine.Random.Range(1.8f, 3.2f));
             UnitDeathFx.Spawn(
                 this,
                 unit,
-                deathFxDuration * 0.95f,
+                deathFxDuration * 1.18f,
                 directionalImpulse,
-                deathFxRandomImpulse * 0.25f,
-                deathFxGravity * 1.3f,
-                0.14f,
-                0.01f,
+                deathFxRandomImpulse * 0.18f,
+                deathFxGravity * 1.45f,
+                0.08f,
+                0f,
                 EmitBattleDeathPoof,
-                -0.7f,
-                0.3f);
+                -0.95f,
+                -0.12f,
+                Mathf.Clamp(fallDelay, 0f, 0.24f));
         }
 
         private void EmitBattleDeathPoof(Vector3 position)
