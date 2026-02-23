@@ -21,6 +21,12 @@ namespace MultiplyRush
         [Header("Finish Battle")]
         public float battleDurationNormal = 4f;
         public float battleDurationMiniBoss = 4.8f;
+        public float bossBattleDuration = 10f;
+        public float bossSlamInterval = 1.85f;
+        public float bossSlamUnitLossFraction = 0.11f;
+        public int bossSlamFlatLoss = 8;
+        public float bossDamagePerUnitPerSecond = 0.32f;
+        public float bossDamageSqrtPerSecond = 2f;
         public float postBattleDelay = 0.24f;
         public float playerBattlePowerPerUnit = 0.055f;
         public float enemyBattlePowerPerUnit = 0.05f;
@@ -190,6 +196,7 @@ namespace MultiplyRush
                 hud.SetProgress(0f);
                 hud.SetEnemyCount(_currentBuild.enemyCount, false);
                 hud.SetEnemyCountVisible(false);
+                hud.SetBossHealthVisible(false);
             }
 
             RefreshInventoryHud();
@@ -254,6 +261,12 @@ namespace MultiplyRush
 
         private IEnumerator RunFinishBattle(int enemyCount)
         {
+            if (_currentBuild.isMiniBoss)
+            {
+                yield return RunMiniBossBattle(enemyCount);
+                yield break;
+            }
+
             var finishLine = levelGenerator != null ? levelGenerator.GetActiveFinishLine() : null;
             var enemyGroup = finishLine != null ? finishLine.enemyGroup : null;
             var battleStartPlayer = playerCrowd != null ? Mathf.Max(0, playerCrowd.Count) : 0;
@@ -412,6 +425,152 @@ namespace MultiplyRush
                 hud.SetEnemyCount(finalEnemyCount, true);
             }
             ShowResultAfterBattle(didWin, battleStartEnemy);
+            _battleRoutine = null;
+        }
+
+        private IEnumerator RunMiniBossBattle(int bossHealth)
+        {
+            var finishLine = levelGenerator != null ? levelGenerator.GetActiveFinishLine() : null;
+            var battleStartPlayer = playerCrowd != null ? Mathf.Max(0, playerCrowd.Count) : 0;
+            var battleStartBoss = Mathf.Max(1, bossHealth);
+            var currentBossHealth = battleStartBoss;
+            var didWin = false;
+
+            if (finishLine != null)
+            {
+                finishLine.SetBossVisualActive(true);
+            }
+
+            if (hud != null)
+            {
+                hud.SetEnemyCountVisible(false);
+                hud.SetBossHealth(currentBossHealth, battleStartBoss, true);
+            }
+
+            if (playerCrowd != null)
+            {
+                var target = finishLine != null && finishLine.BossVisual != null
+                    ? finishLine.BossVisual
+                    : finishLine != null ? finishLine.transform : null;
+                playerCrowd.BeginCombat(target);
+            }
+
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.9f, 0.95f);
+            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Battle, false);
+
+            var centerTime = Mathf.Clamp(preBattleCenterTime, 0f, 1.2f);
+            if (centerTime > 0f)
+            {
+                var centerElapsed = 0f;
+                while (centerElapsed < centerTime)
+                {
+                    var deltaTime = Time.deltaTime;
+                    if (deltaTime <= 0f)
+                    {
+                        yield return null;
+                        continue;
+                    }
+
+                    centerElapsed += deltaTime;
+                    yield return null;
+                }
+            }
+
+            var duration = Mathf.Max(6f, bossBattleDuration);
+            var elapsed = 0f;
+            var slamTimer = Mathf.Clamp(bossSlamInterval * 0.7f, 0.45f, 2.2f);
+            _battleHitSfxTimer = 0f;
+
+            while (elapsed < duration)
+            {
+                var deltaTime = Time.deltaTime;
+                if (deltaTime <= 0f)
+                {
+                    yield return null;
+                    continue;
+                }
+
+                elapsed += deltaTime;
+                _battleHitSfxTimer = Mathf.Max(0f, _battleHitSfxTimer - deltaTime);
+
+                var playerAlive = playerCrowd != null ? playerCrowd.Count : 0;
+                if (playerAlive <= 0)
+                {
+                    break;
+                }
+
+                var modeDamageScale = _difficultyMode == DifficultyMode.Easy
+                    ? 1.12f
+                    : _difficultyMode == DifficultyMode.Hard ? 0.88f : 1f;
+                var dps = ((playerAlive * bossDamagePerUnitPerSecond) + (Mathf.Sqrt(playerAlive) * bossDamageSqrtPerSecond)) * modeDamageScale;
+                var damage = Mathf.Max(0.6f, dps * deltaTime);
+                var damageInt = Mathf.Max(1, Mathf.RoundToInt(damage));
+                currentBossHealth = Mathf.Max(0, currentBossHealth - damageInt);
+
+                if (hud != null)
+                {
+                    hud.SetBossHealth(currentBossHealth, battleStartBoss, true);
+                }
+
+                if (_battleHitSfxTimer <= 0f)
+                {
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.4f, Random.Range(0.92f, 1.08f));
+                    _battleHitSfxTimer = Mathf.Max(0.025f, battleHitSfxInterval);
+                }
+
+                if (currentBossHealth <= 0)
+                {
+                    didWin = true;
+                    break;
+                }
+
+                slamTimer -= deltaTime;
+                if (slamTimer <= 0f)
+                {
+                    slamTimer += Mathf.Max(0.75f, bossSlamInterval);
+                    var slamModeScale = _difficultyMode == DifficultyMode.Easy
+                        ? 0.8f
+                        : _difficultyMode == DifficultyMode.Hard ? 1.22f : 1f;
+                    var slamLoss = Mathf.RoundToInt(
+                        ((playerAlive * bossSlamUnitLossFraction) + bossSlamFlatLoss + (_currentLevelIndex * 0.06f)) * slamModeScale);
+                    slamLoss = Mathf.Clamp(slamLoss, 1, Mathf.Max(1, playerAlive));
+                    var removed = playerCrowd != null ? playerCrowd.ApplyBattleLosses(slamLoss) : 0;
+                    finishLine?.TriggerBossSlam(1f + Mathf.Clamp01(removed / 24f));
+                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.7f, Random.Range(0.72f, 0.86f));
+                    HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
+                }
+
+                yield return null;
+            }
+
+            var survivors = playerCrowd != null ? playerCrowd.Count : 0;
+            if (!didWin)
+            {
+                didWin = currentBossHealth <= 0 && survivors > 0;
+            }
+
+            if (playerCrowd != null)
+            {
+                playerCrowd.EndCombat();
+            }
+
+            if (finishLine != null && didWin)
+            {
+                finishLine.SetBossVisualActive(false);
+            }
+
+            if (postBattleDelay > 0f)
+            {
+                yield return new WaitForSeconds(postBattleDelay);
+            }
+
+            if (hud != null)
+            {
+                hud.SetBossHealthVisible(false);
+                hud.SetEnemyCountVisible(false);
+            }
+
+            ShowResultAfterBattle(didWin, battleStartBoss);
             _battleRoutine = null;
         }
 

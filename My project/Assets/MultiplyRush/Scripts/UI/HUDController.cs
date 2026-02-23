@@ -361,6 +361,28 @@ namespace MultiplyRush
             }
         }
 
+        private void AnimateBossHealth(float deltaTime)
+        {
+            if (!_bossHealthInitialized || !_bossHealthVisible || deltaTime <= 0f)
+            {
+                return;
+            }
+
+            var blend = 1f - Mathf.Exp(-Mathf.Max(7f, countLerpSpeed) * deltaTime);
+            _displayBossHealth = Mathf.Lerp(_displayBossHealth, _targetBossHealth, blend);
+            _displayBossHealth01 = Mathf.Lerp(_displayBossHealth01, _targetBossHealth01, blend);
+            var shownHp = Mathf.Clamp(Mathf.RoundToInt(_displayBossHealth), 0, Mathf.Max(1, _bossHealthMax));
+            if (_bossHealthFillImage != null)
+            {
+                _bossHealthFillImage.fillAmount = Mathf.Clamp01(_displayBossHealth01);
+            }
+
+            if (_bossHealthLabel != null)
+            {
+                _bossHealthLabel.text = "BOSS HP " + NumberFormatter.ToCompact(shownHp);
+            }
+        }
+
         private void RefreshEnemyCountLayout(bool force = false)
         {
             if (countText == null || enemyCountText == null)
@@ -409,6 +431,16 @@ namespace MultiplyRush
                 _enemyBadgeRect.pivot = enemyRect.pivot;
                 _enemyBadgeRect.anchoredPosition = enemyRect.anchoredPosition;
                 _enemyBadgeRect.sizeDelta = enemyRect.sizeDelta + new Vector2(26f, 12f);
+            }
+
+            if (_bossHealthRootRect != null)
+            {
+                var widthBoss = Mathf.Clamp(canvasSize.x * 0.54f, 360f, 520f);
+                _bossHealthRootRect.anchorMin = countRect.anchorMin;
+                _bossHealthRootRect.anchorMax = countRect.anchorMax;
+                _bossHealthRootRect.pivot = countRect.pivot;
+                _bossHealthRootRect.sizeDelta = new Vector2(widthBoss, 56f);
+                _bossHealthRootRect.anchoredPosition = new Vector2(countRect.anchoredPosition.x, countRect.anchoredPosition.y - 114f);
             }
         }
 
@@ -516,6 +548,84 @@ namespace MultiplyRush
             outline.effectDistance = new Vector2(2f, -2f);
             var enemyIndex = enemyCountText.transform.GetSiblingIndex();
             _enemyBadgeImage.transform.SetSiblingIndex(Mathf.Max(0, enemyIndex - 1));
+        }
+
+        private void EnsureBossHealthBar()
+        {
+            if (_bossHealthRootRect != null || countText == null)
+            {
+                return;
+            }
+
+            var parent = countText.transform.parent as RectTransform;
+            if (parent == null)
+            {
+                return;
+            }
+
+            var rootObj = new GameObject("BossHealthRoot", typeof(RectTransform), typeof(Image));
+            rootObj.transform.SetParent(parent, false);
+            _bossHealthRootRect = rootObj.GetComponent<RectTransform>();
+            _bossHealthRootRect.anchorMin = countText.rectTransform.anchorMin;
+            _bossHealthRootRect.anchorMax = countText.rectTransform.anchorMax;
+            _bossHealthRootRect.pivot = countText.rectTransform.pivot;
+            _bossHealthRootRect.sizeDelta = new Vector2(450f, 56f);
+            _bossHealthRootRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -114f);
+
+            var rootImage = rootObj.GetComponent<Image>();
+            rootImage.color = new Color(0.18f, 0.05f, 0.08f, 0.84f);
+            rootImage.raycastTarget = false;
+            var rootOutline = rootObj.GetComponent<Outline>();
+            if (rootOutline == null)
+            {
+                rootOutline = rootObj.AddComponent<Outline>();
+            }
+
+            rootOutline.effectColor = new Color(0f, 0f, 0f, 0.62f);
+            rootOutline.effectDistance = new Vector2(1.8f, -1.8f);
+
+            var fillObj = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fillObj.transform.SetParent(_bossHealthRootRect, false);
+            var fillRect = fillObj.GetComponent<RectTransform>();
+            fillRect.anchorMin = new Vector2(0f, 0f);
+            fillRect.anchorMax = new Vector2(1f, 1f);
+            fillRect.offsetMin = new Vector2(6f, 6f);
+            fillRect.offsetMax = new Vector2(-6f, -6f);
+            _bossHealthFillImage = fillObj.GetComponent<Image>();
+            _bossHealthFillImage.type = Image.Type.Filled;
+            _bossHealthFillImage.fillMethod = Image.FillMethod.Horizontal;
+            _bossHealthFillImage.fillOrigin = 0;
+            _bossHealthFillImage.fillAmount = 1f;
+            _bossHealthFillImage.color = new Color(0.92f, 0.2f, 0.24f, 0.92f);
+            _bossHealthFillImage.raycastTarget = false;
+
+            var labelObj = new GameObject("Label", typeof(RectTransform), typeof(Text));
+            labelObj.transform.SetParent(_bossHealthRootRect, false);
+            var labelRect = labelObj.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+            _bossHealthLabel = labelObj.GetComponent<Text>();
+            _bossHealthLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _bossHealthLabel.fontSize = 30;
+            _bossHealthLabel.fontStyle = FontStyle.Bold;
+            _bossHealthLabel.alignment = TextAnchor.MiddleCenter;
+            _bossHealthLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            _bossHealthLabel.verticalOverflow = VerticalWrapMode.Overflow;
+            _bossHealthLabel.color = new Color(1f, 0.86f, 0.86f, 1f);
+            _bossHealthLabel.raycastTarget = false;
+            _bossHealthLabel.text = "BOSS HP 0";
+            var labelOutline = _bossHealthLabel.GetComponent<Outline>();
+            if (labelOutline == null)
+            {
+                labelOutline = _bossHealthLabel.gameObject.AddComponent<Outline>();
+            }
+
+            labelOutline.effectColor = new Color(0f, 0f, 0f, 0.82f);
+            labelOutline.effectDistance = new Vector2(1.2f, -1.2f);
+
+            _bossHealthRootRect.gameObject.SetActive(false);
         }
 
         private void ShowCountDelta(int delta)
