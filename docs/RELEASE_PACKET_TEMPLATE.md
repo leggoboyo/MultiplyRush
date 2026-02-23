@@ -21,14 +21,17 @@ Copy this file for each submission cycle (for example: `docs/releases/2026-03-01
 - Airplane mode test on device: PASS/FAIL
 - 15-minute stability run: PASS/FAIL
 - Safe area pass (small + standard + large iPhone): PASS/FAIL
+- Xcode/iOS SDK requirement for submission date verified: PASS/FAIL
 
 ## 4) Metadata Finalization
 - App description updated: YES/NO
 - Keywords updated: YES/NO
 - What’s New updated from changelog: YES/NO
 - Screenshots refreshed for current UI: YES/NO
-- Privacy questionnaire revalidated: YES/NO
-- Support and privacy URLs reachable: YES/NO
+- Age rating questionnaire revalidated: YES/NO
+- App privacy details revalidated: YES/NO
+- Support URL has working contact details: YES/NO
+- Privacy policy URL reachable and accurate: YES/NO
 
 ## 5) App Review Notes (Submitted)
 ```

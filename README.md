@@ -50,7 +50,9 @@ After enabling GitHub Pages for this repository, the site will be available at:
    - `Assets/MultiplyRush/Docs/ReleaseAudit.md`
 3. Resolve all `[FAIL]` items before building.
 4. Resolve `[WARN]` items that apply to your final submission (bundle ID, icons, metadata).
-5. Build iOS and archive in Xcode for App Store Connect upload.
+5. Confirm current Apple upload deadlines in:
+   - `docs/APP_STORE_SUBMISSION_RUNBOOK.md`
+6. Build iOS and archive in Xcode for App Store Connect upload.
 
 ## App Store Documentation Pack
 - Developer docs index:
@@ -65,6 +67,8 @@ After enabling GitHub Pages for this repository, the site will be available at:
   - `docs/APP_STORE_COMPLIANCE_MATRIX.md`
 - Per-release packet template:
   - `docs/RELEASE_PACKET_TEMPLATE.md`
+- Maintenance policy:
+  - `docs/MAINTENANCE_POLICY.md`
 
 ## CI + Hygiene
 - Offline policy is enforced in CI via `.github/workflows/offline-policy.yml`.

@@ -2,44 +2,55 @@
 
 Last updated: 2026-02-23
 
-This maps key Apple requirements to concrete project evidence and checks.
+This maps Apple requirements to concrete project evidence and submission checks.
 
-## Review and Policy Coverage
+## 1) Review and Metadata Requirements
 
-| Apple Area | Requirement | Project Evidence | Verification |
+| Requirement Area | Apple Requirement | Project Evidence | Verification Gate |
 |---|---|---|---|
-| 2.1 App Completeness | App must be complete and functional at review | Main menu, gameplay, pause, result loops are implemented in shipped scenes | QA checklist + release audit |
-| 2.3 Accurate Metadata | Store metadata must match app behavior | Metadata templates reflect real features only | Metadata review before submission |
-| 2.3.12 What’s New | What’s New must describe actual changes | `CHANGELOG.md` drives release notes | Release checklist signoff |
-| 4.0 Design | App should meet quality and usability standards | Safe-area aware UI, pause options, progression flow | iPhone simulator + device pass |
-| 5.1 Data Collection | Privacy disclosure must be accurate | Offline architecture, no telemetry/analytics SDK usage | `offline_policy_check.py` + release audit |
-| 1.5 Developer Info | Support and contact info required | Public support and privacy pages in `docs/` | Verify URL availability pre-submit |
-| Upcoming Requirements | Toolchain deadlines must be met | Runbook tracks Xcode 26 / iOS 26 SDK deadline (2026-04-28) | Submission date gate in release checklist |
+| 2.1 App Completeness | App submissions should be final and functional; no placeholder content or broken URLs | Shipping scenes: `MainMenu.unity`, `Game.unity`; public docs site under `docs/` | Device smoke test + URL checks before submit |
+| 2.3 Accurate Metadata | Metadata must accurately describe the app | `docs/APP_STORE_METADATA_TEMPLATES.md`; `CHANGELOG.md` | Manual metadata review gate |
+| 2.3.12 What’s New | Update text must describe real changes | `CHANGELOG.md` is release notes source | Release packet signoff |
+| App Information | Privacy Policy URL required for iOS apps | `docs/privacy.html` published via GitHub Pages | Open URL and verify content |
+| App Information | Age rating required and must match content | Age rating questionnaire answers in ASC | Pre-submit ASC review |
+| Platform Version Info | Screenshots required (1-10 per set), description required, keywords required | Screenshot capture workflow + templates | Submission checklist |
+| Platform Version Info | Support URL required and must lead to support contact info | `docs/support.html` (must include valid contact channel) | Open URL and verify contact details |
+| App Review Info | Contact name/email/phone required; notes and demo credentials when needed | Reviewer notes template in metadata doc | Pre-submit review info check |
 
-## Offline/No-Ads/No-Tracking Promise
+## 2) Privacy, Data, and Policy Requirements
 
-| Promise | Implementation | Check |
-|---|---|---|
-| No internet required | No runtime network logic in gameplay scripts | Airplane-mode test run |
-| No ads | No ad SDK dependencies in manifest | Release audit package scan |
-| No analytics/telemetry | Unity Connect defaults forced off in release tool | Release audit + CI policy script |
-| No IAP/paywalls | No purchasing package integration | Manifest + code scan |
+| Requirement Area | Apple Requirement | Project Evidence | Verification Gate |
+|---|---|---|---|
+| App Privacy Details | Privacy details are required for new apps and app updates | Offline/no-tracking design documented in privacy/support pages | App Privacy section completed each release |
+| 5.1 Privacy Alignment | Privacy disclosures must match actual implementation | `tools/offline_policy_check.py`; no ads/analytics/IAP claim in docs | CI + release audit |
+| Required Reasons APIs | If listed APIs are used, approved reasons are required (including third-party SDK usage) | Dependency review during release prep | Package audit before submit |
 
-## Build Integrity
+## 3) Build and Toolchain Requirements
 
-| Area | Requirement | Check |
-|---|---|---|
-| iOS backend | IL2CPP | Release audit |
-| iOS architecture | ARM64 | Release audit |
-| Build scenes | MainMenu + Game included and enabled | Release audit |
-| Versioning | Valid bundle version + build number | Release audit + manual gate |
+| Requirement Area | Apple Requirement | Project Evidence | Verification Gate |
+|---|---|---|---|
+| Upcoming Requirement | Starting 2026-04-28, uploads require Xcode 26+ with iOS 26 SDK+ | Runbook date gate in `docs/APP_STORE_SUBMISSION_RUNBOOK.md` | Submission date + toolchain check |
+| Build Integrity | App must be stable and reviewable | Unity release audit + physical device playtest | `ReleaseAudit.md` with 0 `[FAIL]` |
 
-## Residual Risks to Re-check Every Submission
-- App Store metadata drift (text/screenshots not matching current build).
-- Placeholder art/text accidentally left in production build.
-- UI clipping on new iPhone aspect ratios.
-- Future package additions violating offline/no-tracking policy.
+## 4) Ongoing Maintenance Expectations
 
-## References
+| Requirement Area | Apple Requirement | Project Evidence | Verification Gate |
+|---|---|---|---|
+| Active Maintenance | Apps that are no longer supported or fail to function may be removed | `docs/MAINTENANCE_POLICY.md`; changelog discipline | Monthly maintenance check |
+| Supportability | Support URL should keep player/reviewer contact routes live | GitHub Pages support hub | Broken-link check before each release |
+
+## 5) Residual Risks (Re-check Every Submission)
+- Metadata drift: screenshots/text no longer match gameplay.
+- Support URL exists but does not include usable contact information.
+- Privacy claim drift after future package additions.
+- App Review notes too vague for reviewer to validate quickly.
+- Toolchain deadline missed near submission date.
+
+## 6) Official References
 - App Store Review Guidelines: https://developer.apple.com/app-store/review/guidelines/
-- App Store Connect Submission: https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app-for-review
+- Submit an app: https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app
+- Platform version information: https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information
+- App information: https://developer.apple.com/help/app-store-connect/reference/app-information/app-information
+- App privacy details: https://developer.apple.com/app-store/app-privacy-details/
+- Set an app age rating: https://developer.apple.com/help/app-store-connect/manage-app-information/set-an-app-age-rating
+- Upcoming requirements: https://developer.apple.com/news/upcoming-requirements/

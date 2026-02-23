@@ -6,12 +6,13 @@ This file follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and u
 
 ## Unreleased
 ### Added
-- Apple App Store submission runbook and metadata templates.
-- Apple guideline compliance matrix specific to Multiply Rush.
-- Release packet template for each App Store submission cycle.
+- Maintenance policy for side-project operations and App Store readiness.
+- Stronger App Store metadata templates with current Apple field constraints.
 
 ### Changed
-- Documented a stricter release gate process for iOS submissions.
+- Refreshed App Store submission runbook with current Apple requirements and updated 2026 deadlines.
+- Expanded compliance matrix with required metadata, app review contact requirements, and maintenance risk controls.
+- Updated developer docs index and README so release documentation is easier to discover.
 
 ## 0.1.0 - 2026-02-22
 ### Added

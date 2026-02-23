@@ -1,16 +1,18 @@
 # Multiply Rush Developer Docs Index
 
-Use this page as the entrypoint for engineering/release documentation.
+Use this page as the entrypoint for engineering and release documentation.
 
 ## Release + App Store
 - `docs/APP_STORE_SUBMISSION_RUNBOOK.md`  
-  End-to-end submission workflow and preflight gates.
+  End-to-end submission workflow, required metadata, and policy gates.
 - `docs/APP_STORE_METADATA_TEMPLATES.md`  
-  Copy templates for App Store Connect listing fields.
+  Copy-ready App Store Connect text with field limits.
 - `docs/APP_STORE_COMPLIANCE_MATRIX.md`  
-  Requirement-to-evidence mapping for Apple review.
+  Apple requirement-to-evidence mapping for each release.
 - `docs/RELEASE_PACKET_TEMPLATE.md`  
-  Fill one per submission cycle.
+  Per-submission checklist and evidence capture.
+- `docs/MAINTENANCE_POLICY.md`  
+  Ongoing maintenance and support commitments.
 - `CHANGELOG.md`  
   Release notes source of truth.
 
