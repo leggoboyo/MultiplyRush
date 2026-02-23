@@ -128,7 +128,7 @@ namespace MultiplyRush
                 if (normalized >= shrinkThreshold)
                 {
                     var shrinkT = Mathf.InverseLerp(shrinkThreshold, 1f, normalized);
-                    clone.localScale = Vector3.Lerp(baseScale, baseScale * targetScale, shrinkT);
+                    clone.localScale = Vector3.Lerp(baseScale, Vector3.Scale(baseScale, targetScale), shrinkT);
                 }
 
                 yield return null;
