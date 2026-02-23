@@ -443,8 +443,8 @@ namespace MultiplyRush
                 countLabel = labelObject.AddComponent<TextMesh>();
             }
 
-            countLabel.fontSize = 96;
-            countLabel.characterSize = 0.125f;
+            countLabel.fontSize = 92;
+            countLabel.characterSize = 0.105f;
             countLabel.anchor = TextAnchor.MiddleCenter;
             countLabel.alignment = TextAlignment.Center;
             countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
@@ -491,10 +491,10 @@ namespace MultiplyRush
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                1.92f + Mathf.Clamp(depth * 0.09f, 0.12f, 0.78f),
-                Mathf.Clamp(depth * 0.52f, 0.96f, 4.4f));
+                2.35f + Mathf.Clamp(depth * 0.1f, 0.12f, 0.94f),
+                Mathf.Clamp(depth * 0.68f, 1.2f, 5.3f));
 
-            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(1.05f, 1.62f, Mathf.Clamp01(_count / 240f));
+            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(0.92f, 1.26f, Mathf.Clamp01(_count / 260f));
             var camera = Camera.main;
             if (camera != null)
             {
@@ -507,7 +507,7 @@ namespace MultiplyRush
 
             if (_countLabelShadow != null)
             {
-                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.03f, -0.05f, 0.02f);
+                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.02f, -0.04f, 0.03f);
                 _countLabelShadow.transform.localRotation = countLabel.transform.localRotation;
                 _countLabelShadow.transform.localScale = countLabel.transform.localScale;
             }
