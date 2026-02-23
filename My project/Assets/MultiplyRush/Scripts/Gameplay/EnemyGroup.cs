@@ -54,6 +54,8 @@ namespace MultiplyRush
         private int _pendingDeathFxBudget;
         private int _nextShooterIndex;
         private TextMesh _countLabelShadow;
+        private TextMesh _countLabelGlow;
+        private float _labelPulseOffset;
 
         public int Count => _count;
 
@@ -85,6 +87,7 @@ namespace MultiplyRush
             PrewarmPool();
             EnsureWeaponEffects();
             EnsureLossBurstEffects();
+            _labelPulseOffset = Mathf.Repeat(GetInstanceID() * 0.137f, 1f) * Mathf.PI * 2f;
         }
 
         private void Update()
@@ -187,6 +190,11 @@ namespace MultiplyRush
             if (_countLabelShadow != null)
             {
                 _countLabelShadow.text = countLabel != null ? countLabel.text : ("ENEMY: " + NumberFormatter.ToCompact(_count));
+            }
+
+            if (_countLabelGlow != null)
+            {
+                _countLabelGlow.text = countLabel != null ? countLabel.text : ("ENEMY: " + NumberFormatter.ToCompact(_count));
             }
 
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
@@ -478,6 +486,34 @@ namespace MultiplyRush
                 _countLabelShadow.text = countLabel.text;
             }
 
+            var glowTransform = countLabel.transform.parent != null
+                ? countLabel.transform.parent.Find("EnemyCountGlow")
+                : null;
+            if (glowTransform == null)
+            {
+                var glowObject = new GameObject("EnemyCountGlow");
+                glowObject.transform.SetParent(countLabel.transform.parent != null ? countLabel.transform.parent : transform, false);
+                _countLabelGlow = glowObject.AddComponent<TextMesh>();
+            }
+            else
+            {
+                _countLabelGlow = glowTransform.GetComponent<TextMesh>();
+                if (_countLabelGlow == null)
+                {
+                    _countLabelGlow = glowTransform.gameObject.AddComponent<TextMesh>();
+                }
+            }
+
+            if (_countLabelGlow != null)
+            {
+                _countLabelGlow.fontSize = countLabel.fontSize;
+                _countLabelGlow.characterSize = countLabel.characterSize;
+                _countLabelGlow.anchor = countLabel.anchor;
+                _countLabelGlow.alignment = countLabel.alignment;
+                _countLabelGlow.color = new Color(1f, 0.48f, 0.42f, 0.32f);
+                _countLabelGlow.text = countLabel.text;
+            }
+
             UpdateCountLabelPose();
         }
 
@@ -491,10 +527,14 @@ namespace MultiplyRush
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                3.05f + Mathf.Clamp(depth * 0.16f, 0.22f, 1.5f),
-                Mathf.Clamp((depth * 0.82f) + 0.82f, 2.2f, 7.6f));
+                3.45f + Mathf.Clamp(depth * 0.2f, 0.28f, 1.8f),
+                Mathf.Clamp((depth * 0.88f) + 1.08f, 2.8f, 8.4f));
 
-            countLabel.transform.localScale = Vector3.one * Mathf.Lerp(0.92f, 1.26f, Mathf.Clamp01(_count / 260f));
+            var pulse = 1f + Mathf.Sin((Time.time * 3.2f) + _labelPulseOffset) * 0.1f;
+            var baseScale = Mathf.Lerp(0.98f, 1.36f, Mathf.Clamp01(_count / 260f));
+            countLabel.transform.localScale = Vector3.one * baseScale * pulse;
+            var tintPulse = 0.78f + Mathf.Abs(Mathf.Sin((Time.time * 4.6f) + _labelPulseOffset)) * 0.22f;
+            countLabel.color = Color.Lerp(new Color(1f, 0.32f, 0.3f, 1f), new Color(1f, 0.58f, 0.42f, 1f), tintPulse);
             var camera = Camera.main;
             if (camera != null)
             {
@@ -507,9 +547,21 @@ namespace MultiplyRush
 
             if (_countLabelShadow != null)
             {
-                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.02f, -0.04f, 0.03f);
+                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.02f, -0.05f, 0.03f);
                 _countLabelShadow.transform.localRotation = countLabel.transform.localRotation;
                 _countLabelShadow.transform.localScale = countLabel.transform.localScale;
+            }
+
+            if (_countLabelGlow != null)
+            {
+                _countLabelGlow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0f, 0.02f, 0.02f);
+                _countLabelGlow.transform.localRotation = countLabel.transform.localRotation;
+                _countLabelGlow.transform.localScale = countLabel.transform.localScale * 1.18f;
+                _countLabelGlow.color = new Color(
+                    1f,
+                    0.56f,
+                    0.44f,
+                    0.18f + Mathf.Abs(Mathf.Sin((Time.time * 4.2f) + _labelPulseOffset)) * 0.16f);
             }
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,6 +30,11 @@ namespace MultiplyRush
         public float titlePulseScale = 0.04f;
         public float titlePulseSpeed = 3.6f;
 
+        [Header("Win Celebration FX")]
+        public float winBackdropPulseSpeed = 0.76f;
+        public float winBackdropStarDrift = 48f;
+        public float winBackdropRaySweepSpeed = 190f;
+
         public event Action OnRetryRequested;
         public event Action OnNextRequested;
         public event Action OnMainMenuRequested;
@@ -56,6 +62,25 @@ namespace MultiplyRush
         private RectTransform _loseBandSecondaryRect;
         private RectTransform _loseNoiseBandRect;
         private ParticleSystem _winBurst;
+        private Image _winAuraOuter;
+        private RectTransform _winAuraOuterRect;
+        private Image _winAuraCore;
+        private RectTransform _winAuraCoreRect;
+        private Image _winSilhouetteBand;
+        private RectTransform _winSilhouetteBandRect;
+        private readonly List<RectTransform> _winStarRects = new List<RectTransform>(28);
+        private readonly List<float> _winStarBaseX = new List<float>(28);
+        private readonly List<float> _winStarBaseY = new List<float>(28);
+        private readonly List<float> _winStarSpeeds = new List<float>(28);
+        private readonly List<float> _winStarPhases = new List<float>(28);
+        private readonly List<RectTransform> _winRayRects = new List<RectTransform>(5);
+        private readonly List<float> _winRayBaseY = new List<float>(5);
+        private readonly List<float> _winRaySpeeds = new List<float>(5);
+        private readonly List<float> _winRayPhases = new List<float>(5);
+        private Texture2D _winStarTexture;
+        private Texture2D _winGlowTexture;
+        private Sprite _winStarSprite;
+        private Sprite _winGlowSprite;
         private Color _scanlineBaseColor = new Color(0.58f, 0.95f, 1f, 0.09f);
         private bool _isVisible;
         private bool _isAnimatingIn;
@@ -462,6 +487,7 @@ namespace MultiplyRush
         private void AnimatePolish(float runTime, float deltaTime)
         {
             var panelOffset = Vector2.zero;
+            AnimateWinBackdrop(runTime, deltaTime);
             if (titleText != null && _titleRect != null)
             {
                 var pulse = 1f + Mathf.Sin(runTime * titlePulseSpeed) * (_lastDidWin ? titlePulseScale : titlePulseScale * 0.82f);
@@ -754,6 +780,8 @@ namespace MultiplyRush
             _winSweepImage.gameObject.SetActive(false);
             _winSweepRect.SetAsFirstSibling();
 
+            EnsureWinBackdropEffects();
+
             if (nextButton != null)
             {
                 StylePrimaryButton(nextButton, new Color(0.15f, 0.72f, 1f, 1f), "NEXT LEVEL");
@@ -888,6 +916,7 @@ namespace MultiplyRush
                 }
             }
 
+            ConfigureWinBackdropLayout(panelWidth, panelHeight);
             ApplyResultLayout(panelWidth, panelHeight, compact, ultraCompact);
         }
 
@@ -1030,6 +1059,374 @@ namespace MultiplyRush
                 label.alignment = TextAnchor.MiddleCenter;
                 label.color = Color.white;
             }
+        }
+
+        private void EnsureWinBackdropEffects()
+        {
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            EnsureWinBackdropSprites();
+
+            _winAuraOuter = EnsureImage(
+                _panelRect,
+                "WinAuraOuter",
+                new Color(0.22f, 0.92f, 1f, 0.2f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 22f),
+                new Vector2(760f, 520f));
+            _winAuraOuterRect = _winAuraOuter.rectTransform;
+            _winAuraOuter.raycastTarget = false;
+            if (_winGlowSprite != null)
+            {
+                _winAuraOuter.sprite = _winGlowSprite;
+                _winAuraOuter.type = Image.Type.Simple;
+                _winAuraOuter.preserveAspect = true;
+            }
+
+            _winAuraCore = EnsureImage(
+                _panelRect,
+                "WinAuraCore",
+                new Color(0.18f, 0.86f, 1f, 0.17f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 14f),
+                new Vector2(520f, 340f));
+            _winAuraCoreRect = _winAuraCore.rectTransform;
+            _winAuraCore.raycastTarget = false;
+            if (_winGlowSprite != null)
+            {
+                _winAuraCore.sprite = _winGlowSprite;
+                _winAuraCore.type = Image.Type.Simple;
+                _winAuraCore.preserveAspect = true;
+            }
+
+            _winSilhouetteBand = EnsureImage(
+                _panelRect,
+                "WinSilhouetteBand",
+                new Color(0.64f, 0.96f, 1f, 0.16f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 250f),
+                new Vector2(720f, 92f));
+            _winSilhouetteBandRect = _winSilhouetteBand.rectTransform;
+            _winSilhouetteBand.raycastTarget = false;
+
+            const int rayCount = 5;
+            _winRayRects.Clear();
+            _winRayBaseY.Clear();
+            _winRaySpeeds.Clear();
+            _winRayPhases.Clear();
+            for (var i = 0; i < rayCount; i++)
+            {
+                var ray = EnsureImage(
+                    _panelRect,
+                    "WinRay_" + i,
+                    new Color(0.7f, 0.96f, 1f, 0.08f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(120f, 760f));
+                if (ray == null)
+                {
+                    continue;
+                }
+
+                ray.raycastTarget = false;
+                ray.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -16f + (i * 8f));
+                _winRayRects.Add(ray.rectTransform);
+                _winRayBaseY.Add(Mathf.Lerp(-50f, 260f, i / Mathf.Max(1f, rayCount - 1f)));
+                _winRaySpeeds.Add(Mathf.Lerp(0.72f, 1.28f, i / Mathf.Max(1f, rayCount - 1f)));
+                _winRayPhases.Add(Mathf.Repeat(i * 0.37f, 1f));
+            }
+
+            const int starCount = 28;
+            _winStarRects.Clear();
+            _winStarBaseX.Clear();
+            _winStarBaseY.Clear();
+            _winStarSpeeds.Clear();
+            _winStarPhases.Clear();
+            for (var i = 0; i < starCount; i++)
+            {
+                var star = EnsureImage(
+                    _panelRect,
+                    "WinStar_" + i,
+                    new Color(0.7f, 0.96f, 1f, 0.32f),
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f),
+                    Vector2.zero,
+                    new Vector2(18f, 18f));
+                if (star == null)
+                {
+                    continue;
+                }
+
+                if (_winStarSprite != null)
+                {
+                    star.sprite = _winStarSprite;
+                    star.type = Image.Type.Simple;
+                    star.preserveAspect = true;
+                }
+
+                star.raycastTarget = false;
+                var nx = Mathf.Repeat((i * 0.38197f) + 0.13f, 1f) * 2f - 1f;
+                var ny = Mathf.Repeat((i * 0.61803f) + 0.29f, 1f) * 2f - 1f;
+                _winStarRects.Add(star.rectTransform);
+                _winStarBaseX.Add(nx);
+                _winStarBaseY.Add(ny);
+                _winStarSpeeds.Add(Mathf.Lerp(0.7f, 1.5f, Mathf.Repeat(i * 0.173f, 1f)));
+                _winStarPhases.Add(Mathf.Repeat(i * 0.347f, 1f));
+            }
+
+            if (_winAuraOuterRect != null)
+            {
+                _winAuraOuterRect.SetAsFirstSibling();
+            }
+
+            if (_winAuraCoreRect != null)
+            {
+                _winAuraCoreRect.SetAsFirstSibling();
+            }
+
+            if (_winSilhouetteBandRect != null)
+            {
+                _winSilhouetteBandRect.SetAsFirstSibling();
+            }
+
+            for (var i = 0; i < _winRayRects.Count; i++)
+            {
+                if (_winRayRects[i] != null)
+                {
+                    _winRayRects[i].SetAsFirstSibling();
+                }
+            }
+
+            for (var i = 0; i < _winStarRects.Count; i++)
+            {
+                if (_winStarRects[i] != null)
+                {
+                    _winStarRects[i].SetAsFirstSibling();
+                }
+            }
+        }
+
+        private void ConfigureWinBackdropLayout(float panelWidth, float panelHeight)
+        {
+            if (_winAuraOuterRect != null)
+            {
+                _winAuraOuterRect.anchoredPosition = new Vector2(0f, panelHeight * 0.03f);
+                _winAuraOuterRect.sizeDelta = new Vector2(panelWidth * 0.95f, panelHeight * 0.72f);
+            }
+
+            if (_winAuraCoreRect != null)
+            {
+                _winAuraCoreRect.anchoredPosition = new Vector2(0f, panelHeight * 0.02f);
+                _winAuraCoreRect.sizeDelta = new Vector2(panelWidth * 0.66f, panelHeight * 0.42f);
+            }
+
+            if (_winSilhouetteBandRect != null)
+            {
+                _winSilhouetteBandRect.anchoredPosition = new Vector2(0f, panelHeight * 0.28f);
+                _winSilhouetteBandRect.sizeDelta = new Vector2(panelWidth * 0.8f, panelHeight * 0.11f);
+            }
+
+            var rayCount = Mathf.Min(_winRayRects.Count, Mathf.Min(_winRayBaseY.Count, _winRaySpeeds.Count));
+            for (var i = 0; i < rayCount; i++)
+            {
+                var rayRect = _winRayRects[i];
+                if (rayRect == null)
+                {
+                    continue;
+                }
+
+                rayRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.15f, 88f, 150f), panelHeight * 0.86f);
+                var yNorm = Mathf.Lerp(-0.2f, 0.34f, i / Mathf.Max(1f, rayCount - 1f));
+                _winRayBaseY[i] = yNorm * panelHeight;
+            }
+
+            var starCount = Mathf.Min(_winStarRects.Count, Mathf.Min(_winStarBaseX.Count, _winStarBaseY.Count));
+            for (var i = 0; i < starCount; i++)
+            {
+                var starRect = _winStarRects[i];
+                if (starRect == null)
+                {
+                    continue;
+                }
+
+                var sizeT = Mathf.Repeat(i * 0.271f, 1f);
+                var size = Mathf.Lerp(panelWidth * 0.01f, panelWidth * 0.026f, sizeT);
+                starRect.sizeDelta = new Vector2(size, size);
+                starRect.anchoredPosition = new Vector2(
+                    _winStarBaseX[i] * (panelWidth * 0.42f),
+                    _winStarBaseY[i] * (panelHeight * 0.35f));
+            }
+        }
+
+        private void AnimateWinBackdrop(float runTime, float deltaTime)
+        {
+            var targetWinAlpha = _lastDidWin ? 1f : 0f;
+            var alphaBlend = 1f - Mathf.Exp(-Mathf.Max(1f, 9f) * Mathf.Max(0f, deltaTime));
+
+            if (_winAuraOuter != null)
+            {
+                var current = _winAuraOuter.color.a;
+                var target = _lastDidWin
+                    ? (0.1f + Mathf.Abs(Mathf.Sin(runTime * winBackdropPulseSpeed * 1.3f)) * 0.11f)
+                    : 0f;
+                var alpha = Mathf.Lerp(current, target, alphaBlend);
+                _winAuraOuter.color = new Color(0.2f, 0.92f, 1f, alpha);
+                if (_winAuraOuterRect != null)
+                {
+                    var scale = 1f + Mathf.Sin(runTime * (winBackdropPulseSpeed * 1.15f)) * 0.05f;
+                    _winAuraOuterRect.localScale = Vector3.one * scale;
+                }
+            }
+
+            if (_winAuraCore != null)
+            {
+                var current = _winAuraCore.color.a;
+                var target = _lastDidWin
+                    ? (0.08f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 1.8f) + 0.6f)) * 0.1f)
+                    : 0f;
+                var alpha = Mathf.Lerp(current, target, alphaBlend);
+                _winAuraCore.color = new Color(0.18f, 0.82f, 1f, alpha);
+                if (_winAuraCoreRect != null)
+                {
+                    var scale = 1f + Mathf.Sin((runTime * winBackdropPulseSpeed * 1.42f) + 1.1f) * 0.08f;
+                    _winAuraCoreRect.localScale = Vector3.one * scale;
+                }
+            }
+
+            if (_winSilhouetteBand != null)
+            {
+                var current = _winSilhouetteBand.color.a;
+                var target = _lastDidWin
+                    ? (0.07f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 2.5f) + 0.2f)) * 0.1f)
+                    : 0f;
+                var alpha = Mathf.Lerp(current, target, alphaBlend);
+                _winSilhouetteBand.color = new Color(0.66f, 0.98f, 1f, alpha);
+            }
+
+            var rayCount = Mathf.Min(_winRayRects.Count, Mathf.Min(_winRayBaseY.Count, Mathf.Min(_winRaySpeeds.Count, _winRayPhases.Count)));
+            var panelWidth = _panelRect != null ? _panelRect.rect.width : 860f;
+            for (var i = 0; i < rayCount; i++)
+            {
+                var rayRect = _winRayRects[i];
+                if (rayRect == null)
+                {
+                    continue;
+                }
+
+                var image = rayRect.GetComponent<Image>();
+                if (image == null)
+                {
+                    continue;
+                }
+
+                var travel = panelWidth + 340f;
+                var x = Mathf.PingPong(
+                    (runTime * winBackdropRaySweepSpeed * _winRaySpeeds[i]) + (_winRayPhases[i] * travel),
+                    travel) - (travel * 0.5f);
+                rayRect.anchoredPosition = new Vector2(x, _winRayBaseY[i]);
+                var targetAlpha = _lastDidWin
+                    ? (0.035f + Mathf.Abs(Mathf.Sin((runTime * 2.8f) + _winRayPhases[i] * 4f)) * 0.05f)
+                    : 0f;
+                image.color = new Color(0.72f, 0.98f, 1f, Mathf.Lerp(image.color.a, targetAlpha, alphaBlend));
+            }
+
+            var starCount = Mathf.Min(_winStarRects.Count, Mathf.Min(_winStarBaseX.Count, Mathf.Min(_winStarBaseY.Count, Mathf.Min(_winStarSpeeds.Count, _winStarPhases.Count))));
+            var panelHeight = _panelRect != null ? _panelRect.rect.height : 860f;
+            for (var i = 0; i < starCount; i++)
+            {
+                var starRect = _winStarRects[i];
+                if (starRect == null)
+                {
+                    continue;
+                }
+
+                var image = starRect.GetComponent<Image>();
+                if (image == null)
+                {
+                    continue;
+                }
+
+                var phase = _winStarPhases[i] * Mathf.PI * 2f;
+                var driftX = Mathf.Sin((runTime * _winStarSpeeds[i] * 0.92f) + phase) * 18f;
+                var driftY = Mathf.Cos((runTime * _winStarSpeeds[i] * 1.14f) + phase) * 22f;
+                starRect.anchoredPosition = new Vector2(
+                    (_winStarBaseX[i] * (panelWidth * 0.42f)) + driftX,
+                    (_winStarBaseY[i] * (panelHeight * 0.35f)) + driftY);
+                var twinkle = 0.12f + Mathf.Abs(Mathf.Sin((runTime * winBackdropStarDrift * 0.03f * _winStarSpeeds[i]) + phase)) * 0.35f;
+                var targetAlpha = _lastDidWin ? twinkle : 0f;
+                image.color = new Color(0.78f, 0.98f, 1f, Mathf.Lerp(image.color.a, targetAlpha, alphaBlend));
+                var scalePulse = 0.9f + Mathf.Abs(Mathf.Sin((runTime * 2.4f * _winStarSpeeds[i]) + phase)) * 0.4f;
+                starRect.localScale = Vector3.Lerp(starRect.localScale, Vector3.one * scalePulse, alphaBlend);
+            }
+        }
+
+        private void EnsureWinBackdropSprites()
+        {
+            if (_winGlowTexture == null)
+            {
+                _winGlowTexture = BuildRadialTexture(196, 0.88f, 3.2f);
+            }
+
+            if (_winStarTexture == null)
+            {
+                _winStarTexture = BuildRadialTexture(84, 1f, 6f);
+            }
+
+            if (_winGlowTexture != null && _winGlowSprite == null)
+            {
+                _winGlowSprite = Sprite.Create(
+                    _winGlowTexture,
+                    new Rect(0f, 0f, _winGlowTexture.width, _winGlowTexture.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+
+            if (_winStarTexture != null && _winStarSprite == null)
+            {
+                _winStarSprite = Sprite.Create(
+                    _winStarTexture,
+                    new Rect(0f, 0f, _winStarTexture.width, _winStarTexture.height),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+        }
+
+        private static Texture2D BuildRadialTexture(int size, float edgeAlpha, float falloffPower)
+        {
+            var safeSize = Mathf.Clamp(size, 32, 256);
+            var texture = new Texture2D(safeSize, safeSize, TextureFormat.RGBA32, false, true)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+
+            var colors = new Color[safeSize * safeSize];
+            var center = (safeSize - 1f) * 0.5f;
+            var invRadius = 1f / Mathf.Max(1f, center);
+            var index = 0;
+            for (var y = 0; y < safeSize; y++)
+            {
+                for (var x = 0; x < safeSize; x++)
+                {
+                    var dx = (x - center) * invRadius;
+                    var dy = (y - center) * invRadius;
+                    var dist = Mathf.Clamp01(Mathf.Sqrt((dx * dx) + (dy * dy)));
+                    var alpha = Mathf.Pow(1f - dist, Mathf.Max(1f, falloffPower));
+                    alpha = Mathf.Clamp01(alpha * edgeAlpha);
+                    colors[index++] = new Color(1f, 1f, 1f, alpha);
+                }
+            }
+
+            texture.SetPixels(colors);
+            texture.Apply(false, false);
+            return texture;
         }
 
         private void TriggerWinBurst(bool shouldPlay)
@@ -1313,6 +1710,33 @@ namespace MultiplyRush
             var image = imageObject.GetComponent<Image>();
             image.color = color;
             return image;
+        }
+
+        private void OnDestroy()
+        {
+            if (_winStarSprite != null)
+            {
+                Destroy(_winStarSprite);
+                _winStarSprite = null;
+            }
+
+            if (_winGlowSprite != null)
+            {
+                Destroy(_winGlowSprite);
+                _winGlowSprite = null;
+            }
+
+            if (_winStarTexture != null)
+            {
+                Destroy(_winStarTexture);
+                _winStarTexture = null;
+            }
+
+            if (_winGlowTexture != null)
+            {
+                Destroy(_winGlowTexture);
+                _winGlowTexture = null;
+            }
         }
 
         private void OnTransformParentChanged()
