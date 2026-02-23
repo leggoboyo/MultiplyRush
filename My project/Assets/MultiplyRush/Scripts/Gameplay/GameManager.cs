@@ -56,8 +56,6 @@ namespace MultiplyRush
         private DifficultyMode _difficultyMode = DifficultyMode.Normal;
         private Coroutine _battleRoutine;
         private float _battleHitSfxTimer;
-        private int _pendingCarryoverStartCount;
-        private int _carryoverFromLastWin;
 
         private void Awake()
         {
@@ -152,8 +150,7 @@ namespace MultiplyRush
             _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
             _difficultyMode = ProgressionStore.GetDifficultyMode(_difficultyMode);
-            _currentBuild = levelGenerator.Generate(_currentLevelIndex, _difficultyMode, _pendingCarryoverStartCount);
-            _pendingCarryoverStartCount = 0;
+            _currentBuild = levelGenerator.Generate(_currentLevelIndex, _difficultyMode);
 
             var finishLine = levelGenerator.GetActiveFinishLine();
             if (finishLine != null && finishLine.enemyGroup != null)
@@ -249,12 +246,6 @@ namespace MultiplyRush
             var playerCount = playerCrowd != null ? playerCrowd.Count : 0;
             var enemyBaseCount = Mathf.Max(_currentBuild.enemyCount, Mathf.Max(1, enemyCount));
             _currentBuild.enemyCount = enemyBaseCount;
-
-            if (playerCount < enemyBaseCount)
-            {
-                _carryoverFromLastWin = 0;
-                _pendingCarryoverStartCount = 0;
-            }
 
             _battleRoutine = StartCoroutine(RunFinishBattle(enemyBaseCount));
         }
@@ -583,7 +574,6 @@ namespace MultiplyRush
             {
                 ProgressionStore.MarkLevelWon(_currentLevelIndex);
                 ProgressionStore.RecordBestSurvivorsForLevel(_currentLevelIndex, playerCount);
-                _carryoverFromLastWin = Mathf.Max(0, playerCount);
                 if (_currentBuild.isMiniBoss)
                 {
                     var reward = ProgressionStore.GrantMiniBossReward(_currentLevelIndex);
@@ -596,10 +586,6 @@ namespace MultiplyRush
                         }
                     }
                 }
-            }
-            else
-            {
-                _carryoverFromLastWin = 0;
             }
 
             RefreshInventoryHud();
@@ -642,7 +628,6 @@ namespace MultiplyRush
                 return;
             }
 
-            _pendingCarryoverStartCount = 0;
             StartLevel(_currentLevelIndex);
         }
 
@@ -653,8 +638,6 @@ namespace MultiplyRush
                 return;
             }
 
-            _pendingCarryoverStartCount = Mathf.Max(0, _carryoverFromLastWin);
-            _carryoverFromLastWin = 0;
             StartLevel(_currentLevelIndex + 1);
         }
 
@@ -683,7 +666,6 @@ namespace MultiplyRush
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.Reinforcement, 0.8f, 1f);
             _pendingReinforcementKit = true;
-            _pendingCarryoverStartCount = 0;
             RefreshInventoryHud();
             StartLevel(_currentLevelIndex);
         }
@@ -702,7 +684,6 @@ namespace MultiplyRush
 
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.Shield, 0.82f, 1.05f);
             _pendingShieldCharge = true;
-            _pendingCarryoverStartCount = 0;
             RefreshInventoryHud();
             StartLevel(_currentLevelIndex);
         }
@@ -714,8 +695,6 @@ namespace MultiplyRush
                 return;
             }
 
-            _pendingCarryoverStartCount = 0;
-            _carryoverFromLastWin = 0;
             SceneManager.LoadScene("MainMenu");
         }
 
