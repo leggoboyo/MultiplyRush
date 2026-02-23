@@ -247,10 +247,10 @@ MonoBehaviour:
   unitVisualScale: 1.45
   shooterFrontRows: 2
   formationLerpSpeed: 18
-  runBobAmplitude: 0.02
+  runBobAmplitude: 0.08
   runBobFrequency: 9.2
-  unitTiltDegrees: 2.5
-  leaderBobAmplitude: 0.03
+  unitTiltDegrees: 6
+  leaderBobAmplitude: 0.1
   leaderScalePulse: 0.04
   leaderStrafeTilt: 0.9
   gatePunchScale: 1.08

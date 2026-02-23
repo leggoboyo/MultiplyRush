@@ -271,14 +271,6 @@ MonoBehaviour:
   enemyGroupLocalOffset: {x: 0, y: 0, z: 6.6}
   enemyGroupLocalScale: {x: 1, y: 1, z: 1}
   minEnemyDistanceBehindLine: 5.4
-  bossLocalOffset: {x: 0, y: 0.24, z: 9.8}
-  bossLocalScale: {x: 2.35, y: 2.35, z: 2.35}
-  bossPulseAmplitude: 0.04
-  bossPulseSpeed: 2.1
-  bossSlamDropDistance: 0.95
-  bossSlamRecoverSpeed: 4.8
-  bossBodyColor: {r: 0.42, g: 0.44, b: 0.48, a: 1}
-  bossAccentColor: {r: 1, g: 0.58, b: 0.24, a: 1}
 --- !u!1001 &9157961405732842069
 PrefabInstance:
   m_ObjectHideFlags: 0
