@@ -12,8 +12,12 @@ namespace MultiplyRush
         private Transform _head;
         private Transform _leftArm;
         private Transform _rightArm;
+        private Transform _leftForearm;
+        private Transform _rightForearm;
         private Transform _leftLeg;
         private Transform _rightLeg;
+        private Transform _leftShin;
+        private Transform _rightShin;
         private Transform _rifleBody;
         private Transform _rifleBarrel;
 
@@ -24,11 +28,16 @@ namespace MultiplyRush
         private Quaternion _headBaseRot = Quaternion.identity;
         private Quaternion _leftArmBaseRot = Quaternion.identity;
         private Quaternion _rightArmBaseRot = Quaternion.identity;
+        private Quaternion _leftForearmBaseRot = Quaternion.identity;
+        private Quaternion _rightForearmBaseRot = Quaternion.identity;
         private Quaternion _leftLegBaseRot = Quaternion.identity;
         private Quaternion _rightLegBaseRot = Quaternion.identity;
+        private Quaternion _leftShinBaseRot = Quaternion.identity;
+        private Quaternion _rightShinBaseRot = Quaternion.identity;
         private Vector3 _rifleBasePos;
         private Quaternion _rifleBodyBaseRot = Quaternion.identity;
         private Quaternion _rifleBarrelBaseRot = Quaternion.identity;
+
         private float _phaseOffset;
         private float _fireKick;
         private float _movingBlend;
@@ -58,74 +67,109 @@ namespace MultiplyRush
             _combatBlend = Mathf.MoveTowards(_combatBlend, _isInCombat ? 1f : 0f, deltaTime * 8f);
             _fireKick = Mathf.MoveTowards(_fireKick, 0f, deltaTime * 9f);
 
-            var runTime = Time.time + _phaseOffset;
-            var walk = Mathf.Sin(runTime * 8.4f);
-            var bounce = Mathf.Sin(runTime * 16.8f);
-            var sway = Mathf.Sin(runTime * 4.2f);
             var motion = _movingBlend * Mathf.Clamp(intensity, 0.4f, 2.8f);
-            var combatAim = _combatBlend * 11f;
+            var cycleRate = Mathf.Lerp(5.2f, 8.2f, motion * 0.7f);
+            var cycleTime = (Time.time + _phaseOffset) * cycleRate;
+            var stride = Mathf.Sin(cycleTime);
+            var strideOpposite = Mathf.Sin(cycleTime + Mathf.PI);
+            var leftLift = Mathf.Max(0f, stride);
+            var rightLift = Mathf.Max(0f, strideOpposite);
+            var sway = Mathf.Sin((Time.time + _phaseOffset) * 3.6f);
+            var shoulderLead = Mathf.Sin(cycleTime * 0.5f);
+            var aimBlend = _combatBlend * 13f;
+            var recoil = _fireKick;
 
-            _model.localPosition = _modelBasePos + new Vector3(0f, bounce * 0.008f * motion, 0f);
-            _model.localRotation = _modelBaseRot * Quaternion.Euler(0f, sway * 1.3f * motion, 0f);
+            var torsoLean = 4f * motion + aimBlend;
+            var bodyBob = (Mathf.Abs(stride) * 0.0048f - 0.0012f) * motion;
+
+            _model.localPosition = _modelBasePos + new Vector3(0f, bodyBob, 0f);
+            _model.localRotation = _modelBaseRot * Quaternion.Euler(0f, sway * 0.9f * motion, 0f);
 
             if (_torso != null)
             {
-                var torsoPitch = (walk * -4.4f * motion) - (_fireKick * 7f) - combatAim;
-                var torsoRoll = sway * 2.2f * motion;
-                _torso.localPosition = _torsoBasePos + new Vector3(0f, bounce * 0.004f * motion, 0f);
-                _torso.localRotation = _torsoBaseRot * Quaternion.Euler(torsoPitch, 0f, torsoRoll);
+                _torso.localPosition = _torsoBasePos + new Vector3(0f, bodyBob * 0.55f, 0f);
+                _torso.localRotation = _torsoBaseRot * Quaternion.Euler(
+                    -torsoLean - (recoil * 7f),
+                    shoulderLead * 1.25f * motion,
+                    sway * 1.7f * motion);
             }
 
             if (_head != null)
             {
                 _head.localRotation = _headBaseRot * Quaternion.Euler(
-                    walk * 2f * motion - (_fireKick * 4.5f),
-                    sway * 1.5f * motion,
+                    stride * 1.4f * motion - (recoil * 4f),
+                    sway * 1.2f * motion + (_combatBlend * 2f),
                     0f);
             }
 
             if (_leftArm != null)
             {
                 _leftArm.localRotation = _leftArmBaseRot * Quaternion.Euler(
-                    walk * 19f * motion - combatAim * 0.55f - (_fireKick * 4f),
-                    -8f * _combatBlend,
-                    0f);
+                    -26f - (strideOpposite * 6.5f * motion) - (aimBlend * 0.36f) - (recoil * 4f),
+                    -9f * _combatBlend,
+                    6f * motion);
             }
 
             if (_rightArm != null)
             {
                 _rightArm.localRotation = _rightArmBaseRot * Quaternion.Euler(
-                    walk * -17f * motion - combatAim - (_fireKick * 11f),
-                    6f * _combatBlend,
-                    0f);
+                    -32f - (stride * 4.6f * motion) - aimBlend - (recoil * 11f),
+                    7f * _combatBlend,
+                    -6f * motion);
+            }
+
+            if (_leftForearm != null)
+            {
+                _leftForearm.localRotation = _leftForearmBaseRot * Quaternion.Euler(
+                    -58f - (aimBlend * 0.24f) - (recoil * 6f),
+                    -4f * _combatBlend,
+                    3f * motion);
+            }
+
+            if (_rightForearm != null)
+            {
+                _rightForearm.localRotation = _rightForearmBaseRot * Quaternion.Euler(
+                    -65f - (aimBlend * 0.22f) - (recoil * 10f),
+                    3f * _combatBlend,
+                    -3f * motion);
             }
 
             if (_leftLeg != null)
             {
-                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(walk * 27f * motion, 0f, 0f);
+                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(stride * 26f * motion, 0f, 0f);
             }
 
             if (_rightLeg != null)
             {
-                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(walk * -27f * motion, 0f, 0f);
+                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(strideOpposite * 26f * motion, 0f, 0f);
+            }
+
+            if (_leftShin != null)
+            {
+                _leftShin.localRotation = _leftShinBaseRot * Quaternion.Euler(-leftLift * 28f * motion, 0f, 0f);
+            }
+
+            if (_rightShin != null)
+            {
+                _rightShin.localRotation = _rightShinBaseRot * Quaternion.Euler(-rightLift * 28f * motion, 0f, 0f);
             }
 
             if (_rifleBody != null)
             {
-                _rifleBody.localPosition = _rifleBasePos + new Vector3(0f, _fireKick * 0.01f, -_fireKick * 0.028f);
-                _rifleBody.localRotation = _rifleBodyBaseRot * Quaternion.Euler(-combatAim - (_fireKick * 12f), 0f, 0f);
+                _rifleBody.localPosition = _rifleBasePos + new Vector3(0f, recoil * 0.009f, -recoil * 0.026f);
+                _rifleBody.localRotation = _rifleBodyBaseRot * Quaternion.Euler(-aimBlend * 0.65f - (recoil * 12f), 0f, 0f);
             }
 
             if (_rifleBarrel != null)
             {
-                _rifleBarrel.localRotation = _rifleBarrelBaseRot * Quaternion.Euler(-combatAim * 0.4f - (_fireKick * 18f), 0f, 0f);
+                _rifleBarrel.localRotation = _rifleBarrelBaseRot * Quaternion.Euler(-aimBlend * 0.3f - (recoil * 16f), 0f, 0f);
             }
         }
 
         public void Configure(float phaseOffset, bool isEnemy)
         {
             _phaseOffset = phaseOffset;
-            intensity = isEnemy ? 0.92f : 1.08f;
+            intensity = isEnemy ? 0.95f : 1.08f;
             CacheBones();
         }
 
@@ -152,8 +196,12 @@ namespace MultiplyRush
             _head = _model.Find("Head");
             _leftArm = _model.Find("LeftArm");
             _rightArm = _model.Find("RightArm");
+            _leftForearm = _model.Find("LeftForearm");
+            _rightForearm = _model.Find("RightForearm");
             _leftLeg = _model.Find("LeftLeg");
             _rightLeg = _model.Find("RightLeg");
+            _leftShin = _model.Find("LeftShin");
+            _rightShin = _model.Find("RightShin");
             _rifleBody = _model.Find("RifleBody");
             _rifleBarrel = _model.Find("RifleBarrel");
 
@@ -180,6 +228,16 @@ namespace MultiplyRush
                 _rightArmBaseRot = _rightArm.localRotation;
             }
 
+            if (_leftForearm != null)
+            {
+                _leftForearmBaseRot = _leftForearm.localRotation;
+            }
+
+            if (_rightForearm != null)
+            {
+                _rightForearmBaseRot = _rightForearm.localRotation;
+            }
+
             if (_leftLeg != null)
             {
                 _leftLegBaseRot = _leftLeg.localRotation;
@@ -188,6 +246,16 @@ namespace MultiplyRush
             if (_rightLeg != null)
             {
                 _rightLegBaseRot = _rightLeg.localRotation;
+            }
+
+            if (_leftShin != null)
+            {
+                _leftShinBaseRot = _leftShin.localRotation;
+            }
+
+            if (_rightShin != null)
+            {
+                _rightShinBaseRot = _rightShin.localRotation;
             }
 
             if (_rifleBody != null)

@@ -1127,13 +1127,13 @@ namespace MultiplyRush
             var panelScaleX = (width - 18f) / PanelDesignWidth;
             var panelScaleY = (height - 18f) / PanelDesignHeight;
             var panelScale = Mathf.Min(1f, panelScaleX, panelScaleY);
-            panelScale = Mathf.Clamp(panelScale * 1.06f * layoutProfile.pauseScale, 0.62f, 1.02f);
+            panelScale = Mathf.Clamp(panelScale * 1.08f * layoutProfile.pauseScale, 0.64f, 1.03f);
             _panelBaseScale = Vector3.one * panelScale;
 
             var compact = panelScale < 0.9f || layoutProfile.compact;
             var ultraCompact = panelScale < 0.76f || layoutProfile.ultraCompact;
-            var buttonStride = ultraCompact ? 88f : (compact ? 96f : 104f);
-            var topButtonY = ultraCompact ? 444f : (compact ? 468f : 492f);
+            var buttonStride = ultraCompact ? 92f : (compact ? 100f : 108f);
+            var topButtonY = ultraCompact ? 456f : (compact ? 480f : 506f);
 
             if (_subtitleText != null)
             {
@@ -1170,22 +1170,22 @@ namespace MultiplyRush
 
             if (_optionsCardRect != null)
             {
-                var optionsHeight = ultraCompact ? 820f : (compact ? 890f : 960f);
-                var optionsWidth = ultraCompact ? 576f : (compact ? 614f : 644f);
+                var optionsHeight = ultraCompact ? 890f : (compact ? 980f : 1060f);
+                var optionsWidth = ultraCompact ? 590f : (compact ? 632f : 666f);
                 var mainMenuY = topButtonY - (buttonStride * 2f);
-                var optionsTop = mainMenuY - 64f;
+                var optionsTop = mainMenuY - 52f;
                 _optionsCardRect.sizeDelta = new Vector2(optionsWidth, optionsHeight);
                 _optionsCardRect.anchoredPosition = new Vector2(0f, optionsTop - (optionsHeight * 0.5f));
             }
 
             if (_musicRowRect != null)
             {
-                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 452f : (compact ? 492f : 528f), 62f);
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 474f : (compact ? 514f : 542f), 66f);
             }
 
             if (_graphicsRowRect != null)
             {
-                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 452f : (compact ? 492f : 528f), 76f);
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 484f : (compact ? 522f : 548f), 80f);
             }
 
             ApplyOptionsResponsiveLayout(compact, ultraCompact, layoutProfile.pauseScale);
@@ -1226,30 +1226,41 @@ namespace MultiplyRush
 
             var topInset = 34f * layoutScale;
             var titleHeight = 52f * layoutScale;
-            var titleGap = 20f * layoutScale;
+            var titleGap = 18f * layoutScale;
             var hintHeight = 34f * layoutScale;
-            var bottomInset = 20f * layoutScale;
+            var bottomInset = 24f * layoutScale;
 
             var contentTop = topInset + titleHeight + titleGap;
             var contentBottom = hintHeight + bottomInset + (8f * layoutScale);
             var contentHeight = Mathf.Max(420f, cardHeight - contentTop - contentBottom);
 
-            var rowGap = 14f * layoutScale;
-            var row1Height = 96f * layoutScale;
-            var row2Height = 96f * layoutScale;
-            var row3Height = 92f * layoutScale;
-            var row4Height = 80f * layoutScale;
-            var row5Height = 132f * layoutScale;
+            var rowGap = 16f * layoutScale;
+            var row1Height = 104f * layoutScale;
+            var row2Height = 104f * layoutScale;
+            var row3Height = 98f * layoutScale;
+            var row4Height = 90f * layoutScale;
+            var row5Height = 154f * layoutScale;
             var totalRowsHeight = row1Height + row2Height + row3Height + row4Height + row5Height + (rowGap * 4f);
-            if (totalRowsHeight > contentHeight)
+            var fitRatio = contentHeight / Mathf.Max(1f, totalRowsHeight);
+            if (fitRatio < 1f)
             {
-                var compress = Mathf.Clamp(contentHeight / totalRowsHeight, 0.78f, 1f);
+                var compress = Mathf.Clamp(fitRatio, 0.78f, 1f);
                 rowGap *= compress;
                 row1Height *= compress;
                 row2Height *= compress;
                 row3Height *= compress;
                 row4Height *= compress;
                 row5Height *= compress;
+            }
+            else
+            {
+                var expand = Mathf.Clamp(fitRatio, 1f, 1.24f);
+                rowGap *= expand;
+                row1Height *= expand;
+                row2Height *= expand;
+                row3Height *= expand;
+                row4Height *= expand;
+                row5Height *= expand;
             }
 
             var row1Y = contentTop + (row1Height * 0.5f);

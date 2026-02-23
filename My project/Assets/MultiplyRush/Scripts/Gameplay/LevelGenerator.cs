@@ -216,6 +216,7 @@ namespace MultiplyRush
         private readonly List<float> _cloudPhases = new List<float>(64);
         private readonly float[] _lanePressure = { 0.34f, 0.32f, 0.34f };
         private const int CountClamp = 2000000000;
+        private const int CloudLobeCount = 14;
 
         private FinishLine _activeFinish;
         private float _effectiveLaneSpacing;
@@ -552,7 +553,9 @@ namespace MultiplyRush
                 return;
             }
 
+            var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
             var density = GetBackdropDensityMultiplier();
+            var density01 = Mathf.Clamp01((density - 0.5f) / 0.75f);
             var random = new System.Random(12289 + (_activeLevelIndex * 193));
             var zStart = -30f;
             var zEnd = trackLength + 42f;
@@ -568,23 +571,36 @@ namespace MultiplyRush
                 var maxWidth = Mathf.Max(minWidth + 0.25f, backdropMaxWidth);
                 var minDepth = Mathf.Max(0.8f, backdropMinDepth);
                 var maxDepth = Mathf.Max(minDepth + 0.3f, backdropMaxDepth);
-
-                for (var side = -1; side <= 1; side += 2)
+                var layerCount = quality == BackdropQuality.Low ? 1 : 2;
+                for (var layer = 0; layer < layerCount; layer++)
                 {
-                    for (var z = zStart; z <= zEnd; z += spacing)
+                    var layerScale = 1f + (layer * 0.38f);
+                    var layerSpacing = spacing * (1f + (layer * 0.52f));
+                    var layerDepthOffset = layer * Mathf.Lerp(7f, 11f, density01);
+                    var layerYawJitter = layer == 0 ? 4f : 8f;
+                    var layerHeightBoost = Mathf.Lerp(0.96f, 1.2f, layer / Mathf.Max(1f, layerCount - 1f));
+                    for (var side = -1; side <= 1; side += 2)
                     {
-                        var block = GetBackdropBlock();
-                        var width = Mathf.Lerp(minWidth, maxWidth, (float)random.NextDouble());
-                        var height = Mathf.Lerp(minHeight, maxHeight, (float)random.NextDouble()) * Mathf.Lerp(0.92f, 1.14f, Mathf.Clamp01(density - 0.5f));
-                        var depth = Mathf.Lerp(minDepth, maxDepth, (float)random.NextDouble());
-                        var zJitter = ((float)random.NextDouble() * 2f - 1f) * spacing * 0.36f;
-                        var xJitter = ((float)random.NextDouble() * 2f - 1f) * 1.25f;
-                        block.position = new Vector3(side * (sideX + xJitter + width * 0.4f), (height * 0.5f) - 0.2f, z + zJitter);
-                        block.rotation = Quaternion.identity;
-                        block.localScale = Vector3.one;
-                        ConfigureBackdropGeometry(block, width, height, depth, random);
-                        block.gameObject.SetActive(true);
-                        _activeBackdropBlocks.Add(block);
+                        for (var z = zStart; z <= zEnd; z += layerSpacing)
+                        {
+                            var block = GetBackdropBlock();
+                            var width = Mathf.Lerp(minWidth, maxWidth, (float)random.NextDouble()) * layerScale;
+                            var height = Mathf.Lerp(minHeight, maxHeight, (float)random.NextDouble())
+                                * Mathf.Lerp(0.92f, 1.14f, density01)
+                                * layerHeightBoost;
+                            var depth = Mathf.Lerp(minDepth, maxDepth, (float)random.NextDouble()) * layerScale;
+                            var zJitter = ((float)random.NextDouble() * 2f - 1f) * layerSpacing * 0.36f;
+                            var xJitter = ((float)random.NextDouble() * 2f - 1f) * (1.25f + layer * 0.5f);
+                            block.position = new Vector3(
+                                side * (sideX + layerDepthOffset + xJitter + width * 0.4f),
+                                (height * 0.5f) - 0.2f,
+                                z + zJitter);
+                            block.rotation = Quaternion.Euler(0f, ((float)random.NextDouble() * 2f - 1f) * layerYawJitter, 0f);
+                            block.localScale = Vector3.one;
+                            ConfigureBackdropGeometry(block, width, height, depth, random);
+                            block.gameObject.SetActive(true);
+                            _activeBackdropBlocks.Add(block);
+                        }
                     }
                 }
             }
@@ -595,8 +611,8 @@ namespace MultiplyRush
             }
 
             PrewarmCloudPool();
-            var cloudCount = Mathf.RoundToInt(Mathf.Lerp(8f, 20f, Mathf.Clamp01((density - 0.5f) / 0.75f)));
-            cloudCount = Mathf.Clamp(cloudCount, 6, 26);
+            var cloudCount = Mathf.RoundToInt(Mathf.Lerp(10f, 26f, density01));
+            cloudCount = Mathf.Clamp(cloudCount, 8, 30);
             var cloudMinX = -(sideX + 18f);
             var cloudMaxX = sideX + 18f;
             var cloudBandMinX = Mathf.Max(Mathf.Abs(cloudMinX), _effectiveTrackHalfWidth + Mathf.Max(1.5f, cloudTrackExclusionPadding));
@@ -612,9 +628,9 @@ namespace MultiplyRush
                 var x = xMagnitude * side;
                 var y = Mathf.Lerp(minY, maxY, (float)random.NextDouble());
                 var z = Mathf.Lerp(zStart, zEnd, (float)random.NextDouble());
-                var baseScale = Mathf.Lerp(2.5f, 5.8f, (float)random.NextDouble());
+                var baseScale = Mathf.Lerp(2.8f, 6.6f, (float)random.NextDouble());
                 cloud.position = new Vector3(x, y, z);
-                cloud.rotation = Quaternion.identity;
+                cloud.rotation = Quaternion.Euler(0f, ((float)random.NextDouble() * 2f - 1f) * 25f, 0f);
                 cloud.localScale = Vector3.one;
                 ConfigureCloudGeometry(cloud, baseScale, random);
                 cloud.gameObject.SetActive(true);
@@ -890,11 +906,17 @@ namespace MultiplyRush
             CreateBackdropPart(blockRoot.transform, "Base", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "Mid", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "Top", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Inset", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "WingLeft", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "WingRight", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "NeonBand", PrimitiveType.Cube, GetBeaconCoreMaterial());
+            CreateBackdropPart(blockRoot.transform, "WindowBandA", PrimitiveType.Cube, GetBeaconCoreMaterial());
+            CreateBackdropPart(blockRoot.transform, "WindowBandB", PrimitiveType.Cube, GetBeaconCoreMaterial());
+            CreateBackdropPart(blockRoot.transform, "WindowBandC", PrimitiveType.Cube, GetBeaconCoreMaterial());
             CreateBackdropPart(blockRoot.transform, "RoofCap", PrimitiveType.Cylinder, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "RoofRim", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "Antenna", PrimitiveType.Cube, GetBeaconPoleMaterial());
+            CreateBackdropPart(blockRoot.transform, "ServiceBox", PrimitiveType.Cube, GetBackdropMaterial());
 
             blockRoot.SetActive(false);
             return blockRoot.transform;
@@ -924,7 +946,7 @@ namespace MultiplyRush
         {
             var cloudRoot = new GameObject("BackdropCloud");
             cloudRoot.transform.SetParent(_cloudRoot, false);
-            for (var i = 0; i < 7; i++)
+            for (var i = 0; i < CloudLobeCount; i++)
             {
                 var lobe = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 lobe.name = "Lobe" + i;
@@ -1063,6 +1085,7 @@ namespace MultiplyRush
 
             var useMedium = quality == BackdropQuality.Medium || quality == BackdropQuality.High;
             var useHigh = quality == BackdropQuality.High;
+            var detailSeed = (float)random.NextDouble();
 
             var midPart = root.Find("Mid");
             if (midPart != null)
@@ -1083,6 +1106,17 @@ namespace MultiplyRush
                 {
                     topPart.localPosition = new Vector3(0f, safeHeight * 0.35f, 0f);
                     topPart.localScale = new Vector3(safeWidth * 0.48f, safeHeight * 0.34f, safeDepth * 0.5f);
+                }
+            }
+
+            var inset = root.Find("Inset");
+            if (inset != null)
+            {
+                inset.gameObject.SetActive(useMedium);
+                if (useMedium)
+                {
+                    inset.localPosition = new Vector3(0f, safeHeight * 0.02f, safeDepth * 0.46f);
+                    inset.localScale = new Vector3(safeWidth * 0.72f, safeHeight * 0.7f, Mathf.Max(0.05f, safeDepth * 0.05f));
                 }
             }
 
@@ -1108,6 +1142,39 @@ namespace MultiplyRush
                 }
             }
 
+            var windowBandA = root.Find("WindowBandA");
+            if (windowBandA != null)
+            {
+                windowBandA.gameObject.SetActive(useMedium);
+                if (useMedium)
+                {
+                    windowBandA.localPosition = new Vector3(0f, -safeHeight * 0.14f, safeDepth * 0.47f);
+                    windowBandA.localScale = new Vector3(safeWidth * 0.62f, Mathf.Max(0.06f, safeHeight * 0.035f), Mathf.Max(0.04f, safeDepth * 0.04f));
+                }
+            }
+
+            var windowBandB = root.Find("WindowBandB");
+            if (windowBandB != null)
+            {
+                windowBandB.gameObject.SetActive(useHigh || detailSeed > 0.45f);
+                if (windowBandB.gameObject.activeSelf)
+                {
+                    windowBandB.localPosition = new Vector3(0f, safeHeight * 0.02f, safeDepth * 0.47f);
+                    windowBandB.localScale = new Vector3(safeWidth * 0.58f, Mathf.Max(0.05f, safeHeight * 0.03f), Mathf.Max(0.04f, safeDepth * 0.04f));
+                }
+            }
+
+            var windowBandC = root.Find("WindowBandC");
+            if (windowBandC != null)
+            {
+                windowBandC.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    windowBandC.localPosition = new Vector3(0f, safeHeight * 0.19f, safeDepth * 0.47f);
+                    windowBandC.localScale = new Vector3(safeWidth * 0.52f, Mathf.Max(0.05f, safeHeight * 0.03f), Mathf.Max(0.04f, safeDepth * 0.04f));
+                }
+            }
+
             var neonBand = root.Find("NeonBand");
             if (neonBand != null)
             {
@@ -1130,6 +1197,17 @@ namespace MultiplyRush
                 }
             }
 
+            var roofRim = root.Find("RoofRim");
+            if (roofRim != null)
+            {
+                roofRim.gameObject.SetActive(useHigh);
+                if (useHigh)
+                {
+                    roofRim.localPosition = new Vector3(0f, safeHeight * 0.48f, 0f);
+                    roofRim.localScale = new Vector3(safeWidth * 0.64f, Mathf.Max(0.05f, safeHeight * 0.03f), safeDepth * 0.64f);
+                }
+            }
+
             var antenna = root.Find("Antenna");
             if (antenna != null)
             {
@@ -1143,6 +1221,20 @@ namespace MultiplyRush
                     antenna.localScale = new Vector3(0.06f, safeHeight * 0.36f, 0.06f);
                 }
             }
+
+            var serviceBox = root.Find("ServiceBox");
+            if (serviceBox != null)
+            {
+                serviceBox.gameObject.SetActive(useHigh && detailSeed > 0.28f);
+                if (serviceBox.gameObject.activeSelf)
+                {
+                    serviceBox.localPosition = new Vector3(
+                        safeWidth * 0.22f * (detailSeed > 0.65f ? 1f : -1f),
+                        safeHeight * 0.54f,
+                        safeDepth * 0.08f);
+                    serviceBox.localScale = new Vector3(safeWidth * 0.16f, Mathf.Max(0.07f, safeHeight * 0.08f), safeDepth * 0.18f);
+                }
+            }
         }
 
         private void ConfigureCloudGeometry(Transform root, float baseScale, System.Random random)
@@ -1154,12 +1246,12 @@ namespace MultiplyRush
 
             var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
             var safeScale = Mathf.Max(1f, baseScale);
-            var baseWidth = safeScale * 1.8f;
-            var baseHeight = safeScale * 0.54f;
-            var baseDepth = safeScale * 1f;
+            var baseWidth = safeScale * 2.2f;
+            var baseHeight = safeScale * 0.62f;
+            var baseDepth = safeScale * 1.35f;
             root.localScale = new Vector3(baseWidth, baseHeight, baseDepth);
-
-            for (var i = 0; i < 7; i++)
+            var activeLobes = quality == BackdropQuality.High ? CloudLobeCount : (quality == BackdropQuality.Medium ? 10 : 6);
+            for (var i = 0; i < CloudLobeCount; i++)
             {
                 var lobe = root.Find("Lobe" + i);
                 if (lobe == null)
@@ -1167,20 +1259,35 @@ namespace MultiplyRush
                     continue;
                 }
 
-                var active = quality == BackdropQuality.High || i < (quality == BackdropQuality.Medium ? 5 : 2);
+                var active = i < activeLobes;
                 lobe.gameObject.SetActive(active);
                 if (!active)
                 {
                     continue;
                 }
 
-                var normalized = i / 6f;
-                var x = Mathf.Lerp(-0.42f, 0.42f, normalized) + ((float)random.NextDouble() - 0.5f) * 0.08f;
-                var y = Mathf.Sin(normalized * Mathf.PI) * 0.1f + ((float)random.NextDouble() - 0.5f) * 0.05f;
-                var z = ((float)random.NextDouble() - 0.5f) * 0.22f;
-                var lobeScale = 0.52f + Mathf.Sin(normalized * Mathf.PI) * 0.44f + ((float)random.NextDouble() - 0.5f) * 0.14f;
+                var ringIndex = i % 7;
+                var layer = i / 7;
+                var normalized = ringIndex / 7f;
+                var angle = normalized * Mathf.PI * 2f + (((float)random.NextDouble() - 0.5f) * 0.42f);
+                var radius = (layer == 0 ? 0.36f : 0.22f) + ((float)random.NextDouble() * 0.1f);
+                var x = Mathf.Cos(angle) * radius;
+                var z = Mathf.Sin(angle) * (0.52f + (layer * 0.11f));
+                var y = (layer == 0 ? 0.04f : 0.18f)
+                    + Mathf.Sin(angle * 2f) * 0.03f
+                    + (((float)random.NextDouble() - 0.5f) * 0.04f);
+
+                var lobeScale = 0.38f
+                    + (layer == 0 ? 0.24f : 0.34f)
+                    + ((float)random.NextDouble() * 0.2f);
+                var lobeScaleX = lobeScale * (1.12f + ((float)random.NextDouble() * 0.24f));
+                var lobeScaleY = lobeScale * (0.66f + ((float)random.NextDouble() * 0.18f));
+                var lobeScaleZ = lobeScale * (0.9f + ((float)random.NextDouble() * 0.18f));
                 lobe.localPosition = new Vector3(x, y, z);
-                lobe.localScale = Vector3.one * Mathf.Max(0.28f, lobeScale);
+                lobe.localScale = new Vector3(
+                    Mathf.Max(0.28f, lobeScaleX),
+                    Mathf.Max(0.22f, lobeScaleY),
+                    Mathf.Max(0.24f, lobeScaleZ));
             }
         }
 
