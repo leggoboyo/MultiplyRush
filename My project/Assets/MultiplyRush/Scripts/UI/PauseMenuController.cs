@@ -68,7 +68,7 @@ namespace MultiplyRush
         private bool _fallbackPointerWasDown;
         private Vector2 _lastSafeAreaSize = Vector2.zero;
         private const float PanelDesignWidth = 700f;
-        private const float PanelDesignHeight = 1500f;
+        private const float PanelDesignHeight = 1640f;
 
         public bool IsPaused => _isPaused;
 
@@ -1127,18 +1127,17 @@ namespace MultiplyRush
             var panelScaleX = (width - 18f) / PanelDesignWidth;
             var panelScaleY = (height - 18f) / PanelDesignHeight;
             var panelScale = Mathf.Min(1f, panelScaleX, panelScaleY);
-            panelScale = Mathf.Clamp(panelScale * 1.08f * layoutProfile.pauseScale, 0.64f, 1.03f);
+            panelScale = Mathf.Clamp(panelScale * 1.12f * layoutProfile.pauseScale, 0.7f, 1.08f);
             _panelBaseScale = Vector3.one * panelScale;
 
             var compact = panelScale < 0.9f || layoutProfile.compact;
             var ultraCompact = panelScale < 0.76f || layoutProfile.ultraCompact;
-            var buttonStride = ultraCompact ? 92f : (compact ? 100f : 108f);
-            var topButtonY = ultraCompact ? 456f : (compact ? 480f : 506f);
+            var buttonStride = ultraCompact ? 96f : (compact ? 106f : 114f);
+            var topButtonY = ultraCompact ? 502f : (compact ? 528f : 552f);
 
             if (_subtitleText != null)
             {
-                _subtitleText.gameObject.SetActive(!compact && !ultraCompact);
-                _subtitleText.fontSize = compact ? 16 : 18;
+                _subtitleText.gameObject.SetActive(false);
             }
 
             if (_resumeButton != null)
@@ -1170,22 +1169,22 @@ namespace MultiplyRush
 
             if (_optionsCardRect != null)
             {
-                var optionsHeight = ultraCompact ? 890f : (compact ? 980f : 1060f);
-                var optionsWidth = ultraCompact ? 590f : (compact ? 632f : 666f);
+                var optionsHeight = ultraCompact ? 1020f : (compact ? 1120f : 1210f);
+                var optionsWidth = ultraCompact ? 604f : (compact ? 646f : 676f);
                 var mainMenuY = topButtonY - (buttonStride * 2f);
-                var optionsTop = mainMenuY - 52f;
+                var optionsTop = mainMenuY - 62f;
                 _optionsCardRect.sizeDelta = new Vector2(optionsWidth, optionsHeight);
                 _optionsCardRect.anchoredPosition = new Vector2(0f, optionsTop - (optionsHeight * 0.5f));
             }
 
             if (_musicRowRect != null)
             {
-                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 474f : (compact ? 514f : 542f), 66f);
+                _musicRowRect.sizeDelta = new Vector2(ultraCompact ? 486f : (compact ? 526f : 556f), 74f);
             }
 
             if (_graphicsRowRect != null)
             {
-                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 484f : (compact ? 522f : 548f), 80f);
+                _graphicsRowRect.sizeDelta = new Vector2(ultraCompact ? 498f : (compact ? 538f : 566f), 88f);
             }
 
             ApplyOptionsResponsiveLayout(compact, ultraCompact, layoutProfile.pauseScale);
@@ -1218,33 +1217,33 @@ namespace MultiplyRush
 
             var fontScale = Mathf.Clamp(layoutScale * compactScale * Mathf.Lerp(0.96f, 1.03f, pauseScale), 0.8f, 1.02f);
 
-            var sidePadding = Mathf.Clamp(cardWidth * 0.075f, 34f, 54f);
+            var sidePadding = Mathf.Clamp(cardWidth * 0.08f, 38f, 58f);
             var rowWidth = Mathf.Clamp(cardWidth - (sidePadding * 2f), 390f, 610f);
-            var rowBgWidth = Mathf.Min(cardWidth - 20f, rowWidth + 16f);
-            var sliderWidth = Mathf.Max(288f, rowWidth - 32f);
+            var rowBgWidth = Mathf.Min(cardWidth - 20f, rowWidth + 20f);
+            var sliderWidth = Mathf.Max(300f, rowWidth - 24f);
             var labelWidth = Mathf.Clamp(rowWidth * 0.58f, 220f, 346f);
 
-            var topInset = 34f * layoutScale;
-            var titleHeight = 52f * layoutScale;
-            var titleGap = 18f * layoutScale;
+            var topInset = 40f * layoutScale;
+            var titleHeight = 56f * layoutScale;
+            var titleGap = 22f * layoutScale;
             var hintHeight = 34f * layoutScale;
-            var bottomInset = 24f * layoutScale;
+            var bottomInset = 30f * layoutScale;
 
             var contentTop = topInset + titleHeight + titleGap;
             var contentBottom = hintHeight + bottomInset + (8f * layoutScale);
-            var contentHeight = Mathf.Max(420f, cardHeight - contentTop - contentBottom);
+            var contentHeight = Mathf.Max(470f, cardHeight - contentTop - contentBottom);
 
-            var rowGap = 16f * layoutScale;
-            var row1Height = 104f * layoutScale;
-            var row2Height = 104f * layoutScale;
-            var row3Height = 98f * layoutScale;
-            var row4Height = 90f * layoutScale;
-            var row5Height = 154f * layoutScale;
+            var rowGap = 20f * layoutScale;
+            var row1Height = 116f * layoutScale;
+            var row2Height = 116f * layoutScale;
+            var row3Height = 108f * layoutScale;
+            var row4Height = 98f * layoutScale;
+            var row5Height = 168f * layoutScale;
             var totalRowsHeight = row1Height + row2Height + row3Height + row4Height + row5Height + (rowGap * 4f);
             var fitRatio = contentHeight / Mathf.Max(1f, totalRowsHeight);
             if (fitRatio < 1f)
             {
-                var compress = Mathf.Clamp(fitRatio, 0.78f, 1f);
+                var compress = Mathf.Clamp(fitRatio, 0.88f, 1f);
                 rowGap *= compress;
                 row1Height *= compress;
                 row2Height *= compress;
@@ -1254,7 +1253,7 @@ namespace MultiplyRush
             }
             else
             {
-                var expand = Mathf.Clamp(fitRatio, 1f, 1.24f);
+                var expand = Mathf.Clamp(fitRatio, 1f, 1.16f);
                 rowGap *= expand;
                 row1Height *= expand;
                 row2Height *= expand;
@@ -1276,13 +1275,13 @@ namespace MultiplyRush
             SetTopCenterRect(GetChildRect(_optionsCardRect, "GraphicsRowBg"), 0f, row5Y, new Vector2(rowBgWidth, row5Height));
 
             SetTopLeftRect(GetChildRect(_optionsCardRect, "OptionsTitle"), sidePadding, topInset, new Vector2(380f, titleHeight));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), sidePadding, row1Y - (row1Height * 0.34f), new Vector2(labelWidth, 44f * layoutScale));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), sidePadding, row1Y - (row1Height * 0.34f), new Vector2(132f, 44f * layoutScale));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), sidePadding, row2Y - (row2Height * 0.34f), new Vector2(labelWidth, 44f * layoutScale));
-            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), sidePadding, row2Y - (row2Height * 0.34f), new Vector2(132f, 44f * layoutScale));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), sidePadding, row3Y - (row3Height * 0.34f), new Vector2(labelWidth, 44f * layoutScale));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), sidePadding, row4Y - (row4Height * 0.08f), new Vector2(labelWidth, 44f * layoutScale));
-            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), sidePadding, row5Y - (row5Height * 0.32f), new Vector2(Mathf.Max(labelWidth, 340f), 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "VolumeLabel"), sidePadding, row1Y - (row1Height * 0.38f), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "VolumeValue"), sidePadding, row1Y - (row1Height * 0.38f), new Vector2(132f, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "CameraMotionLabel"), sidePadding, row2Y - (row2Height * 0.38f), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopRightRect(GetChildRect(_optionsCardRect, "CameraMotionValue"), sidePadding, row2Y - (row2Height * 0.38f), new Vector2(132f, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "MusicTrackLabel"), sidePadding, row3Y - (row3Height * 0.38f), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "HapticsLabel"), sidePadding, row4Y - (row4Height * 0.2f), new Vector2(labelWidth, 44f * layoutScale));
+            SetTopLeftRect(GetChildRect(_optionsCardRect, "GraphicsLabel"), sidePadding, row5Y - (row5Height * 0.34f), new Vector2(Mathf.Max(labelWidth, 340f), 44f * layoutScale));
             SetBottomCenterRect(GetChildRect(_optionsCardRect, "Hint"), 0f, bottomInset + (hintHeight * 0.5f), new Vector2(rowBgWidth, hintHeight));
 
             if (_volumeSlider != null)
@@ -1320,7 +1319,7 @@ namespace MultiplyRush
 
             if (_hapticsButton != null)
             {
-                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), sidePadding, row4Y - (row4Height * 0.08f), new Vector2(112f, Mathf.Max(42f, row4Height * 0.62f)));
+                SetTopRightRect(_hapticsButton.GetComponent<RectTransform>(), sidePadding, row4Y - (row4Height * 0.2f), new Vector2(112f, Mathf.Max(42f, row4Height * 0.62f)));
             }
 
             void SetFont(string objectName, float size)

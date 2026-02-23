@@ -29,8 +29,8 @@ namespace MultiplyRush
         private Vector2 _lastLayoutCanvasSize = new Vector2(-1f, -1f);
         private Vector3 _countBaseScale = Vector3.one;
         private Color _countBaseColor = Color.white;
-        private Color _enemyCountBaseColor = new Color(1f, 0.42f, 0.38f, 1f);
-        private Color _enemyBadgeBaseColor = new Color(0.2f, 0.05f, 0.08f, 0.66f);
+        private Color _enemyCountBaseColor = new Color(1f, 0.5f, 0.42f, 1f);
+        private Color _enemyBadgeBaseColor = new Color(0.22f, 0.06f, 0.09f, 0.72f);
         private Image _enemyBadgeImage;
         private Color _countFlashColor = Color.white;
         private int _targetCount;
@@ -408,16 +408,16 @@ namespace MultiplyRush
             enemyRect.anchorMax = countRect.anchorMax;
             enemyRect.pivot = countRect.pivot;
 
-            var width = Mathf.Clamp(canvasSize.x * 0.43f, 320f, 430f);
-            var height = Mathf.Clamp(canvasSize.y * 0.047f, 54f, 66f);
-            var y = countRect.anchoredPosition.y - 154f;
+            var width = Mathf.Clamp(canvasSize.x * 0.41f, 314f, 452f);
+            var height = Mathf.Clamp(canvasSize.y * 0.045f, 52f, 68f);
+            var y = countRect.anchoredPosition.y - 116f;
             if (progressFill != null)
             {
                 var progressRect = progressFill.transform.parent as RectTransform;
                 if (progressRect != null)
                 {
-                    var progressBottom = progressRect.anchoredPosition.y - (progressRect.sizeDelta.y * 0.5f);
-                    y = Mathf.Min(y, progressBottom - 34f);
+                    var progressTop = progressRect.anchoredPosition.y + (progressRect.sizeDelta.y * 0.5f);
+                    y = Mathf.Max(y, progressTop + 30f);
                 }
             }
 
@@ -430,7 +430,7 @@ namespace MultiplyRush
                 _enemyBadgeRect.anchorMax = enemyRect.anchorMax;
                 _enemyBadgeRect.pivot = enemyRect.pivot;
                 _enemyBadgeRect.anchoredPosition = enemyRect.anchoredPosition;
-                _enemyBadgeRect.sizeDelta = enemyRect.sizeDelta + new Vector2(26f, 12f);
+                _enemyBadgeRect.sizeDelta = enemyRect.sizeDelta + new Vector2(34f, 16f);
             }
 
             if (_bossHealthRootRect != null)

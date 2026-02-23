@@ -36,10 +36,10 @@ namespace MultiplyRush
 
         [Header("Animation")]
         public float formationLerpSpeed = 18f;
-        public float runBobAmplitude = 0.08f;
+        public float runBobAmplitude = 0.02f;
         public float runBobFrequency = 9.2f;
-        public float unitTiltDegrees = 6f;
-        public float leaderBobAmplitude = 0.1f;
+        public float unitTiltDegrees = 2.5f;
+        public float leaderBobAmplitude = 0.03f;
         public float leaderScalePulse = 0.04f;
         public float leaderStrafeTilt = 0.9f;
         public float gatePunchScale = 1.08f;
@@ -230,6 +230,9 @@ namespace MultiplyRush
             combatShotsPerVisibleUnit = Mathf.Clamp(combatShotsPerVisibleUnit, 0.2f, 4.6f);
             combatMaxShotsPerSecond = Mathf.Clamp(combatMaxShotsPerSecond, 40f, 480f);
             maxCombatShotsPerFrame = Mathf.Clamp(maxCombatShotsPerFrame, 16, 220);
+            runBobAmplitude = Mathf.Clamp(runBobAmplitude, 0f, 0.03f);
+            unitTiltDegrees = Mathf.Clamp(unitTiltDegrees, 0f, 4f);
+            leaderBobAmplitude = Mathf.Clamp(leaderBobAmplitude, 0f, 0.05f);
 
             PrewarmPool();
 
@@ -805,8 +808,9 @@ namespace MultiplyRush
                 if (_isRunning || _combatActive)
                 {
                     var phase = runTime * runBobFrequency + _unitPhaseOffsets[i];
-                    slot.y += Mathf.Sin(phase) * runBobAmplitude;
-                    unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 1.1f) * unitTiltDegrees, 0f, 0f);
+                    // Keep formation motion subtle and let SoldierMotionAnimator carry most of the walk cycle.
+                    slot.y += Mathf.Sin(phase) * (runBobAmplitude * 0.12f);
+                    unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 1.1f) * (unitTiltDegrees * 0.22f), 0f, 0f);
                 }
                 else
                 {
@@ -855,7 +859,7 @@ namespace MultiplyRush
             var localPosition = _leaderBaseLocalPosition;
             if (_isRunning || _combatActive)
             {
-                localPosition.y += Mathf.Sin(Time.time * runBobFrequency * 0.9f) * leaderBobAmplitude;
+                localPosition.y += Mathf.Sin(Time.time * runBobFrequency * 0.9f) * (leaderBobAmplitude * 0.35f);
             }
 
             _leaderVisual.localPosition = localPosition;

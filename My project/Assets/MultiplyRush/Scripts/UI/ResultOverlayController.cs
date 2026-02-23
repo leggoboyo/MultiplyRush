@@ -506,7 +506,7 @@ namespace MultiplyRush
                         _scanlineBaseColor.r,
                         _scanlineBaseColor.g,
                         _scanlineBaseColor.b,
-                        Mathf.Clamp(alphaPulse, 0.01f, _lastDidWin ? 0.12f : 0.1f));
+                        Mathf.Clamp(alphaPulse, 0.004f, _lastDidWin ? 0.045f : 0.055f));
                 }
             }
 
@@ -514,16 +514,16 @@ namespace MultiplyRush
             {
                 if (_lastDidWin)
                 {
-                    var width = _panelRect != null ? _panelRect.rect.width : 860f;
-                    var x = Mathf.PingPong(runTime * 420f, width + 240f) - ((width * 0.5f) + 120f);
-                    _winSweepRect.anchoredPosition = new Vector2(x, 8f);
-                    _winSweepRect.localScale = new Vector3(1f, 1f + Mathf.Sin(runTime * 3.3f) * 0.08f, 1f);
-                    var alpha = 0.14f + Mathf.Abs(Mathf.Sin(runTime * 2.3f)) * 0.13f;
+                    var panelHeight = _panelRect != null ? _panelRect.rect.height : 860f;
+                    _winSweepRect.anchoredPosition = new Vector2(0f, panelHeight * 0.21f);
+                    _winSweepRect.localScale = new Vector3(1f, 1f + Mathf.Sin(runTime * 2.2f) * 0.04f, 1f);
+                    var alpha = 0.04f + Mathf.Abs(Mathf.Sin(runTime * 1.9f)) * 0.035f;
                     _winSweepImage.color = new Color(0.72f, 0.98f, 1f, alpha);
                 }
                 else
                 {
-                    _winSweepRect.anchoredPosition = new Vector2(-1200f, 8f);
+                    _winSweepRect.anchoredPosition = new Vector2(0f, 1200f);
+                    _winSweepImage.color = new Color(0.72f, 0.98f, 1f, 0f);
                 }
             }
 
@@ -572,6 +572,21 @@ namespace MultiplyRush
                 if (_loseNoiseBandRect != null)
                 {
                     _loseNoiseBandRect.anchoredPosition = new Vector2(0f, 1200f);
+                }
+
+                if (_loseBandPrimary != null)
+                {
+                    _loseBandPrimary.color = new Color(_loseBandPrimary.color.r, _loseBandPrimary.color.g, _loseBandPrimary.color.b, 0f);
+                }
+
+                if (_loseBandSecondary != null)
+                {
+                    _loseBandSecondary.color = new Color(_loseBandSecondary.color.r, _loseBandSecondary.color.g, _loseBandSecondary.color.b, 0f);
+                }
+
+                if (_loseNoiseBand != null)
+                {
+                    _loseNoiseBand.color = new Color(_loseNoiseBand.color.r, _loseNoiseBand.color.g, _loseNoiseBand.color.b, 0f);
                 }
             }
 
@@ -772,10 +787,10 @@ namespace MultiplyRush
                 new Color(0.72f, 0.98f, 1f, 0.2f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(-1000f, 8f),
-                new Vector2(190f, 560f));
+                new Vector2(0f, 8f),
+                new Vector2(560f, 86f));
             _winSweepRect = _winSweepImage.rectTransform;
-            _winSweepRect.localRotation = Quaternion.Euler(0f, 0f, 14f);
+            _winSweepRect.localRotation = Quaternion.identity;
             _winSweepImage.raycastTarget = false;
             _winSweepImage.gameObject.SetActive(false);
             _winSweepRect.SetAsFirstSibling();
@@ -894,7 +909,8 @@ namespace MultiplyRush
 
             if (_winSweepRect != null)
             {
-                _winSweepRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.21f, 140f, 210f), Mathf.Clamp(panelHeight * 0.64f, 430f, 600f));
+                _winSweepRect.sizeDelta = new Vector2(Mathf.Clamp(panelWidth * 0.74f, 360f, 620f), Mathf.Clamp(panelHeight * 0.12f, 64f, 112f));
+                _winSweepRect.localRotation = Quaternion.identity;
             }
 
             if (_loseBandPrimaryRect != null)
@@ -932,9 +948,20 @@ namespace MultiplyRush
             var secondaryButtonSize = new Vector2(
                 Mathf.Clamp(panelWidth * 0.3f, 240f, 286f),
                 ultraCompact ? 60f : 68f);
+            var panelBottom = -panelHeight * 0.5f;
+            var bottomPadding = ultraCompact ? 34f : 40f;
+            var primaryHalf = primaryButtonSize.y * 0.5f;
+            var secondaryHalf = secondaryButtonSize.y * 0.5f;
+            var buttonGap = ultraCompact ? 14f : 18f;
 
-            var primaryY = -(panelHeight * (showBuffButtons ? 0.34f : 0.35f));
-            var secondaryY = primaryY - (ultraCompact ? 66f : 74f);
+            var primaryY = -(panelHeight * (showBuffButtons ? 0.33f : 0.34f));
+            var secondaryY = primaryY - (primaryHalf + secondaryHalf + buttonGap);
+            var minSecondaryY = panelBottom + bottomPadding + secondaryHalf;
+            if (secondaryY < minSecondaryY)
+            {
+                secondaryY = minSecondaryY;
+                primaryY = secondaryY + secondaryHalf + primaryHalf + buttonGap;
+            }
 
             if (_lastDidWin)
             {
@@ -949,10 +976,12 @@ namespace MultiplyRush
                 var buffHeight = ultraCompact ? 56f : 64f;
                 var buffOffset = Mathf.Clamp(panelWidth * 0.19f, 124f, 162f);
                 var buffY = -(panelHeight * 0.24f);
+                var mainMenuY = secondaryY;
+                var retryY = Mathf.Max(primaryY, mainMenuY + secondaryHalf + primaryHalf + buttonGap);
                 ApplyButtonRect(reinforcementButton, new Vector2(buffWidth, buffHeight), new Vector2(-buffOffset, buffY));
                 ApplyButtonRect(shieldButton, new Vector2(buffWidth, buffHeight), new Vector2(buffOffset, buffY));
-                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, -(panelHeight * 0.36f)));
-                ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, -(panelHeight * 0.45f)));
+                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, mainMenuY));
+                ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, retryY));
                 return;
             }
 
@@ -973,6 +1002,9 @@ namespace MultiplyRush
                 return;
             }
 
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = size;
             rect.anchoredPosition = anchoredPosition;
 
@@ -1107,7 +1139,7 @@ namespace MultiplyRush
             _winSilhouetteBand = EnsureImage(
                 _panelRect,
                 "WinSilhouetteBand",
-                new Color(0.64f, 0.96f, 1f, 0.04f),
+                new Color(0.64f, 0.96f, 1f, 0.015f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 250f),
@@ -1311,7 +1343,7 @@ namespace MultiplyRush
             {
                 var current = _winSilhouetteBand.color.a;
                 var target = _lastDidWin
-                    ? (0.02f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 2.5f) + 0.2f)) * 0.04f)
+                    ? (0.004f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 2.5f) + 0.2f)) * 0.014f)
                     : 0f;
                 var alpha = Mathf.Lerp(current, target, alphaBlend);
                 _winSilhouetteBand.color = new Color(0.66f, 0.98f, 1f, alpha);

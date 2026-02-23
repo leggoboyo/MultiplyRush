@@ -15,9 +15,9 @@ namespace MultiplyRush
         public float spacingX = 0.74f;
         public float spacingZ = 0.82f;
         public float formationLerpSpeed = 14f;
-        public float bobAmplitude = 0.06f;
+        public float bobAmplitude = 0.018f;
         public float bobFrequency = 7.8f;
-        public float tiltDegrees = 5f;
+        public float tiltDegrees = 2.6f;
         [Range(0.8f, 2.5f)]
         public float unitVisualScale = 1.9f;
 
@@ -56,6 +56,8 @@ namespace MultiplyRush
         private TextMesh _countLabelShadow;
         private TextMesh _countLabelGlow;
         private float _labelPulseOffset;
+        private Camera _cachedMainCamera;
+        private float _nextCameraRefreshTime;
 
         public int Count => _count;
 
@@ -88,6 +90,8 @@ namespace MultiplyRush
             EnsureWeaponEffects();
             EnsureLossBurstEffects();
             _labelPulseOffset = Mathf.Repeat(GetInstanceID() * 0.137f, 1f) * Mathf.PI * 2f;
+            _cachedMainCamera = Camera.main;
+            _nextCameraRefreshTime = Time.unscaledTime + 0.6f;
         }
 
         private void Update()
@@ -117,9 +121,9 @@ namespace MultiplyRush
 
                 var phase = runTime * bobFrequency + _phaseOffsets[i];
                 var target = _slots[i];
-                target.y += Mathf.Sin(phase) * bobAmplitude;
+                target.y += Mathf.Sin(phase) * (bobAmplitude * 0.14f);
                 unit.localPosition = Vector3.Lerp(unit.localPosition, target, blend);
-                unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * tiltDegrees, 0f, 0f);
+                unit.localRotation = Quaternion.Euler(Mathf.Sin(phase + 0.95f) * (tiltDegrees * 0.22f), 0f, 0f);
                 unit.localScale = Vector3.one * unitVisualScale;
                 if (i < _unitAnimators.Count)
                 {
@@ -451,8 +455,8 @@ namespace MultiplyRush
                 countLabel = labelObject.AddComponent<TextMesh>();
             }
 
-            countLabel.fontSize = 92;
-            countLabel.characterSize = 0.105f;
+            countLabel.fontSize = 108;
+            countLabel.characterSize = 0.118f;
             countLabel.anchor = TextAnchor.MiddleCenter;
             countLabel.alignment = TextAlignment.Center;
             countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
@@ -482,7 +486,7 @@ namespace MultiplyRush
                 _countLabelShadow.characterSize = countLabel.characterSize;
                 _countLabelShadow.anchor = countLabel.anchor;
                 _countLabelShadow.alignment = countLabel.alignment;
-                _countLabelShadow.color = new Color(0f, 0f, 0f, 0.68f);
+                _countLabelShadow.color = new Color(0f, 0f, 0f, 0.74f);
                 _countLabelShadow.text = countLabel.text;
             }
 
@@ -510,7 +514,7 @@ namespace MultiplyRush
                 _countLabelGlow.characterSize = countLabel.characterSize;
                 _countLabelGlow.anchor = countLabel.anchor;
                 _countLabelGlow.alignment = countLabel.alignment;
-                _countLabelGlow.color = new Color(1f, 0.48f, 0.42f, 0.32f);
+                _countLabelGlow.color = new Color(1f, 0.54f, 0.46f, 0.38f);
                 _countLabelGlow.text = countLabel.text;
             }
 
@@ -525,17 +529,25 @@ namespace MultiplyRush
             }
 
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
+            var pulsePhase = (Time.time * 3.2f) + _labelPulseOffset;
+            var bobY = Mathf.Sin(pulsePhase) * 0.1f;
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                3.45f + Mathf.Clamp(depth * 0.2f, 0.28f, 1.8f),
-                Mathf.Clamp((depth * 0.88f) + 1.08f, 2.8f, 8.4f));
+                4.2f + Mathf.Clamp(depth * 0.25f, 0.42f, 2.65f) + bobY,
+                Mathf.Clamp((depth * 0.98f) + 1.72f, 4.4f, 12.6f));
 
-            var pulse = 1f + Mathf.Sin((Time.time * 3.2f) + _labelPulseOffset) * 0.1f;
-            var baseScale = Mathf.Lerp(0.98f, 1.36f, Mathf.Clamp01(_count / 260f));
+            var pulse = 1f + Mathf.Sin(pulsePhase) * 0.13f;
+            var baseScale = Mathf.Lerp(1.08f, 1.62f, Mathf.Clamp01(_count / 320f));
             countLabel.transform.localScale = Vector3.one * baseScale * pulse;
-            var tintPulse = 0.78f + Mathf.Abs(Mathf.Sin((Time.time * 4.6f) + _labelPulseOffset)) * 0.22f;
-            countLabel.color = Color.Lerp(new Color(1f, 0.32f, 0.3f, 1f), new Color(1f, 0.58f, 0.42f, 1f), tintPulse);
-            var camera = Camera.main;
+            var tintPulse = 0.72f + Mathf.Abs(Mathf.Sin((Time.time * 4.6f) + _labelPulseOffset)) * 0.28f;
+            countLabel.color = Color.Lerp(new Color(1f, 0.36f, 0.34f, 1f), new Color(1f, 0.7f, 0.5f, 1f), tintPulse);
+            if (_cachedMainCamera == null || Time.unscaledTime >= _nextCameraRefreshTime)
+            {
+                _cachedMainCamera = Camera.main;
+                _nextCameraRefreshTime = Time.unscaledTime + 0.6f;
+            }
+
+            var camera = _cachedMainCamera;
             if (camera != null)
             {
                 var lookDirection = countLabel.transform.position - camera.transform.position;
@@ -547,21 +559,21 @@ namespace MultiplyRush
 
             if (_countLabelShadow != null)
             {
-                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.02f, -0.05f, 0.03f);
+                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.03f, -0.08f, 0.05f);
                 _countLabelShadow.transform.localRotation = countLabel.transform.localRotation;
                 _countLabelShadow.transform.localScale = countLabel.transform.localScale;
             }
 
             if (_countLabelGlow != null)
             {
-                _countLabelGlow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0f, 0.02f, 0.02f);
+                _countLabelGlow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0f, 0.04f, 0.05f);
                 _countLabelGlow.transform.localRotation = countLabel.transform.localRotation;
-                _countLabelGlow.transform.localScale = countLabel.transform.localScale * 1.18f;
+                _countLabelGlow.transform.localScale = countLabel.transform.localScale * 1.24f;
                 _countLabelGlow.color = new Color(
                     1f,
-                    0.56f,
-                    0.44f,
-                    0.18f + Mathf.Abs(Mathf.Sin((Time.time * 4.2f) + _labelPulseOffset)) * 0.16f);
+                    0.6f,
+                    0.46f,
+                    0.22f + Mathf.Abs(Mathf.Sin((Time.time * 4.2f) + _labelPulseOffset)) * 0.22f);
             }
         }
 
