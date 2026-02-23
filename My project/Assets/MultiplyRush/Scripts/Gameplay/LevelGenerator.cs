@@ -2767,7 +2767,8 @@ namespace MultiplyRush
                 boostTempoRows = tier >= 2,
                 hazardRush = tier >= 3,
                 aggressivePressure = tier >= 4,
-                tankSurge = tier >= 5,
+                // Tank/boss mechanics are only allowed on mini-boss levels.
+                tankSurge = false,
                 label = BuildModifierLabel(tier)
             };
         }
@@ -2799,7 +2800,7 @@ namespace MultiplyRush
                 return "Pressure AI";
             }
 
-            return "Tank Legion";
+            return "Final Pressure";
         }
 
         private RowPattern PickRowPattern(
@@ -3581,7 +3582,8 @@ namespace MultiplyRush
 
         private int BuildTankRequirement(int levelIndex, int expectedBest, int enemyCount, bool isMiniBoss, ModifierState modifier)
         {
-            if (levelIndex < 10 && !isMiniBoss)
+            // Restrict tank requirement to mini-boss levels only.
+            if (!isMiniBoss)
             {
                 return 0;
             }
