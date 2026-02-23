@@ -188,17 +188,17 @@ namespace MultiplyRush
             _count = allowZero ? Mathf.Max(0, count) : Mathf.Max(1, count);
             if (countLabel != null)
             {
-                countLabel.text = "ENEMY: " + NumberFormatter.ToCompact(_count);
+                countLabel.text = "Enemy " + NumberFormatter.ToCompact(_count);
             }
 
             if (_countLabelShadow != null)
             {
-                _countLabelShadow.text = countLabel != null ? countLabel.text : ("ENEMY: " + NumberFormatter.ToCompact(_count));
+                _countLabelShadow.text = countLabel != null ? countLabel.text : ("Enemy " + NumberFormatter.ToCompact(_count));
             }
 
             if (_countLabelGlow != null)
             {
-                _countLabelGlow.text = countLabel != null ? countLabel.text : ("ENEMY: " + NumberFormatter.ToCompact(_count));
+                _countLabelGlow.text = countLabel != null ? countLabel.text : ("Enemy " + NumberFormatter.ToCompact(_count));
             }
 
             var targetVisible = Mathf.Min(_count, maxVisibleUnits);
@@ -455,12 +455,12 @@ namespace MultiplyRush
                 countLabel = labelObject.AddComponent<TextMesh>();
             }
 
-            countLabel.fontSize = 108;
-            countLabel.characterSize = 0.118f;
+            countLabel.fontSize = 78;
+            countLabel.characterSize = 0.084f;
             countLabel.anchor = TextAnchor.MiddleCenter;
             countLabel.alignment = TextAlignment.Center;
-            countLabel.color = new Color(1f, 0.38f, 0.34f, 1f);
-            countLabel.text = "ENEMY: 0";
+            countLabel.color = new Color(1f, 0.72f, 0.66f, 0.98f);
+            countLabel.text = "Enemy 0";
 
             var shadowTransform = countLabel.transform.parent != null
                 ? countLabel.transform.parent.Find("EnemyCountShadow")
@@ -482,12 +482,8 @@ namespace MultiplyRush
 
             if (_countLabelShadow != null)
             {
-                _countLabelShadow.fontSize = countLabel.fontSize;
-                _countLabelShadow.characterSize = countLabel.characterSize;
-                _countLabelShadow.anchor = countLabel.anchor;
-                _countLabelShadow.alignment = countLabel.alignment;
-                _countLabelShadow.color = new Color(0f, 0f, 0f, 0.74f);
-                _countLabelShadow.text = countLabel.text;
+                _countLabelShadow.gameObject.SetActive(false);
+                _countLabelShadow = null;
             }
 
             var glowTransform = countLabel.transform.parent != null
@@ -510,12 +506,8 @@ namespace MultiplyRush
 
             if (_countLabelGlow != null)
             {
-                _countLabelGlow.fontSize = countLabel.fontSize;
-                _countLabelGlow.characterSize = countLabel.characterSize;
-                _countLabelGlow.anchor = countLabel.anchor;
-                _countLabelGlow.alignment = countLabel.alignment;
-                _countLabelGlow.color = new Color(1f, 0.54f, 0.46f, 0.38f);
-                _countLabelGlow.text = countLabel.text;
+                _countLabelGlow.gameObject.SetActive(false);
+                _countLabelGlow = null;
             }
 
             UpdateCountLabelPose();
@@ -530,17 +522,17 @@ namespace MultiplyRush
 
             var depth = EstimateFormationDepth(Mathf.Max(1, _count));
             var pulsePhase = (Time.time * 3.2f) + _labelPulseOffset;
-            var bobY = Mathf.Sin(pulsePhase) * 0.1f;
+            var bobY = Mathf.Sin(pulsePhase) * 0.06f;
             countLabel.transform.localPosition = new Vector3(
                 0f,
-                4.2f + Mathf.Clamp(depth * 0.25f, 0.42f, 2.65f) + bobY,
-                Mathf.Clamp((depth * 0.98f) + 1.72f, 4.4f, 12.6f));
+                5.35f + Mathf.Clamp(depth * 0.28f, 0.5f, 2.8f) + bobY,
+                Mathf.Clamp((depth * 1.02f) + 2.4f, 5.2f, 14.8f));
 
-            var pulse = 1f + Mathf.Sin(pulsePhase) * 0.13f;
-            var baseScale = Mathf.Lerp(1.08f, 1.62f, Mathf.Clamp01(_count / 320f));
+            var pulse = 1f + Mathf.Sin(pulsePhase) * 0.045f;
+            var baseScale = Mathf.Lerp(0.92f, 1.22f, Mathf.Clamp01(_count / 320f));
             countLabel.transform.localScale = Vector3.one * baseScale * pulse;
-            var tintPulse = 0.72f + Mathf.Abs(Mathf.Sin((Time.time * 4.6f) + _labelPulseOffset)) * 0.28f;
-            countLabel.color = Color.Lerp(new Color(1f, 0.36f, 0.34f, 1f), new Color(1f, 0.7f, 0.5f, 1f), tintPulse);
+            var tintPulse = 0.48f + Mathf.Abs(Mathf.Sin((Time.time * 3.2f) + _labelPulseOffset)) * 0.2f;
+            countLabel.color = Color.Lerp(new Color(1f, 0.63f, 0.56f, 0.94f), new Color(1f, 0.76f, 0.66f, 1f), tintPulse);
             if (_cachedMainCamera == null || Time.unscaledTime >= _nextCameraRefreshTime)
             {
                 _cachedMainCamera = Camera.main;
@@ -557,24 +549,7 @@ namespace MultiplyRush
                 }
             }
 
-            if (_countLabelShadow != null)
-            {
-                _countLabelShadow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0.03f, -0.08f, 0.05f);
-                _countLabelShadow.transform.localRotation = countLabel.transform.localRotation;
-                _countLabelShadow.transform.localScale = countLabel.transform.localScale;
-            }
-
-            if (_countLabelGlow != null)
-            {
-                _countLabelGlow.transform.localPosition = countLabel.transform.localPosition + new Vector3(0f, 0.04f, 0.05f);
-                _countLabelGlow.transform.localRotation = countLabel.transform.localRotation;
-                _countLabelGlow.transform.localScale = countLabel.transform.localScale * 1.24f;
-                _countLabelGlow.color = new Color(
-                    1f,
-                    0.6f,
-                    0.46f,
-                    0.22f + Mathf.Abs(Mathf.Sin((Time.time * 4.2f) + _labelPulseOffset)) * 0.22f);
-            }
+            // Shadow/glow variants are intentionally disabled to keep the battle HUD less visually cluttered.
         }
 
         private void TrySpawnDeathFx(Transform unit)

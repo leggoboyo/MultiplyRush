@@ -29,8 +29,8 @@ namespace MultiplyRush
         private Vector2 _lastLayoutCanvasSize = new Vector2(-1f, -1f);
         private Vector3 _countBaseScale = Vector3.one;
         private Color _countBaseColor = Color.white;
-        private Color _enemyCountBaseColor = new Color(1f, 0.5f, 0.42f, 1f);
-        private Color _enemyBadgeBaseColor = new Color(0.22f, 0.06f, 0.09f, 0.72f);
+        private Color _enemyCountBaseColor = new Color(1f, 0.76f, 0.7f, 1f);
+        private Color _enemyBadgeBaseColor = new Color(0.26f, 0.08f, 0.12f, 0.46f);
         private Image _enemyBadgeImage;
         private Color _countFlashColor = Color.white;
         private int _targetCount;
@@ -89,7 +89,7 @@ namespace MultiplyRush
 
             ApplyTextStyle(levelText, 20, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
-            ApplyTextStyle(enemyCountText, 32, FontStyle.Bold, new Color(1f, 0.42f, 0.38f, 1f));
+            ApplyTextStyle(enemyCountText, 28, FontStyle.Bold, new Color(1f, 0.74f, 0.68f, 1f));
             ApplyTextStyle(progressText, 22, FontStyle.Bold, new Color(0.92f, 0.96f, 1f, 1f));
             if (enemyCountText != null)
             {
@@ -351,13 +351,13 @@ namespace MultiplyRush
 
             if (_enemyBadgeRect != null)
             {
-                var pulse = 1f + (_enemyCountFlash * 0.08f);
+                var pulse = 1f + (_enemyCountFlash * 0.04f);
                 _enemyBadgeRect.localScale = Vector3.one * pulse;
             }
 
             if (_enemyBadgeImage != null)
             {
-                _enemyBadgeImage.color = Color.Lerp(_enemyBadgeBaseColor, new Color(0.48f, 0.08f, 0.12f, 0.9f), _enemyCountFlash * 0.65f);
+                _enemyBadgeImage.color = Color.Lerp(_enemyBadgeBaseColor, new Color(0.42f, 0.1f, 0.14f, 0.62f), _enemyCountFlash * 0.48f);
             }
         }
 
@@ -408,18 +408,9 @@ namespace MultiplyRush
             enemyRect.anchorMax = countRect.anchorMax;
             enemyRect.pivot = countRect.pivot;
 
-            var width = Mathf.Clamp(canvasSize.x * 0.41f, 314f, 452f);
-            var height = Mathf.Clamp(canvasSize.y * 0.045f, 52f, 68f);
-            var y = countRect.anchoredPosition.y - 116f;
-            if (progressFill != null)
-            {
-                var progressRect = progressFill.transform.parent as RectTransform;
-                if (progressRect != null)
-                {
-                    var progressTop = progressRect.anchoredPosition.y + (progressRect.sizeDelta.y * 0.5f);
-                    y = Mathf.Max(y, progressTop + 30f);
-                }
-            }
+            var width = Mathf.Clamp(canvasSize.x * 0.32f, 248f, 356f);
+            var height = Mathf.Clamp(canvasSize.y * 0.036f, 42f, 54f);
+            var y = countRect.anchoredPosition.y - 72f;
 
             enemyRect.sizeDelta = new Vector2(width, height);
             enemyRect.anchoredPosition = new Vector2(countRect.anchoredPosition.x, y);
@@ -430,7 +421,7 @@ namespace MultiplyRush
                 _enemyBadgeRect.anchorMax = enemyRect.anchorMax;
                 _enemyBadgeRect.pivot = enemyRect.pivot;
                 _enemyBadgeRect.anchoredPosition = enemyRect.anchoredPosition;
-                _enemyBadgeRect.sizeDelta = enemyRect.sizeDelta + new Vector2(34f, 16f);
+                _enemyBadgeRect.sizeDelta = enemyRect.sizeDelta + new Vector2(20f, 8f);
             }
 
             if (_bossHealthRootRect != null)
@@ -482,8 +473,8 @@ namespace MultiplyRush
             enemyRect.anchorMin = countText.rectTransform.anchorMin;
             enemyRect.anchorMax = countText.rectTransform.anchorMax;
             enemyRect.pivot = countText.rectTransform.pivot;
-            enemyRect.sizeDelta = new Vector2(380f, 58f);
-            enemyRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -154f);
+            enemyRect.sizeDelta = new Vector2(320f, 48f);
+            enemyRect.anchoredPosition = countText.rectTransform.anchoredPosition + new Vector2(0f, -82f);
 
             enemyCountText = enemyObject.AddComponent<Text>();
             enemyCountText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -536,7 +527,7 @@ namespace MultiplyRush
             badgeRect.anchorMax = enemyCountText.rectTransform.anchorMax;
             badgeRect.pivot = enemyCountText.rectTransform.pivot;
             badgeRect.anchoredPosition = enemyCountText.rectTransform.anchoredPosition + new Vector2(0f, 0f);
-            badgeRect.sizeDelta = new Vector2(406f, 70f);
+            badgeRect.sizeDelta = new Vector2(344f, 56f);
 
             var outline = _enemyBadgeImage.GetComponent<Outline>();
             if (outline == null)
@@ -544,8 +535,8 @@ namespace MultiplyRush
                 outline = _enemyBadgeImage.gameObject.AddComponent<Outline>();
             }
 
-            outline.effectColor = new Color(0f, 0f, 0f, 0.55f);
-            outline.effectDistance = new Vector2(2f, -2f);
+            outline.effectColor = new Color(0f, 0f, 0f, 0.34f);
+            outline.effectDistance = new Vector2(1.2f, -1.2f);
             var enemyIndex = enemyCountText.transform.GetSiblingIndex();
             _enemyBadgeImage.transform.SetSiblingIndex(Mathf.Max(0, enemyIndex - 1));
         }

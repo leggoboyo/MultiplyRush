@@ -9,6 +9,9 @@ namespace MultiplyRush
 {
     public sealed class MainMenuController : MonoBehaviour
     {
+        private const string PrivacyPolicyUrl = "https://leggoboyo.github.io/MultiplyRush/privacy.html";
+        private const string SupportUrl = "https://leggoboyo.github.io/MultiplyRush/support.html";
+
         [Header("Flow")]
         public string gameSceneName = "Game";
         public Text bestLevelText;
@@ -81,8 +84,11 @@ namespace MultiplyRush
         private RectTransform _playShineRect;
         private RectTransform _badgeRect;
         private RectTransform _studioRect;
+        private RectTransform _legalLinksRow;
         private RectTransform _taglineRect;
         private Button _progressButton;
+        private Button _privacyButton;
+        private Button _supportButton;
         private RectTransform _progressOverlayRect;
         private CanvasGroup _progressOverlayGroup;
         private RectTransform _progressPanelRect;
@@ -135,6 +141,8 @@ namespace MultiplyRush
         private Text _titleText;
         private Text _taglineText;
         private Text _studioText;
+        private Text _privacyLabel;
+        private Text _supportLabel;
         private Text _footerText;
         private Text _playButtonLabel;
         private float _scanlineBaseY;
@@ -658,6 +666,7 @@ namespace MultiplyRush
             StyleBodyText(_studioText, 30, true);
             _studioText.color = new Color(0.75f, 0.91f, 1f, 0.94f);
             _studioRect = _studioText.rectTransform;
+            EnsureLegalLinks();
 
             _taglineRect = FindOrCreateText(
                 _safeAreaRoot,
@@ -903,6 +912,18 @@ namespace MultiplyRush
                 _studioText.color = new Color(0.75f * glow, 0.91f * glow, 1f * glow, 0.95f);
             }
 
+            if (_privacyLabel != null)
+            {
+                var glow = 0.76f + Mathf.Abs(Mathf.Sin((runTime * 1.18f) + 0.4f)) * 0.2f;
+                _privacyLabel.color = new Color(0.74f * glow, 0.9f * glow, 1f * glow, 0.95f);
+            }
+
+            if (_supportLabel != null)
+            {
+                var glow = 0.76f + Mathf.Abs(Mathf.Sin((runTime * 1.22f) + 0.9f)) * 0.2f;
+                _supportLabel.color = new Color(0.74f * glow, 0.9f * glow, 1f * glow, 0.95f);
+            }
+
             if (_taglineRect != null)
             {
                 _taglineRect.anchoredPosition = _taglineBasePosition + new Vector2(0f, Mathf.Sin(runTime * 1.35f) * 5f);
@@ -1063,6 +1084,96 @@ namespace MultiplyRush
             }
         }
 
+        private void EnsureLegalLinks()
+        {
+            if (_safeAreaRoot == null)
+            {
+                return;
+            }
+
+            var rowTransform = _safeAreaRoot.Find("LegalLinksRow");
+            if (rowTransform == null)
+            {
+                var rowObject = new GameObject("LegalLinksRow");
+                rowObject.transform.SetParent(_safeAreaRoot, false);
+                _legalLinksRow = rowObject.AddComponent<RectTransform>();
+            }
+            else
+            {
+                _legalLinksRow = rowTransform.GetComponent<RectTransform>();
+            }
+
+            if (_legalLinksRow == null)
+            {
+                return;
+            }
+
+            _legalLinksRow.anchorMin = new Vector2(0.5f, 0.5f);
+            _legalLinksRow.anchorMax = new Vector2(0.5f, 0.5f);
+            _legalLinksRow.pivot = new Vector2(0.5f, 0.5f);
+            _legalLinksRow.sizeDelta = new Vector2(700f, 56f);
+
+            _privacyButton = EnsureDifficultyButton(_legalLinksRow, "PrivacyButton", "Privacy", new Vector2(-140f, 0f), out _privacyLabel);
+            _supportButton = EnsureDifficultyButton(_legalLinksRow, "SupportButton", "Support", new Vector2(140f, 0f), out _supportLabel);
+
+            ConfigureLegalButton(_privacyButton, _privacyLabel, OpenPrivacyPolicy);
+            ConfigureLegalButton(_supportButton, _supportLabel, OpenSupportPage);
+        }
+
+        private static void ConfigureLegalButton(Button button, Text label, UnityEngine.Events.UnityAction onClick)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            var rect = button.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.sizeDelta = new Vector2(220f, 44f);
+            }
+
+            var image = button.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = new Color(0.12f, 0.28f, 0.44f, 0.34f);
+            }
+
+            if (label != null)
+            {
+                label.fontSize = 30;
+                label.fontStyle = FontStyle.Bold;
+                label.color = new Color(0.74f, 0.91f, 1f, 0.96f);
+            }
+
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(onClick);
+        }
+
+        private static void OpenExternalUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+
+            Application.OpenURL(url);
+        }
+
+        private void OpenPrivacyPolicy()
+        {
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.52f, 1.04f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
+            OpenExternalUrl(PrivacyPolicyUrl);
+        }
+
+        private void OpenSupportPage()
+        {
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.52f, 1.08f);
+            HapticsDirector.Instance?.Play(HapticCue.LightTap);
+            OpenExternalUrl(SupportUrl);
+        }
+
         private void CycleMusicTrack(int delta)
         {
             var audio = AudioDirector.Instance ?? AudioDirector.EnsureInstance();
@@ -1116,7 +1227,7 @@ namespace MultiplyRush
 
             if (_taglineRect != null)
             {
-                _taglineRect.anchoredPosition = new Vector2(0f, ((compact ? 214f : 244f) - topInsetPadding) * layoutScale);
+                _taglineRect.anchoredPosition = new Vector2(0f, ((compact ? 186f : 214f) - topInsetPadding) * layoutScale);
                 _taglineRect.sizeDelta = new Vector2(
                     Mathf.Clamp((width - (ultraCompact ? 104f : 120f)) * layoutScale, 400f, 980f),
                     (compact ? 66f : 76f) * layoutScale);
@@ -1248,6 +1359,50 @@ namespace MultiplyRush
                 if (_studioText != null)
                 {
                     _studioText.fontSize = Mathf.RoundToInt((compact ? 26f : 30f) * layoutScale);
+                }
+            }
+
+            if (_legalLinksRow != null)
+            {
+                _legalLinksRow.anchoredPosition = new Vector2(0f, ((compact ? 228f : 258f) - topInsetPadding) * layoutScale);
+                _legalLinksRow.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - (ultraCompact ? 190f : 220f)) * layoutScale, 420f, 760f),
+                    52f * layoutScale);
+
+                var rowWidth = _legalLinksRow.sizeDelta.x;
+                var halfSpacing = Mathf.Clamp((rowWidth * 0.25f), 96f, 168f);
+                var buttonWidth = Mathf.Clamp((rowWidth * 0.36f), 170f, 250f);
+                var buttonHeight = Mathf.Clamp(46f * layoutScale, 38f, 52f);
+                var linkFontSize = Mathf.RoundToInt((compact ? 24f : 28f) * layoutScale);
+
+                if (_privacyButton != null)
+                {
+                    var rect = _privacyButton.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        rect.anchoredPosition = new Vector2(-halfSpacing, 0f);
+                        rect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
+                    }
+                }
+
+                if (_supportButton != null)
+                {
+                    var rect = _supportButton.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        rect.anchoredPosition = new Vector2(halfSpacing, 0f);
+                        rect.sizeDelta = new Vector2(buttonWidth, buttonHeight);
+                    }
+                }
+
+                if (_privacyLabel != null)
+                {
+                    _privacyLabel.fontSize = linkFontSize;
+                }
+
+                if (_supportLabel != null)
+                {
+                    _supportLabel.fontSize = linkFontSize;
                 }
             }
 
@@ -2160,7 +2315,7 @@ namespace MultiplyRush
             _progressContentRect.anchorMax = new Vector2(0.5f, 1f);
             _progressContentRect.pivot = new Vector2(0.5f, 1f);
             _progressContentRect.anchoredPosition = Vector2.zero;
-            _progressContentRect.sizeDelta = new Vector2(674f, 40f);
+            _progressContentRect.sizeDelta = new Vector2(GetProgressRowWidth(), 40f);
 
             _progressScrollRect = viewportObject.GetComponent<ScrollRect>();
             _progressScrollRect.horizontal = false;
@@ -2213,12 +2368,13 @@ namespace MultiplyRush
 
             EnsureProgressRows(Mathf.Max(1, unlocked));
             var visibleRows = Mathf.Max(1, unlocked);
+            var rowWidth = GetProgressRowWidth();
             const float rowHeight = 72f;
             const float rowGap = 12f;
             if (_progressContentRect != null)
             {
                 var contentHeight = 16f + visibleRows * (rowHeight + rowGap);
-                _progressContentRect.sizeDelta = new Vector2(674f, contentHeight);
+                _progressContentRect.sizeDelta = new Vector2(rowWidth, contentHeight);
                 _progressContentRect.anchoredPosition = new Vector2(0f, 0f);
             }
 
@@ -2233,6 +2389,7 @@ namespace MultiplyRush
                     if (visible)
                     {
                         rowRect.anchoredPosition = new Vector2(0f, -(8f + (i * (rowHeight + rowGap))));
+                        ApplyProgressRowLayout(rowRect, rowWidth);
                     }
 
                     var rowImage = rowRect.GetComponent<Image>();
@@ -2295,6 +2452,7 @@ namespace MultiplyRush
             }
 
             var safeRequiredRows = Mathf.Clamp(requiredRows, 1, 5000);
+            var rowWidth = GetProgressRowWidth();
             EnsureBackdropSprites();
             for (var i = _progressRowRects.Count; i < safeRequiredRows; i++)
             {
@@ -2307,7 +2465,7 @@ namespace MultiplyRush
                     new Vector2(0.5f, 1f),
                     new Vector2(0.5f, 1f),
                     new Vector2(0f, 0f),
-                    new Vector2(674f, 72f));
+                    new Vector2(rowWidth, 72f));
                 if (row == null)
                 {
                     continue;
@@ -2348,9 +2506,10 @@ namespace MultiplyRush
                     TextAnchor.MiddleLeft,
                     new Vector2(0f, 0.5f),
                     new Vector2(0f, 0.5f),
-                    new Vector2(22f, 0f),
-                    new Vector2(232f, 56f));
+                    new Vector2(52f, 0f),
+                    new Vector2(246f, 56f));
                 StyleBodyText(levelLabel, 30, true);
+                levelLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
                 _progressLevelTexts.Add(levelLabel);
 
                 var scoreLabel = FindOrCreateText(
@@ -2381,6 +2540,82 @@ namespace MultiplyRush
                     }
 
                     _progressReplayButtons.Add(replayButton);
+                }
+
+                ApplyProgressRowLayout(rowRect, rowWidth);
+            }
+        }
+
+        private float GetProgressRowWidth()
+        {
+            if (_progressViewportRect != null)
+            {
+                var width = _progressViewportRect.rect.width;
+                if (width <= 1f)
+                {
+                    width = _progressViewportRect.sizeDelta.x;
+                }
+
+                return Mathf.Clamp(width - 24f, 360f, 760f);
+            }
+
+            return 674f;
+        }
+
+        private static void ApplyProgressRowLayout(RectTransform rowRect, float rowWidth)
+        {
+            if (rowRect == null)
+            {
+                return;
+            }
+
+            var safeWidth = Mathf.Max(360f, rowWidth);
+            rowRect.sizeDelta = new Vector2(safeWidth, 72f);
+
+            var levelLabel = rowRect.Find("LevelLabel") != null ? rowRect.Find("LevelLabel").GetComponent<Text>() : null;
+            if (levelLabel != null)
+            {
+                var levelRect = levelLabel.rectTransform;
+                levelRect.anchorMin = new Vector2(0f, 0.5f);
+                levelRect.anchorMax = new Vector2(0f, 0.5f);
+                levelRect.pivot = new Vector2(0f, 0.5f);
+                levelRect.anchoredPosition = new Vector2(52f, 0f);
+                levelRect.sizeDelta = new Vector2(Mathf.Clamp(safeWidth * 0.33f, 192f, 256f), 56f);
+                levelLabel.horizontalOverflow = HorizontalWrapMode.Overflow;
+            }
+
+            var scoreLabel = rowRect.Find("ScoreLabel") != null ? rowRect.Find("ScoreLabel").GetComponent<Text>() : null;
+            if (scoreLabel != null)
+            {
+                var scoreRect = scoreLabel.rectTransform;
+                scoreRect.anchorMin = new Vector2(0.5f, 0.5f);
+                scoreRect.anchorMax = new Vector2(0.5f, 0.5f);
+                scoreRect.pivot = new Vector2(0.5f, 0.5f);
+                scoreRect.anchoredPosition = new Vector2(-26f, 0f);
+                scoreRect.sizeDelta = new Vector2(Mathf.Clamp(safeWidth * 0.41f, 210f, 320f), 54f);
+            }
+
+            var replayButton = rowRect.Find("ReplayButton");
+            if (replayButton != null)
+            {
+                var replayRect = replayButton.GetComponent<RectTransform>();
+                if (replayRect != null)
+                {
+                    replayRect.anchorMin = new Vector2(0.5f, 0.5f);
+                    replayRect.anchorMax = new Vector2(0.5f, 0.5f);
+                    replayRect.pivot = new Vector2(0.5f, 0.5f);
+                    replayRect.anchoredPosition = new Vector2((safeWidth * 0.5f) - 94f, 0f);
+                    replayRect.sizeDelta = new Vector2(156f, 50f);
+                }
+            }
+
+            var nodeGlow = rowRect.Find("NodeGlow");
+            if (nodeGlow != null)
+            {
+                var nodeRect = nodeGlow.GetComponent<RectTransform>();
+                if (nodeRect != null)
+                {
+                    nodeRect.anchoredPosition = new Vector2(20f, 0f);
                 }
             }
         }
