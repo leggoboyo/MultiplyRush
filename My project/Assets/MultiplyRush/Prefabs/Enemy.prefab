@@ -159,9 +159,9 @@ MonoBehaviour:
   spacingX: 0.74
   spacingZ: 0.82
   formationLerpSpeed: 14
-  bobAmplitude: 0.06
+  bobAmplitude: 0.018
   bobFrequency: 7.8
-  tiltDegrees: 5
+  tiltDegrees: 2.6
   unitVisualScale: 1.9
   enableWeaponVfx: 1
   baseShotsPerSecond: 11
