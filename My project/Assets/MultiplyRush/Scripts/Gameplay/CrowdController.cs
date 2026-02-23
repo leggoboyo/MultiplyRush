@@ -675,6 +675,71 @@ namespace MultiplyRush
             return removed;
         }
 
+        public int ApplyCrushRadiusLoss(Vector3 impactCenterWorld, float radius, int maxUnitsToRemove)
+        {
+            if (maxUnitsToRemove <= 0 || _count <= 0 || _activeUnits.Count <= 0)
+            {
+                return 0;
+            }
+
+            var safeRadius = Mathf.Max(0.15f, radius);
+            var safeRadiusSq = safeRadius * safeRadius;
+            _hazardOverlapIndices.Clear();
+            for (var i = 0; i < _activeUnits.Count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                var delta = unit.position - impactCenterWorld;
+                delta.y = 0f;
+                if (delta.sqrMagnitude > safeRadiusSq)
+                {
+                    continue;
+                }
+
+                _hazardOverlapIndices.Add(i);
+            }
+
+            if (_hazardOverlapIndices.Count <= 0)
+            {
+                return 0;
+            }
+
+            _hazardOverlapIndices.Sort();
+            var safeRemovalCount = Mathf.Min(maxUnitsToRemove, _hazardOverlapIndices.Count, _count);
+            var removalFxBudget = Mathf.Clamp(safeRemovalCount, 1, Mathf.Max(1, maxDeathFxPerLossWave * 2));
+            var removed = 0;
+            for (var i = safeRemovalCount - 1; i >= 0; i--)
+            {
+                var visibleIndex = _hazardOverlapIndices[i];
+                if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
+                {
+                    continue;
+                }
+
+                var crushDelay = (safeRemovalCount - 1 - i) * 0.01f;
+                RemoveVisibleUnitAtIndexForCrush(visibleIndex, removalFxBudget > 0, impactCenterWorld, crushDelay);
+                removalFxBudget--;
+                removed++;
+            }
+
+            if (removed <= 0)
+            {
+                return 0;
+            }
+
+            var suppressPop = _suppressUnitGainPop;
+            _suppressUnitGainPop = true;
+            SetCount(_count - removed, true);
+            _suppressUnitGainPop = suppressPop;
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.52f, UnityEngine.Random.Range(0.74f, 0.9f));
+            TriggerGatePunch(new Color(1f, 0.42f, 0.32f, 1f));
+            return removed;
+        }
+
         public bool ActivateShield()
         {
             if (_shieldActive || !_isRunning)

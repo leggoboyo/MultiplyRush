@@ -66,6 +66,7 @@ namespace MultiplyRush
         public float rockLossPerLevel = 0.2f;
         public int rockLossHardBonus = 4;
         public float rockTelegraphScalePulse = 0.22f;
+        public float rockFloorY = 0.02f;
         public Color rockColor = new Color(0.4f, 0.36f, 0.34f, 1f);
         public Color rockTelegraphColor = new Color(1f, 0.56f, 0.36f, 0.34f);
         public Color rockShadowColor = new Color(0f, 0f, 0f, 0.26f);
@@ -112,6 +113,11 @@ namespace MultiplyRush
         private float _bossSlamImpactFlash;
         private bool _bossStrikeLeft;
         private float _bossImpactRingAlpha;
+        private float _bossThrowElapsed;
+        private float _bossThrowDuration;
+        private bool _bossThrowActive;
+        private bool _bossThrowFromLeftArm;
+        private float _bossThrowStrength = 1f;
 
         private Material _bossBodyMaterial;
         private Material _bossAccentMaterial;
@@ -134,11 +140,13 @@ namespace MultiplyRush
             public float arcHeight;
             public float radius;
             public int maxUnitLoss;
+            public Vector3 angularVelocity;
         }
 
         private readonly List<RockProjectile> _rockProjectiles = new List<RockProjectile>(10);
         private Transform _rockProjectileRoot;
         private Material _rockMaterial;
+        private Material _rockAccentMaterial;
         private Material _rockTelegraphMaterial;
         private Material _rockShadowMaterial;
         private ParticleSystem _rockImpactFx;
@@ -361,6 +369,9 @@ namespace MultiplyRush
             _hasCrowdVelocity = false;
             _crowdVelocityWorld = Vector3.zero;
             _harassThrowTimer = 0f;
+            _bossThrowActive = false;
+            _bossThrowElapsed = 0f;
+            _bossThrowDuration = 0f;
             for (var i = 0; i < _rockProjectiles.Count; i++)
             {
                 var projectile = _rockProjectiles[i];
@@ -388,6 +399,20 @@ namespace MultiplyRush
             _bossStrikeLeft = !_bossStrikeLeft;
         }
 
+        private void TriggerBossThrowPose(bool useLeftArm, float strength = 1f)
+        {
+            if (_bossVisual == null || !_bossVisual.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            _bossThrowFromLeftArm = useLeftArm;
+            _bossThrowStrength = Mathf.Clamp(strength, 0.65f, 1.45f);
+            _bossThrowDuration = Mathf.Lerp(0.5f, 0.76f, Mathf.InverseLerp(0.65f, 1.45f, _bossThrowStrength));
+            _bossThrowElapsed = 0f;
+            _bossThrowActive = true;
+        }
+
         private void UpdateBossAnimation(float deltaTime)
         {
             var safeDelta = Mathf.Max(0f, deltaTime);
@@ -403,6 +428,12 @@ namespace MultiplyRush
             var forearmPitch = Mathf.Sin(Time.time * 1.74f + 0.35f) * 7f;
             var handPitch = Mathf.Sin(Time.time * 2.18f + 0.9f) * 9f;
             var armTwist = Mathf.Sin(Time.time * 1.58f + 0.6f) * 5f;
+            var throwArmPitch = 0f;
+            var throwForearmPitch = 0f;
+            var throwHandPitch = 0f;
+            var throwArmTwist = 0f;
+            var throwWeight = 0f;
+            var throwOnLeft = _bossThrowFromLeftArm;
 
             if (_bossSlamActive)
             {
@@ -479,6 +510,34 @@ namespace MultiplyRush
                     _bossSlamImpactTriggered = false;
                 }
             }
+            else if (_bossThrowActive)
+            {
+                _bossThrowElapsed += safeDelta;
+                var safeDuration = Mathf.Max(0.2f, _bossThrowDuration);
+                var throwT = Mathf.Clamp01(_bossThrowElapsed / safeDuration);
+                throwOnLeft = _bossThrowFromLeftArm;
+                throwWeight = Mathf.Sin(throwT * Mathf.PI) * _bossThrowStrength;
+                var throwWindup = Mathf.Clamp01(throwT / 0.38f);
+                var throwRelease = Mathf.Clamp01((throwT - 0.38f) / 0.62f);
+                var windupPitch = Mathf.Lerp(0f, -74f, EaseOutCubic(throwWindup));
+                var releasePitch = Mathf.Lerp(windupPitch, 104f, EaseInCubic(throwRelease));
+                throwArmPitch = releasePitch * throwWeight;
+                throwForearmPitch = releasePitch * 0.84f * throwWeight;
+                throwHandPitch = releasePitch * 0.46f * throwWeight;
+                throwArmTwist = Mathf.Lerp(-14f, 18f, throwT) * throwWeight;
+                rootZOffset += 0.28f * throwWeight;
+                coreYOffset += 0.22f * throwWeight;
+                headPitch += 12f * throwWeight;
+                jawPitch += 8f * throwWeight;
+                armPitch *= 0.42f;
+                forearmPitch *= 0.36f;
+                handPitch *= 0.28f;
+
+                if (throwT >= 1f)
+                {
+                    _bossThrowActive = false;
+                }
+            }
 
             if (_bossVisual != null)
             {
@@ -504,39 +563,57 @@ namespace MultiplyRush
             if (_bossLeftArmPivot != null)
             {
                 var attackBias = _bossStrikeLeft ? 1f : 1f - bossArmAsymmetry;
+                var throwBias = throwOnLeft ? 1f : 0.2f;
                 _bossLeftArmPivot.localRotation =
-                    _bossLeftArmBaseRotation * Quaternion.Euler(armPitch * attackBias, armTwist * attackBias, -12f);
+                    _bossLeftArmBaseRotation * Quaternion.Euler(
+                        (armPitch * attackBias) + (throwArmPitch * throwBias),
+                        (armTwist * attackBias) + (throwArmTwist * throwBias),
+                        -12f);
             }
 
             if (_bossRightArmPivot != null)
             {
                 var attackBias = _bossStrikeLeft ? 1f - bossArmAsymmetry : 1f;
+                var throwBias = throwOnLeft ? 0.2f : 1f;
                 _bossRightArmPivot.localRotation =
-                    _bossRightArmBaseRotation * Quaternion.Euler(armPitch * attackBias, -armTwist * attackBias, 12f);
+                    _bossRightArmBaseRotation * Quaternion.Euler(
+                        (armPitch * attackBias) + (throwArmPitch * throwBias),
+                        (-armTwist * attackBias) - (throwArmTwist * throwBias),
+                        12f);
             }
 
             if (_bossLeftForearmPivot != null)
             {
                 var attackBias = _bossStrikeLeft ? 1f : 1f - bossArmAsymmetry;
+                var throwBias = throwOnLeft ? 1f : 0.2f;
                 _bossLeftForearmPivot.localRotation =
-                    _bossLeftForearmBaseRotation * Quaternion.Euler(forearmPitch * attackBias, armTwist * 0.72f, -6f);
+                    _bossLeftForearmBaseRotation * Quaternion.Euler(
+                        (forearmPitch * attackBias) + (throwForearmPitch * throwBias),
+                        (armTwist * 0.72f) + (throwArmTwist * throwBias * 0.6f),
+                        -6f);
             }
 
             if (_bossRightForearmPivot != null)
             {
                 var attackBias = _bossStrikeLeft ? 1f - bossArmAsymmetry : 1f;
+                var throwBias = throwOnLeft ? 0.2f : 1f;
                 _bossRightForearmPivot.localRotation =
-                    _bossRightForearmBaseRotation * Quaternion.Euler(forearmPitch * attackBias, -armTwist * 0.72f, 6f);
+                    _bossRightForearmBaseRotation * Quaternion.Euler(
+                        (forearmPitch * attackBias) + (throwForearmPitch * throwBias),
+                        (-armTwist * 0.72f) - (throwArmTwist * throwBias * 0.6f),
+                        6f);
             }
 
             if (_bossLeftHandPivot != null)
             {
-                _bossLeftHandPivot.localRotation = _bossLeftHandBaseRotation * Quaternion.Euler(handPitch, 0f, -3f);
+                var throwBias = throwOnLeft ? 1f : 0.25f;
+                _bossLeftHandPivot.localRotation = _bossLeftHandBaseRotation * Quaternion.Euler(handPitch + (throwHandPitch * throwBias), 0f, -3f);
             }
 
             if (_bossRightHandPivot != null)
             {
-                _bossRightHandPivot.localRotation = _bossRightHandBaseRotation * Quaternion.Euler(handPitch, 0f, 3f);
+                var throwBias = throwOnLeft ? 0.25f : 1f;
+                _bossRightHandPivot.localRotation = _bossRightHandBaseRotation * Quaternion.Euler(handPitch + (throwHandPitch * throwBias), 0f, 3f);
             }
 
             if (_bossImpactRing != null)
@@ -574,6 +651,10 @@ namespace MultiplyRush
             _bossSlamImpactTriggered = false;
             _bossSlamImpactFlash = 0f;
             _bossImpactRingAlpha = 0f;
+            _bossThrowActive = false;
+            _bossThrowElapsed = 0f;
+            _bossThrowDuration = 0f;
+            _bossThrowStrength = 1f;
 
             if (_bossCore != null)
             {
@@ -826,22 +907,36 @@ namespace MultiplyRush
                 ? _bossAimPoint.position
                 : _bossVisual.position + (_bossVisual.forward * 1.2f) + (Vector3.up * 1.3f);
 
+            var usingLeftHand = _bossThrowFromLeft;
             if (_bossLeftHandPivot != null && _bossRightHandPivot != null)
             {
-                throwSource = _bossThrowFromLeft ? _bossLeftHandPivot.position : _bossRightHandPivot.position;
+                throwSource = usingLeftHand ? _bossLeftHandPivot.position : _bossRightHandPivot.position;
                 _bossThrowFromLeft = !_bossThrowFromLeft;
             }
 
+            var travelSpeed = ComputeRockTravelSpeed();
+            var firstEstimateDuration = Mathf.Clamp(
+                Vector3.Distance(throwSource, crowdPosition) / Mathf.Max(6f, travelSpeed),
+                0.35f,
+                2.5f);
+            var interceptTime = SolveInterceptTime(
+                throwSource,
+                crowdPosition,
+                _crowdVelocityWorld,
+                travelSpeed,
+                firstEstimateDuration);
+            var leadTime = Mathf.Clamp(interceptTime + Mathf.Clamp(rockThrowLeadTime * 0.18f, 0f, 0.24f), 0.2f, 2.8f);
+
             var predictedTarget = crowdPosition;
-            predictedTarget += _crowdVelocityWorld * Mathf.Clamp(rockThrowLeadTime, 0f, 1.2f);
+            predictedTarget += _crowdVelocityWorld * leadTime;
             predictedTarget.x += Random.Range(-rockThrowAimJitterX, rockThrowAimJitterX);
             var trackHalfWidth = Mathf.Max(1.2f, _harassCrowd.trackHalfWidth * 0.96f);
             predictedTarget.x = Mathf.Clamp(predictedTarget.x, -trackHalfWidth, trackHalfWidth);
-            predictedTarget.y = Mathf.Max(transform.position.y - 0.08f, crowdPosition.y - 0.05f);
-            predictedTarget.z = Mathf.Clamp(predictedTarget.z, crowdPosition.z - 1.2f, crowdPosition.z + 1.4f);
+            predictedTarget.y = Mathf.Max(rockFloorY, crowdPosition.y - 0.04f);
+            var zLeadRange = Mathf.Max(2.1f, Mathf.Abs(_crowdVelocityWorld.z) * leadTime * 1.08f);
+            predictedTarget.z = Mathf.Clamp(predictedTarget.z, crowdPosition.z - 1.4f, crowdPosition.z + zLeadRange);
 
             var distance = Vector3.Distance(throwSource, predictedTarget);
-            var travelSpeed = ComputeRockTravelSpeed();
             var duration = Mathf.Clamp(distance / Mathf.Max(6f, travelSpeed), 0.42f, 2.4f);
             var radius = ComputeRockRadius();
             var arcHeight = Mathf.Max(0.8f, rockArcHeightBase + ((_harassLevelIndex - 1) * rockArcHeightPerLevel));
@@ -855,6 +950,13 @@ namespace MultiplyRush
             projectile.radius = radius;
             projectile.maxUnitLoss = maxLoss;
             projectile.isActive = true;
+            projectile.angularVelocity = new Vector3(
+                Random.Range(-330f, 330f),
+                Random.Range(-460f, 460f),
+                Random.Range(-330f, 330f));
+
+            TriggerBossThrowPose(usingLeftHand, Mathf.Clamp01(radius / 1.2f));
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.38f, Random.Range(0.66f, 0.8f));
 
             var scale = radius * 2f;
             projectile.root.gameObject.SetActive(true);
@@ -882,6 +984,62 @@ namespace MultiplyRush
             return true;
         }
 
+        private static float SolveInterceptTime(
+            Vector3 sourceWorld,
+            Vector3 targetWorld,
+            Vector3 targetVelocityWorld,
+            float projectileSpeed,
+            float fallbackTime)
+        {
+            var sourceXZ = new Vector2(sourceWorld.x, sourceWorld.z);
+            var targetXZ = new Vector2(targetWorld.x, targetWorld.z);
+            var velocityXZ = new Vector2(targetVelocityWorld.x, targetVelocityWorld.z);
+            var delta = targetXZ - sourceXZ;
+            var speed = Mathf.Max(0.01f, projectileSpeed);
+
+            var a = Vector2.Dot(velocityXZ, velocityXZ) - (speed * speed);
+            var b = 2f * Vector2.Dot(delta, velocityXZ);
+            var c = Vector2.Dot(delta, delta);
+
+            if (Mathf.Abs(a) < 0.0001f)
+            {
+                if (Mathf.Abs(b) < 0.0001f)
+                {
+                    return Mathf.Max(0.05f, fallbackTime);
+                }
+
+                var linearTime = -c / b;
+                return linearTime > 0.05f ? linearTime : Mathf.Max(0.05f, fallbackTime);
+            }
+
+            var discriminant = (b * b) - (4f * a * c);
+            if (discriminant < 0f)
+            {
+                return Mathf.Max(0.05f, fallbackTime);
+            }
+
+            var sqrt = Mathf.Sqrt(discriminant);
+            var t0 = (-b - sqrt) / (2f * a);
+            var t1 = (-b + sqrt) / (2f * a);
+            var candidate = float.MaxValue;
+            if (t0 > 0.05f)
+            {
+                candidate = t0;
+            }
+
+            if (t1 > 0.05f && t1 < candidate)
+            {
+                candidate = t1;
+            }
+
+            if (float.IsNaN(candidate) || float.IsInfinity(candidate) || candidate == float.MaxValue)
+            {
+                return Mathf.Max(0.05f, fallbackTime);
+            }
+
+            return candidate;
+        }
+
         private void UpdateRockProjectile(RockProjectile projectile, float deltaTime)
         {
             if (projectile == null || projectile.root == null)
@@ -893,15 +1051,23 @@ namespace MultiplyRush
             var t = projectile.duration > 0f
                 ? Mathf.Clamp01(projectile.elapsed / projectile.duration)
                 : 1f;
-            var basePosition = Vector3.Lerp(projectile.startWorld, projectile.targetWorld, t);
-            var arc = Mathf.Sin(t * Mathf.PI) * projectile.arcHeight;
-            var worldPosition = basePosition + (Vector3.up * arc);
+            var eased = t * t * (3f - (2f * t));
+            var basePosition = Vector3.Lerp(projectile.startWorld, projectile.targetWorld, eased);
+            var arc = Mathf.Sin(eased * Mathf.PI) * projectile.arcHeight;
+            var heavyDrop = eased * eased * projectile.arcHeight * 0.24f;
+            var worldPosition = basePosition + (Vector3.up * (arc - heavyDrop));
+            worldPosition.y = Mathf.Max(projectile.targetWorld.y + rockFloorY, worldPosition.y);
             projectile.root.position = worldPosition;
 
             var direction = projectile.targetWorld - projectile.startWorld;
             if (direction.sqrMagnitude > 0.0001f)
             {
                 projectile.root.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+            }
+
+            if (projectile.visual != null)
+            {
+                projectile.visual.Rotate(projectile.angularVelocity * Mathf.Max(0f, deltaTime), Space.Self);
             }
 
             if (projectile.shadow != null)
@@ -936,15 +1102,35 @@ namespace MultiplyRush
 
             var impactPoint = projectile.targetWorld;
             EmitRockImpactFx(impactPoint, projectile.radius);
+            AudioDirector.Instance?.PlaySfx(
+                AudioSfxCue.BattleHit,
+                Mathf.Lerp(0.54f, 0.94f, Mathf.Clamp01(projectile.radius / 2f)),
+                Random.Range(0.56f, 0.78f));
             if (_harassCrowd != null)
             {
-                var overlapBounds = new Bounds(
-                    impactPoint + new Vector3(0f, 0.55f, 0f),
-                    new Vector3(projectile.radius * 2f, 2.2f, projectile.radius * 2f));
-                var removed = _harassCrowd.ApplyCrushOverlapLoss(overlapBounds, projectile.maxUnitLoss, impactPoint);
+                var removed = _harassCrowd.ApplyCrushRadiusLoss(
+                    impactPoint,
+                    projectile.radius * 1.08f,
+                    projectile.maxUnitLoss);
+
+                if (removed <= 0)
+                {
+                    var crowdCenter = _harassCrowd.transform.position;
+                    crowdCenter.y = impactPoint.y;
+                    var delta = crowdCenter - impactPoint;
+                    delta.y = 0f;
+                    var fallbackRange = projectile.radius * 1.55f;
+                    if (delta.sqrMagnitude <= fallbackRange * fallbackRange)
+                    {
+                        removed = _harassCrowd.ApplyCrushRadiusLoss(
+                            crowdCenter,
+                            projectile.radius * 1.05f,
+                            Mathf.Max(1, projectile.maxUnitLoss / 2));
+                    }
+                }
+
                 if (removed > 0)
                 {
-                    AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.62f, Random.Range(0.72f, 0.88f));
                     HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
                 }
             }
@@ -1050,7 +1236,7 @@ namespace MultiplyRush
                 visual,
                 "ChunkA",
                 PrimitiveType.Cube,
-                _rockMaterial,
+                _rockAccentMaterial,
                 new Vector3(0.3f, 0.08f, -0.16f),
                 new Vector3(0.36f, 0.24f, 0.34f),
                 new Vector3(14f, 22f, -8f));
@@ -1058,10 +1244,42 @@ namespace MultiplyRush
                 visual,
                 "ChunkB",
                 PrimitiveType.Cube,
-                _rockMaterial,
+                _rockAccentMaterial,
                 new Vector3(-0.28f, -0.1f, 0.18f),
                 new Vector3(0.28f, 0.22f, 0.3f),
                 new Vector3(-10f, -16f, 9f));
+            CreateBossPart(
+                visual,
+                "ChunkC",
+                PrimitiveType.Capsule,
+                _rockMaterial,
+                new Vector3(0.02f, 0.22f, 0.04f),
+                new Vector3(0.18f, 0.14f, 0.2f),
+                new Vector3(24f, -28f, 12f));
+            CreateBossPart(
+                visual,
+                "ChunkD",
+                PrimitiveType.Cube,
+                _rockAccentMaterial,
+                new Vector3(-0.14f, 0.18f, -0.22f),
+                new Vector3(0.22f, 0.18f, 0.2f),
+                new Vector3(-18f, 34f, -12f));
+            CreateBossPart(
+                visual,
+                "ChunkE",
+                PrimitiveType.Cube,
+                _rockMaterial,
+                new Vector3(0.2f, -0.16f, 0.2f),
+                new Vector3(0.24f, 0.16f, 0.18f),
+                new Vector3(14f, -20f, 22f));
+            CreateBossPart(
+                visual,
+                "ChunkF",
+                PrimitiveType.Cube,
+                _rockAccentMaterial,
+                new Vector3(-0.22f, -0.12f, -0.04f),
+                new Vector3(0.18f, 0.14f, 0.26f),
+                new Vector3(-26f, -14f, -18f));
 
             var shadow = CreateBossPart(
                 projectileRoot,
@@ -1108,6 +1326,12 @@ namespace MultiplyRush
             if (_rockMaterial == null)
             {
                 _rockMaterial = CreateRuntimeMaterial("BossRockMaterial", rockColor, 0.06f, 0.08f);
+            }
+
+            if (_rockAccentMaterial == null)
+            {
+                var accent = Color.Lerp(rockColor, Color.black, 0.3f);
+                _rockAccentMaterial = CreateRuntimeMaterial("BossRockAccentMaterial", accent, 0.03f, 0.03f);
             }
 
             if (_rockTelegraphMaterial == null)
