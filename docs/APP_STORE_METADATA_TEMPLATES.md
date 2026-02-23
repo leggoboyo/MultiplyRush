@@ -88,15 +88,30 @@ Reviewer Notes:
 - Main flow: Main Menu -> Play -> Gameplay -> Finish Battle -> Win/Lose -> Next/Retry.
 ```
 
+## 5.1) App Review Contact Template (App Store Connect)
+
+```text
+Contact name: ZoKorp Games
+Contact email: Games@zokorp.com (placeholder, replace with live monitored mailbox before submission)
+Contact phone: [Add monitored phone number]
+```
+
 ## 6) Support + Privacy URLs
 
 - Marketing URL (optional): `https://leggoboyo.github.io/MultiplyRush/`
 - Support URL: `https://leggoboyo.github.io/MultiplyRush/support.html`
 - Privacy Policy URL: `https://leggoboyo.github.io/MultiplyRush/privacy.html`
 
+### Current public support identity (temporary pre-review setup)
+- Developer name: `ZoKorp Games`
+- Support email: `Games@zokorp.com` (placeholder until mailbox is provisioned)
+- Mailing address: `PO Box (to be finalized before App Review submission)`
+- Discord support channel: `to be added before App Review submission`
+
 ### Support URL content checklist
 Before submission, confirm the Support URL page includes:
 - Working support contact route (issue tracker and/or email form)
+- Live monitored support mailbox (no placeholder or dead address)
 - Clear instructions for bug reports
 - Contact details appropriate for your distribution regions
 

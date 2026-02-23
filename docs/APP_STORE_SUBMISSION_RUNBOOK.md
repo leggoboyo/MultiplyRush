@@ -66,6 +66,7 @@ Mark each item per release packet.
 - [ ] Metadata copied from templates and manually proofread.
 - [ ] Screenshots reflect current UI and real gameplay.
 - [ ] Support URL contains working contact channel and legal contact details as required in your target regions.
+- [ ] Any placeholder contact values are replaced (for example `Games@zokorp.com` and `PO Box TBD`).
 - [ ] Privacy policy URL is reachable and aligned with implementation.
 - [ ] Age rating questionnaire answers reviewed for current content.
 - [ ] “What’s New” text matches real shipped changes.

@@ -8,6 +8,7 @@ This file follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and u
 ### Added
 - Maintenance policy for side-project operations and App Store readiness.
 - Stronger App Store metadata templates with current Apple field constraints.
+- Public support contact section with developer identity and placeholder support email.
 
 ### Changed
 - Refreshed App Store submission runbook with current Apple requirements and updated 2026 deadlines.
