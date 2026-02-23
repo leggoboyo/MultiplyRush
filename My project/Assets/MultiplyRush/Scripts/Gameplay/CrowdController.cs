@@ -758,6 +758,53 @@ namespace MultiplyRush
             right = _laneTimeRight;
         }
 
+        public bool TryGetCrowdBounds(out Bounds bounds)
+        {
+            bounds = default;
+            if (_activeUnits.Count <= 0)
+            {
+                return false;
+            }
+
+            var hasValue = false;
+            var min = Vector3.zero;
+            var max = Vector3.zero;
+            for (var i = 0; i < _activeUnits.Count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                var world = unit.position;
+                if (!hasValue)
+                {
+                    min = world;
+                    max = world;
+                    hasValue = true;
+                }
+                else
+                {
+                    min = Vector3.Min(min, world);
+                    max = Vector3.Max(max, world);
+                }
+            }
+
+            if (!hasValue)
+            {
+                return false;
+            }
+
+            var center = (min + max) * 0.5f;
+            var size = max - min;
+            size.x = Mathf.Max(0.25f, size.x);
+            size.y = Mathf.Max(1.2f, size.y + 1f);
+            size.z = Mathf.Max(0.25f, size.z);
+            bounds = new Bounds(center, size);
+            return true;
+        }
+
         public void GetGateHitStats(
             out int betterHits,
             out int worseHits,

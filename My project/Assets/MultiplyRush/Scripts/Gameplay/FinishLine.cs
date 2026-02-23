@@ -53,18 +53,19 @@ namespace MultiplyRush
         public float rockThrowMinInterval = 0.72f;
         public float rockThrowIntervalJitter = 0.28f;
         public float rockThrowLeadTime = 0.45f;
+        public float rockThrowWindupDuration = 0.28f;
         public float rockThrowAimJitterX = 0.85f;
         public float rockTravelSpeedBase = 12f;
         public float rockTravelSpeedPerLevel = 0.09f;
         public float rockTravelSpeedHardBonus = 2.2f;
         public float rockArcHeightBase = 1.8f;
         public float rockArcHeightPerLevel = 0.025f;
-        public float rockRadiusBase = 0.55f;
+        public float rockRadiusBase = 0.72f;
         public float rockRadiusPerLevel = 0.012f;
         public float rockRadiusHardBonus = 0.12f;
-        public int rockLossBase = 4;
-        public float rockLossPerLevel = 0.2f;
-        public int rockLossHardBonus = 4;
+        public int rockLossBase = 8;
+        public float rockLossPerLevel = 0.32f;
+        public int rockLossHardBonus = 6;
         public float rockTelegraphScalePulse = 0.22f;
         public float rockFloorY = 0.02f;
         public Color rockColor = new Color(0.4f, 0.36f, 0.34f, 1f);
@@ -150,6 +151,8 @@ namespace MultiplyRush
         private Material _rockTelegraphMaterial;
         private Material _rockShadowMaterial;
         private ParticleSystem _rockImpactFx;
+        private Material _rockCraterMaterial;
+        private Material _rockCrackMaterial;
         private CrowdController _harassCrowd;
         private bool _harassActive;
         private int _harassLevelIndex = 1;
@@ -159,6 +162,9 @@ namespace MultiplyRush
         private Vector3 _crowdLastPosition;
         private Vector3 _crowdVelocityWorld;
         private bool _bossThrowFromLeft;
+        private bool _pendingRockLaunch;
+        private bool _pendingRockLaunchFromLeft;
+        private float _pendingRockLaunchTimer;
 
         public int EnemyCount => _enemyCount;
         public int TankRequirement => _tankRequirement;
@@ -360,6 +366,8 @@ namespace MultiplyRush
             _crowdVelocityWorld = Vector3.zero;
             _crowdLastPosition = crowd.transform.position;
             _harassThrowTimer = Mathf.Max(0.18f, ComputeRockThrowInterval() * 0.68f);
+            _pendingRockLaunch = false;
+            _pendingRockLaunchTimer = 0f;
         }
 
         public void StopMiniBossHarass()
@@ -369,6 +377,8 @@ namespace MultiplyRush
             _hasCrowdVelocity = false;
             _crowdVelocityWorld = Vector3.zero;
             _harassThrowTimer = 0f;
+            _pendingRockLaunch = false;
+            _pendingRockLaunchTimer = 0f;
             _bossThrowActive = false;
             _bossThrowElapsed = 0f;
             _bossThrowDuration = 0f;
@@ -867,13 +877,29 @@ namespace MultiplyRush
                 _harassThrowTimer -= deltaTime;
                 if (_harassThrowTimer <= 0f)
                 {
-                    if (TryLaunchRock(crowdPosition))
+                    if (!_pendingRockLaunch && !_bossThrowActive)
                     {
+                        _pendingRockLaunchFromLeft = _bossThrowFromLeft;
+                        _bossThrowFromLeft = !_bossThrowFromLeft;
+                        TriggerBossThrowPose(_pendingRockLaunchFromLeft, Mathf.Lerp(0.86f, 1.22f, Mathf.Clamp01((_harassLevelIndex - 1) / 90f)));
+                        _pendingRockLaunch = true;
+                        _pendingRockLaunchTimer = Mathf.Max(0.14f, rockThrowWindupDuration);
                         _harassThrowTimer = ComputeRockThrowInterval();
                     }
-                    else
+                }
+
+                if (_pendingRockLaunch)
+                {
+                    _pendingRockLaunchTimer -= deltaTime;
+                    if (_pendingRockLaunchTimer <= 0f)
                     {
-                        _harassThrowTimer = Mathf.Max(0.2f, ComputeRockThrowInterval() * 0.45f);
+                        if (!TryLaunchRock(crowdPosition, _pendingRockLaunchFromLeft))
+                        {
+                            _harassThrowTimer = Mathf.Min(_harassThrowTimer, Mathf.Max(0.2f, ComputeRockThrowInterval() * 0.45f));
+                        }
+
+                        _pendingRockLaunch = false;
+                        _pendingRockLaunchTimer = 0f;
                     }
                 }
             }
@@ -890,7 +916,7 @@ namespace MultiplyRush
             }
         }
 
-        private bool TryLaunchRock(Vector3 crowdPosition)
+        private bool TryLaunchRock(Vector3 crowdPosition, bool useLeftHand)
         {
             if (_harassCrowd == null)
             {
@@ -907,11 +933,9 @@ namespace MultiplyRush
                 ? _bossAimPoint.position
                 : _bossVisual.position + (_bossVisual.forward * 1.2f) + (Vector3.up * 1.3f);
 
-            var usingLeftHand = _bossThrowFromLeft;
             if (_bossLeftHandPivot != null && _bossRightHandPivot != null)
             {
-                throwSource = usingLeftHand ? _bossLeftHandPivot.position : _bossRightHandPivot.position;
-                _bossThrowFromLeft = !_bossThrowFromLeft;
+                throwSource = useLeftHand ? _bossLeftHandPivot.position : _bossRightHandPivot.position;
             }
 
             var travelSpeed = ComputeRockTravelSpeed();
@@ -928,13 +952,20 @@ namespace MultiplyRush
             var leadTime = Mathf.Clamp(interceptTime + Mathf.Clamp(rockThrowLeadTime * 0.18f, 0f, 0.24f), 0.2f, 2.8f);
 
             var predictedTarget = crowdPosition;
+            if (_harassCrowd.TryGetCrowdBounds(out var crowdBounds))
+            {
+                predictedTarget = crowdBounds.center;
+                predictedTarget.x += Random.Range(-crowdBounds.extents.x * 0.75f, crowdBounds.extents.x * 0.75f);
+                predictedTarget.z += Random.Range(-crowdBounds.extents.z * 0.55f, crowdBounds.extents.z * 0.3f);
+            }
+
             predictedTarget += _crowdVelocityWorld * leadTime;
             predictedTarget.x += Random.Range(-rockThrowAimJitterX, rockThrowAimJitterX);
             var trackHalfWidth = Mathf.Max(1.2f, _harassCrowd.trackHalfWidth * 0.96f);
             predictedTarget.x = Mathf.Clamp(predictedTarget.x, -trackHalfWidth, trackHalfWidth);
             predictedTarget.y = Mathf.Max(rockFloorY, crowdPosition.y - 0.04f);
             var zLeadRange = Mathf.Max(2.1f, Mathf.Abs(_crowdVelocityWorld.z) * leadTime * 1.08f);
-            predictedTarget.z = Mathf.Clamp(predictedTarget.z, crowdPosition.z - 1.4f, crowdPosition.z + zLeadRange);
+            predictedTarget.z = Mathf.Clamp(predictedTarget.z, crowdPosition.z - 2.6f, crowdPosition.z + zLeadRange);
 
             var distance = Vector3.Distance(throwSource, predictedTarget);
             var duration = Mathf.Clamp(distance / Mathf.Max(6f, travelSpeed), 0.42f, 2.4f);
@@ -954,8 +985,6 @@ namespace MultiplyRush
                 Random.Range(-330f, 330f),
                 Random.Range(-460f, 460f),
                 Random.Range(-330f, 330f));
-
-            TriggerBossThrowPose(usingLeftHand, Mathf.Clamp01(radius / 1.2f));
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.38f, Random.Range(0.66f, 0.8f));
 
             var scale = radius * 2f;
@@ -1102,6 +1131,7 @@ namespace MultiplyRush
 
             var impactPoint = projectile.targetWorld;
             EmitRockImpactFx(impactPoint, projectile.radius);
+            StartCoroutine(AnimateRockImpactCrater(impactPoint, projectile.radius));
             AudioDirector.Instance?.PlaySfx(
                 AudioSfxCue.BattleHit,
                 Mathf.Lerp(0.54f, 0.94f, Mathf.Clamp01(projectile.radius / 2f)),
@@ -1133,6 +1163,10 @@ namespace MultiplyRush
                 {
                     HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
                 }
+            }
+            else
+            {
+                HapticsDirector.Instance?.Play(HapticCue.LightTap);
             }
 
             projectile.isActive = false;
@@ -1344,6 +1378,18 @@ namespace MultiplyRush
                 _rockShadowMaterial = CreateRuntimeMaterial("BossRockShadowMaterial", rockShadowColor, 0f, 0f);
             }
 
+            if (_rockCraterMaterial == null)
+            {
+                var craterColor = new Color(0.1f, 0.08f, 0.08f, 0.52f);
+                _rockCraterMaterial = CreateRuntimeMaterial("BossRockCraterMaterial", craterColor, 0f, 0f);
+            }
+
+            if (_rockCrackMaterial == null)
+            {
+                var crackColor = new Color(1f, 0.62f, 0.32f, 0.62f);
+                _rockCrackMaterial = CreateRuntimeMaterial("BossRockCrackMaterial", crackColor, 0f, 0.36f);
+            }
+
             EnsureRockImpactFx();
         }
 
@@ -1418,6 +1464,117 @@ namespace MultiplyRush
             };
             var count = Mathf.Clamp(Mathf.RoundToInt(14f + (radius * 14f)), 10, 56);
             _rockImpactFx.Emit(emitParams, count);
+        }
+
+        private System.Collections.IEnumerator AnimateRockImpactCrater(Vector3 impactPoint, float radius)
+        {
+            EnsureRockBarrageAssets();
+            var craterRoot = new GameObject("RockCraterFx").transform;
+            craterRoot.SetParent(transform, true);
+            craterRoot.position = new Vector3(impactPoint.x, impactPoint.y + 0.015f, impactPoint.z);
+            craterRoot.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+
+            var baseRadius = Mathf.Max(0.45f, radius);
+            var craterDisk = CreateBossPart(
+                craterRoot,
+                "CraterDisk",
+                PrimitiveType.Cylinder,
+                _rockCraterMaterial,
+                Vector3.zero,
+                new Vector3(baseRadius * 0.64f, 0.008f, baseRadius * 0.64f));
+            var crackRing = CreateBossPart(
+                craterRoot,
+                "CraterRing",
+                PrimitiveType.Cylinder,
+                _rockCrackMaterial,
+                new Vector3(0f, 0.004f, 0f),
+                new Vector3(baseRadius * 0.58f, 0.006f, baseRadius * 0.58f));
+            var ringRenderer = crackRing != null ? crackRing.GetComponent<MeshRenderer>() : null;
+            var diskRenderer = craterDisk != null ? craterDisk.GetComponent<MeshRenderer>() : null;
+
+            var shards = new List<Transform>(6);
+            for (var i = 0; i < 6; i++)
+            {
+                var shard = CreateBossPart(
+                    craterRoot,
+                    "Shard_" + i,
+                    PrimitiveType.Cube,
+                    _rockAccentMaterial != null ? _rockAccentMaterial : _rockMaterial,
+                    new Vector3(Random.Range(-baseRadius * 0.22f, baseRadius * 0.22f), 0.03f, Random.Range(-baseRadius * 0.22f, baseRadius * 0.22f)),
+                    new Vector3(Random.Range(0.08f, 0.16f), Random.Range(0.06f, 0.12f), Random.Range(0.08f, 0.16f)),
+                    new Vector3(Random.Range(-22f, 22f), Random.Range(0f, 360f), Random.Range(-22f, 22f)));
+                shards.Add(shard);
+            }
+
+            var elapsed = 0f;
+            var duration = 0.48f;
+            while (elapsed < duration)
+            {
+                var dt = Mathf.Max(0.001f, Time.deltaTime);
+                elapsed += dt;
+                var t = Mathf.Clamp01(elapsed / duration);
+                var craterScale = Mathf.Lerp(0.56f, 1.1f, t);
+                var ringScale = Mathf.Lerp(0.42f, 1.25f, t);
+                if (craterDisk != null)
+                {
+                    craterDisk.localScale = new Vector3(baseRadius * craterScale, 0.008f, baseRadius * craterScale);
+                }
+
+                if (crackRing != null)
+                {
+                    crackRing.localScale = new Vector3(baseRadius * ringScale, 0.006f, baseRadius * ringScale);
+                    crackRing.localRotation = Quaternion.Euler(0f, Mathf.Lerp(0f, 42f, t), 0f);
+                }
+
+                for (var i = 0; i < shards.Count; i++)
+                {
+                    var shard = shards[i];
+                    if (shard == null)
+                    {
+                        continue;
+                    }
+
+                    var radial = (i / Mathf.Max(1f, shards.Count - 1f)) - 0.5f;
+                    shard.localPosition += new Vector3(radial * dt * 1.2f, dt * Mathf.Lerp(0.48f, -0.38f, t), dt * 0.26f);
+                    shard.Rotate(Vector3.up * dt * 120f, Space.Self);
+                }
+
+                var alpha = Mathf.Lerp(0.72f, 0f, t);
+                if (ringRenderer != null)
+                {
+                    var ringColor = _rockCrackMaterial != null ? _rockCrackMaterial.color : rockTelegraphColor;
+                    ringColor.a = alpha * 0.92f;
+                    SetRendererColor(ringRenderer, ringColor);
+                }
+
+                if (diskRenderer != null)
+                {
+                    var diskColor = _rockCraterMaterial != null ? _rockCraterMaterial.color : rockShadowColor;
+                    diskColor.a = alpha * 0.64f;
+                    SetRendererColor(diskRenderer, diskColor);
+                }
+
+                yield return null;
+            }
+
+            if (craterRoot != null)
+            {
+                Destroy(craterRoot.gameObject);
+            }
+        }
+
+        private static void SetRendererColor(MeshRenderer renderer, Color color)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            var block = new MaterialPropertyBlock();
+            renderer.GetPropertyBlock(block);
+            block.SetColor("_BaseColor", color);
+            block.SetColor("_Color", color);
+            renderer.SetPropertyBlock(block);
         }
 
         private static float EaseOutCubic(float t)
