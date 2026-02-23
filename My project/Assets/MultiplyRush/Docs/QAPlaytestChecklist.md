@@ -55,3 +55,11 @@ Use this checklist before every App Store submission build.
 - All `[FAIL]` checks resolved.
 - Remaining `[WARN]` checks intentionally accepted or fixed.
 - Increment app version + build number before final archive.
+
+## 8) App Store Packaging
+- Update `CHANGELOG.md` with this release’s shipped changes.
+- Finalize metadata using `docs/APP_STORE_METADATA_TEMPLATES.md`.
+- Confirm compliance matrix still matches current app behavior:
+  - `docs/APP_STORE_COMPLIANCE_MATRIX.md`
+- Generate and fill a release packet from:
+  - `docs/RELEASE_PACKET_TEMPLATE.md`

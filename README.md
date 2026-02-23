@@ -52,6 +52,20 @@ After enabling GitHub Pages for this repository, the site will be available at:
 4. Resolve `[WARN]` items that apply to your final submission (bundle ID, icons, metadata).
 5. Build iOS and archive in Xcode for App Store Connect upload.
 
+## App Store Documentation Pack
+- Developer docs index:
+  - `docs/DEVELOPER_DOCS_INDEX.md`
+- Changelog (release notes source of truth):
+  - `CHANGELOG.md`
+- Submission runbook:
+  - `docs/APP_STORE_SUBMISSION_RUNBOOK.md`
+- Metadata templates:
+  - `docs/APP_STORE_METADATA_TEMPLATES.md`
+- Apple compliance matrix:
+  - `docs/APP_STORE_COMPLIANCE_MATRIX.md`
+- Per-release packet template:
+  - `docs/RELEASE_PACKET_TEMPLATE.md`
+
 ## CI + Hygiene
 - Offline policy is enforced in CI via `.github/workflows/offline-policy.yml`.
 - Local check command:
