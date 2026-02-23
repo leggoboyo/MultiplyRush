@@ -608,6 +608,73 @@ namespace MultiplyRush
             return removed;
         }
 
+        public int ApplyCrushOverlapLoss(Bounds impactBounds, int maxUnitsToRemove, Vector3 impactCenterWorld)
+        {
+            if (maxUnitsToRemove <= 0 || _count <= 0 || _activeUnits.Count <= 0)
+            {
+                return 0;
+            }
+
+            var minX = impactBounds.min.x;
+            var maxX = impactBounds.max.x;
+            var minZ = impactBounds.min.z;
+            var maxZ = impactBounds.max.z;
+
+            _hazardOverlapIndices.Clear();
+            for (var i = 0; i < _activeUnits.Count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                var position = unit.position;
+                if (position.x < minX || position.x > maxX || position.z < minZ || position.z > maxZ)
+                {
+                    continue;
+                }
+
+                _hazardOverlapIndices.Add(i);
+            }
+
+            if (_hazardOverlapIndices.Count <= 0)
+            {
+                return 0;
+            }
+
+            _hazardOverlapIndices.Sort();
+            var safeRemovalCount = Mathf.Min(maxUnitsToRemove, _hazardOverlapIndices.Count, _count);
+            var removalFxBudget = Mathf.Clamp(safeRemovalCount, 1, Mathf.Max(1, maxDeathFxPerLossWave * 2));
+            var removed = 0;
+            for (var i = safeRemovalCount - 1; i >= 0; i--)
+            {
+                var visibleIndex = _hazardOverlapIndices[i];
+                if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
+                {
+                    continue;
+                }
+
+                var crushDelay = (safeRemovalCount - 1 - i) * 0.01f;
+                RemoveVisibleUnitAtIndexForCrush(visibleIndex, removalFxBudget > 0, impactCenterWorld, crushDelay);
+                removalFxBudget--;
+                removed++;
+            }
+
+            if (removed <= 0)
+            {
+                return 0;
+            }
+
+            var suppressPop = _suppressUnitGainPop;
+            _suppressUnitGainPop = true;
+            SetCount(_count - removed, true);
+            _suppressUnitGainPop = suppressPop;
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.44f, UnityEngine.Random.Range(0.76f, 0.92f));
+            TriggerGatePunch(new Color(1f, 0.44f, 0.36f, 1f));
+            return removed;
+        }
+
         public bool ActivateShield()
         {
             if (_shieldActive || !_isRunning)
@@ -1283,6 +1350,30 @@ namespace MultiplyRush
             _frontShootersDirty = true;
         }
 
+        private void RemoveVisibleUnitAtIndexForCrush(int visibleIndex, bool spawnCrushFx, Vector3 impactCenterWorld, float crushDelay = 0f)
+        {
+            if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
+            {
+                return;
+            }
+
+            var unit = _activeUnits[visibleIndex];
+            _activeUnits.RemoveAt(visibleIndex);
+            _unitMuzzles.RemoveAt(visibleIndex);
+            _unitAnimators.RemoveAt(visibleIndex);
+            _formationSlots.RemoveAt(visibleIndex);
+            _unitPhaseOffsets.RemoveAt(visibleIndex);
+            _unitGainPopTimers.RemoveAt(visibleIndex);
+
+            if (spawnCrushFx)
+            {
+                SpawnCrushDeathFx(unit, impactCenterWorld, crushDelay);
+            }
+
+            ReturnUnitToPool(unit);
+            _frontShootersDirty = true;
+        }
+
         private void SpawnPitFallDeathFx(Transform unit, Vector3 pitCenterWorld, float fallDelay)
         {
             if (!enableBattleDeathFx || unit == null)
@@ -1311,6 +1402,38 @@ namespace MultiplyRush
                 -0.95f,
                 -0.12f,
                 Mathf.Clamp(fallDelay, 0f, 0.24f));
+        }
+
+        private void SpawnCrushDeathFx(Transform unit, Vector3 impactCenterWorld, float crushDelay)
+        {
+            if (!enableBattleDeathFx || unit == null)
+            {
+                return;
+            }
+
+            var lateralPull = impactCenterWorld - unit.position;
+            lateralPull.y = 0f;
+            if (lateralPull.sqrMagnitude > 0.0001f)
+            {
+                lateralPull = lateralPull.normalized;
+            }
+
+            var directionalImpulse =
+                (lateralPull * UnityEngine.Random.Range(0.2f, 0.55f)) +
+                (Vector3.down * UnityEngine.Random.Range(2.4f, 3.7f));
+            UnitDeathFx.Spawn(
+                this,
+                unit,
+                deathFxDuration * 0.82f,
+                directionalImpulse,
+                deathFxRandomImpulse * 0.12f,
+                deathFxGravity * 1.82f,
+                0.04f,
+                0f,
+                EmitBattleDeathPoof,
+                -0.85f,
+                -0.08f,
+                Mathf.Clamp(crushDelay, 0f, 0.2f));
         }
 
         private void EmitBattleDeathPoof(Vector3 position)

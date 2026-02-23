@@ -165,6 +165,8 @@ namespace MultiplyRush
                 finishLine.enemyGroup.EndCombat();
             }
 
+            finishLine?.StopMiniBossHarass();
+
             var startCount = _currentBuild.startCount;
             if (_pendingReinforcementKit)
             {
@@ -219,6 +221,10 @@ namespace MultiplyRush
             AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
             _roundActive = true;
             _state = GameFlowState.Running;
+            if (_currentBuild.isMiniBoss && finishLine != null)
+            {
+                finishLine.BeginMiniBossHarass(playerCrowd, _currentLevelIndex, _difficultyMode);
+            }
         }
 
         private void OnCountChanged(int count)
@@ -238,6 +244,8 @@ namespace MultiplyRush
 
             _roundActive = false;
             _state = GameFlowState.Battling;
+            var finishLine = levelGenerator != null ? levelGenerator.GetActiveFinishLine() : null;
+            finishLine?.StopMiniBossHarass();
             if (pauseMenu != null)
             {
                 pauseMenu.ForceResume(true);
