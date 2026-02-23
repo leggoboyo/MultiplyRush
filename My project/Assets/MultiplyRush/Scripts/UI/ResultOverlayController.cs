@@ -275,9 +275,9 @@ namespace MultiplyRush
 
             if (_winSweepImage != null)
             {
-                _winSweepImage.gameObject.SetActive(didWin);
+                _winSweepImage.gameObject.SetActive(false);
                 _winSweepImage.color = didWin
-                    ? new Color(0.72f, 0.98f, 1f, 0.22f)
+                    ? new Color(0.72f, 0.98f, 1f, 0.08f)
                     : new Color(1f, 0.42f, 0.42f, 0.14f);
             }
 
@@ -933,8 +933,8 @@ namespace MultiplyRush
                 Mathf.Clamp(panelWidth * 0.3f, 240f, 286f),
                 ultraCompact ? 60f : 68f);
 
-            var primaryY = -(panelHeight * (showBuffButtons ? 0.39f : 0.41f));
-            var secondaryY = primaryY - (ultraCompact ? 74f : 82f);
+            var primaryY = -(panelHeight * (showBuffButtons ? 0.34f : 0.35f));
+            var secondaryY = primaryY - (ultraCompact ? 66f : 74f);
 
             if (_lastDidWin)
             {
@@ -948,11 +948,11 @@ namespace MultiplyRush
                 var buffWidth = Mathf.Clamp(panelWidth * 0.34f, 220f, 262f);
                 var buffHeight = ultraCompact ? 56f : 64f;
                 var buffOffset = Mathf.Clamp(panelWidth * 0.19f, 124f, 162f);
-                var buffY = -(panelHeight * 0.28f);
+                var buffY = -(panelHeight * 0.24f);
                 ApplyButtonRect(reinforcementButton, new Vector2(buffWidth, buffHeight), new Vector2(-buffOffset, buffY));
                 ApplyButtonRect(shieldButton, new Vector2(buffWidth, buffHeight), new Vector2(buffOffset, buffY));
-                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, -(panelHeight * 0.4f)));
-                ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, -(panelHeight * 0.5f)));
+                ApplyButtonRect(mainMenuButton, secondaryButtonSize, new Vector2(0f, -(panelHeight * 0.36f)));
+                ApplyButtonRect(retryButton, primaryButtonSize, new Vector2(0f, -(panelHeight * 0.45f)));
                 return;
             }
 
@@ -1107,15 +1107,21 @@ namespace MultiplyRush
             _winSilhouetteBand = EnsureImage(
                 _panelRect,
                 "WinSilhouetteBand",
-                new Color(0.64f, 0.96f, 1f, 0.16f),
+                new Color(0.64f, 0.96f, 1f, 0.04f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 250f),
                 new Vector2(720f, 92f));
             _winSilhouetteBandRect = _winSilhouetteBand.rectTransform;
             _winSilhouetteBand.raycastTarget = false;
+            if (_winGlowSprite != null)
+            {
+                _winSilhouetteBand.sprite = _winGlowSprite;
+                _winSilhouetteBand.type = Image.Type.Simple;
+                _winSilhouetteBand.preserveAspect = true;
+            }
 
-            const int rayCount = 5;
+            const int rayCount = 0;
             _winRayRects.Clear();
             _winRayBaseY.Clear();
             _winRaySpeeds.Clear();
@@ -1181,6 +1187,8 @@ namespace MultiplyRush
                 _winStarPhases.Add(Mathf.Repeat(i * 0.347f, 1f));
             }
 
+            HideLegacyWinRays();
+
             if (_winAuraOuterRect != null)
             {
                 _winAuraOuterRect.SetAsFirstSibling();
@@ -1230,7 +1238,7 @@ namespace MultiplyRush
             if (_winSilhouetteBandRect != null)
             {
                 _winSilhouetteBandRect.anchoredPosition = new Vector2(0f, panelHeight * 0.28f);
-                _winSilhouetteBandRect.sizeDelta = new Vector2(panelWidth * 0.8f, panelHeight * 0.11f);
+                _winSilhouetteBandRect.sizeDelta = new Vector2(panelWidth * 0.76f, panelHeight * 0.08f);
             }
 
             var rayCount = Mathf.Min(_winRayRects.Count, Mathf.Min(_winRayBaseY.Count, _winRaySpeeds.Count));
@@ -1267,7 +1275,6 @@ namespace MultiplyRush
 
         private void AnimateWinBackdrop(float runTime, float deltaTime)
         {
-            var targetWinAlpha = _lastDidWin ? 1f : 0f;
             var alphaBlend = 1f - Mathf.Exp(-Mathf.Max(1f, 9f) * Mathf.Max(0f, deltaTime));
 
             if (_winAuraOuter != null)
@@ -1304,7 +1311,7 @@ namespace MultiplyRush
             {
                 var current = _winSilhouetteBand.color.a;
                 var target = _lastDidWin
-                    ? (0.07f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 2.5f) + 0.2f)) * 0.1f)
+                    ? (0.02f + Mathf.Abs(Mathf.Sin((runTime * winBackdropPulseSpeed * 2.5f) + 0.2f)) * 0.04f)
                     : 0f;
                 var alpha = Mathf.Lerp(current, target, alphaBlend);
                 _winSilhouetteBand.color = new Color(0.66f, 0.98f, 1f, alpha);
@@ -1364,6 +1371,30 @@ namespace MultiplyRush
                 image.color = new Color(0.78f, 0.98f, 1f, Mathf.Lerp(image.color.a, targetAlpha, alphaBlend));
                 var scalePulse = 0.9f + Mathf.Abs(Mathf.Sin((runTime * 2.4f * _winStarSpeeds[i]) + phase)) * 0.4f;
                 starRect.localScale = Vector3.Lerp(starRect.localScale, Vector3.one * scalePulse, alphaBlend);
+            }
+        }
+
+        private void HideLegacyWinRays()
+        {
+            if (_panelRect == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _panelRect.childCount; i++)
+            {
+                var child = _panelRect.GetChild(i);
+                if (child == null)
+                {
+                    continue;
+                }
+
+                if (!child.name.StartsWith("WinRay_", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                child.gameObject.SetActive(false);
             }
         }
 
