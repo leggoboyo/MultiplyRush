@@ -1965,7 +1965,18 @@ namespace MultiplyRush
                         }
 
                         pitFlatLoss = Mathf.Clamp(pitFlatLoss, 2, 1000000);
-                        var pitSizeMultiplier = 1f + (gateDifficulty01 * 0.4f) + (modifier.hazardRush ? 0.2f : 0f);
+                        var pitModeScale = 1f;
+                        switch (difficultyMode)
+                        {
+                            case DifficultyMode.Easy:
+                                pitModeScale = 0.86f;
+                                break;
+                            case DifficultyMode.Hard:
+                                pitModeScale = 1.28f;
+                                break;
+                        }
+
+                        var pitSizeMultiplier = (1f + (gateDifficulty01 * 0.4f) + (modifier.hazardRush ? 0.2f : 0f)) * pitModeScale;
                         generated.hazards.Add(new HazardSpec
                         {
                             lane = lane,

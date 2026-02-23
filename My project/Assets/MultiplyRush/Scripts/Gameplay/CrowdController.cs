@@ -107,6 +107,7 @@ namespace MultiplyRush
         private readonly List<float> _unitGainPopTimers = new List<float>(160);
         private readonly List<int> _frontShooterIndices = new List<int>(160);
         private readonly List<Vector3> _battleLossSamplePositions = new List<Vector3>(32);
+        private readonly List<int> _hazardOverlapIndices = new List<int>(96);
 
         private Transform _poolRoot;
         private Transform _leaderVisual;
@@ -343,13 +344,30 @@ namespace MultiplyRush
 
             if (other.TryGetComponent<HazardZone>(out var hazard))
             {
-                hazard.TryApply(this);
+                if (!hazard.TryApply(this))
+                {
+                    hazard.TryApplyContinuous(this, Time.fixedDeltaTime);
+                }
+
                 return;
             }
 
             if (other.TryGetComponent<FinishLine>(out var finishLine))
             {
                 finishLine.TryTrigger(this);
+            }
+        }
+
+        private void OnTriggerStay(Collider other)
+        {
+            if (!_isRunning)
+            {
+                return;
+            }
+
+            if (other.TryGetComponent<HazardZone>(out var hazard))
+            {
+                hazard.TryApplyContinuous(this, Time.fixedDeltaTime);
             }
         }
 
@@ -517,6 +535,76 @@ namespace MultiplyRush
 
             SetCount(_count + amount);
             TriggerGatePunch(new Color(0.34f, 1f, 0.66f, 1f));
+        }
+
+        public int ApplyPitOverlapLoss(Bounds pitBounds, int maxUnitsToRemove, Vector3 pitCenterWorld)
+        {
+            if (maxUnitsToRemove <= 0 || _count <= 0 || _activeUnits.Count <= 0)
+            {
+                return 0;
+            }
+
+            var minX = pitBounds.min.x;
+            var maxX = pitBounds.max.x;
+            var minZ = pitBounds.min.z;
+            var maxZ = pitBounds.max.z;
+
+            _hazardOverlapIndices.Clear();
+            for (var i = 0; i < _activeUnits.Count; i++)
+            {
+                var unit = _activeUnits[i];
+                if (unit == null)
+                {
+                    continue;
+                }
+
+                var position = unit.position;
+                if (position.x < minX || position.x > maxX || position.z < minZ || position.z > maxZ)
+                {
+                    continue;
+                }
+
+                _hazardOverlapIndices.Add(i);
+            }
+
+            if (_hazardOverlapIndices.Count <= 0)
+            {
+                return 0;
+            }
+
+            _hazardOverlapIndices.Sort();
+            var safeRemovalCount = Mathf.Min(maxUnitsToRemove, _hazardOverlapIndices.Count, _count);
+            var removalFxBudget = Mathf.Clamp(
+                Mathf.RoundToInt(Mathf.Sqrt(Mathf.Max(1, safeRemovalCount)) * 2.35f),
+                1,
+                Mathf.Max(1, maxDeathFxPerLossWave));
+            var removed = 0;
+
+            for (var i = safeRemovalCount - 1; i >= 0; i--)
+            {
+                var visibleIndex = _hazardOverlapIndices[i];
+                if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
+                {
+                    continue;
+                }
+
+                RemoveVisibleUnitAtIndex(visibleIndex, removalFxBudget > 0, pitCenterWorld);
+                removalFxBudget--;
+                removed++;
+            }
+
+            if (removed <= 0)
+            {
+                return 0;
+            }
+
+            var suppressPop = _suppressUnitGainPop;
+            _suppressUnitGainPop = true;
+            SetCount(_count - removed, true);
+            _suppressUnitGainPop = suppressPop;
+            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.35f, UnityEngine.Random.Range(0.92f, 1.04f));
+            TriggerGatePunch(new Color(1f, 0.54f, 0.42f, 1f));
+            return removed;
         }
 
         public bool ActivateShield()
@@ -1167,6 +1255,59 @@ namespace MultiplyRush
                 0.55f,
                 0.05f,
                 EmitBattleDeathPoof);
+        }
+
+        private void RemoveVisibleUnitAtIndex(int visibleIndex, bool spawnPitFallFx, Vector3 pitCenterWorld)
+        {
+            if (visibleIndex < 0 || visibleIndex >= _activeUnits.Count)
+            {
+                return;
+            }
+
+            var unit = _activeUnits[visibleIndex];
+            _activeUnits.RemoveAt(visibleIndex);
+            _unitMuzzles.RemoveAt(visibleIndex);
+            _unitAnimators.RemoveAt(visibleIndex);
+            _formationSlots.RemoveAt(visibleIndex);
+            _unitPhaseOffsets.RemoveAt(visibleIndex);
+            _unitGainPopTimers.RemoveAt(visibleIndex);
+
+            if (spawnPitFallFx)
+            {
+                SpawnPitFallDeathFx(unit, pitCenterWorld);
+            }
+
+            ReturnUnitToPool(unit);
+            _frontShootersDirty = true;
+        }
+
+        private void SpawnPitFallDeathFx(Transform unit, Vector3 pitCenterWorld)
+        {
+            if (!enableBattleDeathFx || unit == null)
+            {
+                return;
+            }
+
+            var lateralPull = pitCenterWorld - unit.position;
+            lateralPull.y = 0f;
+            if (lateralPull.sqrMagnitude > 0.0001f)
+            {
+                lateralPull = lateralPull.normalized;
+            }
+
+            var directionalImpulse = (lateralPull * UnityEngine.Random.Range(0.3f, 0.95f)) + (Vector3.down * UnityEngine.Random.Range(1.4f, 2.35f));
+            UnitDeathFx.Spawn(
+                this,
+                unit,
+                deathFxDuration * 0.95f,
+                directionalImpulse,
+                deathFxRandomImpulse * 0.25f,
+                deathFxGravity * 1.3f,
+                0.14f,
+                0.01f,
+                EmitBattleDeathPoof,
+                -0.7f,
+                0.3f);
         }
 
         private void EmitBattleDeathPoof(Vector3 position)

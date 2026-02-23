@@ -15,7 +15,9 @@ namespace MultiplyRush
             float gravity,
             float shrinkStart,
             float endScale,
-            Action<Vector3> onFinished = null)
+            Action<Vector3> onFinished = null,
+            float upwardImpulseMin = 1f,
+            float upwardImpulseMax = 2.8f)
         {
             if (host == null || sourceUnit == null || sourceUnit.gameObject == null)
             {
@@ -31,7 +33,17 @@ namespace MultiplyRush
             clone.name = sourceUnit.name + "_DeathFx";
             clone.SetActive(true);
             StripInteractiveComponents(clone);
-            host.StartCoroutine(AnimateDeathClone(clone.transform, duration, directionalImpulse, randomImpulse, gravity, shrinkStart, endScale, onFinished));
+            host.StartCoroutine(AnimateDeathClone(
+                clone.transform,
+                duration,
+                directionalImpulse,
+                randomImpulse,
+                gravity,
+                shrinkStart,
+                endScale,
+                onFinished,
+                upwardImpulseMin,
+                upwardImpulseMax));
         }
 
         private static void StripInteractiveComponents(GameObject clone)
@@ -90,7 +102,9 @@ namespace MultiplyRush
             float gravity,
             float shrinkStart,
             float endScale,
-            Action<Vector3> onFinished)
+            Action<Vector3> onFinished,
+            float upwardImpulseMin,
+            float upwardImpulseMax)
         {
             if (clone == null)
             {
@@ -102,9 +116,11 @@ namespace MultiplyRush
             var targetScale = Vector3.one * Mathf.Clamp(endScale, 0f, 0.85f);
             var baseScale = clone.localScale;
             var elapsed = 0f;
+            var safeUpMin = Mathf.Min(upwardImpulseMin, upwardImpulseMax);
+            var safeUpMax = Mathf.Max(upwardImpulseMin, upwardImpulseMax);
             var velocity = directionalImpulse + new Vector3(
                 UnityEngine.Random.Range(-randomImpulse, randomImpulse),
-                Mathf.Lerp(1f, 2.8f, UnityEngine.Random.value),
+                UnityEngine.Random.Range(safeUpMin, safeUpMax),
                 UnityEngine.Random.Range(-randomImpulse, randomImpulse));
             var angularVelocity = new Vector3(
                 UnityEngine.Random.Range(-220f, 220f),
