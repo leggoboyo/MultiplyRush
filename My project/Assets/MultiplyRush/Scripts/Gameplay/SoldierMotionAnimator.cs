@@ -68,7 +68,7 @@ namespace MultiplyRush
             _fireKick = Mathf.MoveTowards(_fireKick, 0f, deltaTime * 9f);
 
             var motion = _movingBlend * Mathf.Clamp(intensity, 0.4f, 2.8f);
-            var cycleRate = Mathf.Lerp(5.2f, 8.2f, motion * 0.7f);
+            var cycleRate = Mathf.Lerp(4.6f, 6.8f, motion * 0.75f);
             var cycleTime = (Time.time + _phaseOffset) * cycleRate;
             var stride = Mathf.Sin(cycleTime);
             var strideOpposite = Mathf.Sin(cycleTime + Mathf.PI);
@@ -79,8 +79,9 @@ namespace MultiplyRush
             var aimBlend = _combatBlend * 13f;
             var recoil = _fireKick;
 
-            var torsoLean = 4f * motion + aimBlend;
-            var bodyBob = (Mathf.Abs(stride) * 0.0048f - 0.0012f) * motion;
+            // Keep vertical bob very subtle so units read as walking/running, not hopping.
+            var torsoLean = 2.2f * motion + aimBlend;
+            var bodyBob = Mathf.Sin(cycleTime * 2f) * 0.0016f * motion;
 
             _model.localPosition = _modelBasePos + new Vector3(0f, bodyBob, 0f);
             _model.localRotation = _modelBaseRot * Quaternion.Euler(0f, sway * 0.9f * motion, 0f);
@@ -90,8 +91,8 @@ namespace MultiplyRush
                 _torso.localPosition = _torsoBasePos + new Vector3(0f, bodyBob * 0.55f, 0f);
                 _torso.localRotation = _torsoBaseRot * Quaternion.Euler(
                     -torsoLean - (recoil * 7f),
-                    shoulderLead * 1.25f * motion,
-                    sway * 1.7f * motion);
+                    shoulderLead * 1f * motion,
+                    sway * 1.15f * motion);
             }
 
             if (_head != null)
@@ -105,17 +106,17 @@ namespace MultiplyRush
             if (_leftArm != null)
             {
                 _leftArm.localRotation = _leftArmBaseRot * Quaternion.Euler(
-                    -26f - (strideOpposite * 6.5f * motion) - (aimBlend * 0.36f) - (recoil * 4f),
+                    -28f - (strideOpposite * 5f * motion) - (aimBlend * 0.36f) - (recoil * 4f),
                     -9f * _combatBlend,
-                    6f * motion);
+                    4f * motion);
             }
 
             if (_rightArm != null)
             {
                 _rightArm.localRotation = _rightArmBaseRot * Quaternion.Euler(
-                    -32f - (stride * 4.6f * motion) - aimBlend - (recoil * 11f),
+                    -34f - (stride * 3.8f * motion) - aimBlend - (recoil * 11f),
                     7f * _combatBlend,
-                    -6f * motion);
+                    -4f * motion);
             }
 
             if (_leftForearm != null)
@@ -136,22 +137,22 @@ namespace MultiplyRush
 
             if (_leftLeg != null)
             {
-                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(stride * 26f * motion, 0f, 0f);
+                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(stride * 22f * motion, 0f, 0f);
             }
 
             if (_rightLeg != null)
             {
-                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(strideOpposite * 26f * motion, 0f, 0f);
+                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(strideOpposite * 22f * motion, 0f, 0f);
             }
 
             if (_leftShin != null)
             {
-                _leftShin.localRotation = _leftShinBaseRot * Quaternion.Euler(-leftLift * 28f * motion, 0f, 0f);
+                _leftShin.localRotation = _leftShinBaseRot * Quaternion.Euler(-leftLift * 34f * motion, 0f, 0f);
             }
 
             if (_rightShin != null)
             {
-                _rightShin.localRotation = _rightShinBaseRot * Quaternion.Euler(-rightLift * 28f * motion, 0f, 0f);
+                _rightShin.localRotation = _rightShinBaseRot * Quaternion.Euler(-rightLift * 34f * motion, 0f, 0f);
             }
 
             if (_rifleBody != null)

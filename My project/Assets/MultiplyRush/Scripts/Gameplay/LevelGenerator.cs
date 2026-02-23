@@ -169,6 +169,19 @@ namespace MultiplyRush
         public Color beaconPoleColor = new Color(0.08f, 0.12f, 0.18f, 1f);
         public Color beaconCoreColor = new Color(0.36f, 0.88f, 1f, 1f);
 
+        [Header("Street Ambience")]
+        public bool enableStreetAmbience = true;
+        public int sidewalkTilePoolSize = 120;
+        public float sidewalkTileLength = 5.2f;
+        public float sidewalkWidth = 2.2f;
+        public float sidewalkHeight = 0.08f;
+        public float sidewalkOffsetFromRail = 1.15f;
+        public int pedestrianPoolSize = 56;
+        public float pedestrianWalkSpeedMin = 0.45f;
+        public float pedestrianWalkSpeedMax = 0.9f;
+        public Color sidewalkColor = new Color(0.29f, 0.33f, 0.4f, 1f);
+        public Color curbColor = new Color(0.68f, 0.74f, 0.82f, 1f);
+
         [Header("Ambient Pulse")]
         public bool enableDecorPulse = true;
         public float decorPulseSpeed = 1.7f;
@@ -207,6 +220,10 @@ namespace MultiplyRush
         private readonly Stack<Transform> _cloudPool = new Stack<Transform>(64);
         private readonly List<Transform> _activeBeacons = new List<Transform>(160);
         private readonly Stack<Transform> _beaconPool = new Stack<Transform>(160);
+        private readonly List<Transform> _activeSidewalkTiles = new List<Transform>(256);
+        private readonly Stack<Transform> _sidewalkTilePool = new Stack<Transform>(256);
+        private readonly List<Transform> _activePedestrians = new List<Transform>(96);
+        private readonly Stack<Transform> _pedestrianPool = new Stack<Transform>(96);
         private readonly List<HazardZone> _activeHazards = new List<HazardZone>(64);
         private readonly Stack<HazardZone> _hazardPool = new Stack<HazardZone>(64);
         private readonly List<float> _cloudSpeeds = new List<float>(64);
@@ -214,6 +231,15 @@ namespace MultiplyRush
         private readonly List<float> _cloudMaxX = new List<float>(64);
         private readonly List<float> _cloudBaseY = new List<float>(64);
         private readonly List<float> _cloudPhases = new List<float>(64);
+        private readonly List<float> _pedestrianSpeed = new List<float>(96);
+        private readonly List<float> _pedestrianMinZ = new List<float>(96);
+        private readonly List<float> _pedestrianMaxZ = new List<float>(96);
+        private readonly List<float> _pedestrianPhase = new List<float>(96);
+        private readonly List<float> _pedestrianYBase = new List<float>(96);
+        private readonly List<Transform> _pedestrianLeftArm = new List<Transform>(96);
+        private readonly List<Transform> _pedestrianRightArm = new List<Transform>(96);
+        private readonly List<Transform> _pedestrianLeftLeg = new List<Transform>(96);
+        private readonly List<Transform> _pedestrianRightLeg = new List<Transform>(96);
         private readonly float[] _lanePressure = { 0.34f, 0.32f, 0.34f };
         private const int CountClamp = 2000000000;
         private const int CloudLobeCount = 14;
@@ -228,10 +254,15 @@ namespace MultiplyRush
         private bool _backdropPoolPrewarmed;
         private bool _cloudPoolPrewarmed;
         private bool _beaconPoolPrewarmed;
+        private bool _sidewalkPoolPrewarmed;
+        private bool _pedestrianPoolPrewarmed;
         private Transform _trackDecorRoot;
         private Transform _backdropRoot;
         private Transform _cloudRoot;
         private Transform _beaconRoot;
+        private Transform _streetRoot;
+        private Transform _sidewalkRoot;
+        private Transform _pedestrianRoot;
         private Transform _hazardRoot;
         private Transform _leftRail;
         private Transform _rightRail;
@@ -241,6 +272,11 @@ namespace MultiplyRush
         private Material _cloudMaterial;
         private Material _beaconPoleMaterial;
         private Material _beaconCoreMaterial;
+        private Material _sidewalkMaterial;
+        private Material _curbMaterial;
+        private Material _pedestrianClothMaterial;
+        private Material _pedestrianAccentMaterial;
+        private Material _pedestrianSkinMaterial;
         private Material _hazardMaterial;
         private Color _trackColor = new Color(0.18f, 0.22f, 0.29f, 1f);
         private Color _gatePositiveColor = new Color(0.2f, 0.85f, 0.35f, 1f);
@@ -351,6 +387,7 @@ namespace MultiplyRush
         private void Update()
         {
             AnimateClouds(Time.deltaTime);
+            AnimatePedestrians(Time.deltaTime);
             AnimateDecorPulse(Time.time);
         }
 
@@ -407,6 +444,36 @@ namespace MultiplyRush
                 {
                     _beaconRoot = new GameObject("Beacons").transform;
                     _beaconRoot.SetParent(_trackDecorRoot, false);
+                }
+            }
+
+            if (_streetRoot == null)
+            {
+                _streetRoot = _trackDecorRoot.Find("Street");
+                if (_streetRoot == null)
+                {
+                    _streetRoot = new GameObject("Street").transform;
+                    _streetRoot.SetParent(_trackDecorRoot, false);
+                }
+            }
+
+            if (_sidewalkRoot == null)
+            {
+                _sidewalkRoot = _streetRoot.Find("Sidewalks");
+                if (_sidewalkRoot == null)
+                {
+                    _sidewalkRoot = new GameObject("Sidewalks").transform;
+                    _sidewalkRoot.SetParent(_streetRoot, false);
+                }
+            }
+
+            if (_pedestrianRoot == null)
+            {
+                _pedestrianRoot = _streetRoot.Find("Pedestrians");
+                if (_pedestrianRoot == null)
+                {
+                    _pedestrianRoot = new GameObject("Pedestrians").transform;
+                    _pedestrianRoot.SetParent(_streetRoot, false);
                 }
             }
 
@@ -478,6 +545,7 @@ namespace MultiplyRush
             ClearBackdrop();
             ClearClouds();
             ClearBeacons();
+            ClearStreetAmbience();
 
             if (!enableTrackDecor)
             {
@@ -544,6 +612,7 @@ namespace MultiplyRush
 
             BuildBackdrop(trackLength, effectiveTrackHalfWidth);
             BuildSideBeacons(trackLength, effectiveTrackHalfWidth);
+            BuildStreetAmbience(trackLength, effectiveTrackHalfWidth);
         }
 
         private void BuildBackdrop(float trackLength, float effectiveTrackHalfWidth)
@@ -678,6 +747,141 @@ namespace MultiplyRush
                     ConfigureBeaconGeometry(beacon, height, coreScale);
                     beacon.gameObject.SetActive(true);
                     _activeBeacons.Add(beacon);
+                }
+            }
+        }
+
+        private void BuildStreetAmbience(float trackLength, float effectiveTrackHalfWidth)
+        {
+            if (!enableStreetAmbience || _sidewalkRoot == null || _pedestrianRoot == null)
+            {
+                return;
+            }
+
+            var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
+            var density = GetBackdropDensityMultiplier();
+            var random = new System.Random(41299 + (_activeLevelIndex * 71));
+            PrewarmSidewalkPool();
+            PrewarmPedestrianPool();
+
+            var tileLength = Mathf.Max(3.4f, sidewalkTileLength / Mathf.Max(0.55f, density));
+            var tileWidth = Mathf.Max(1.2f, sidewalkWidth);
+            var tileHeight = Mathf.Clamp(sidewalkHeight, 0.04f, 0.18f);
+            var sidewalkCenterX = effectiveTrackHalfWidth + railInset + Mathf.Max(0.35f, sidewalkOffsetFromRail) + (tileWidth * 0.5f);
+            var sidewalkY = -0.06f + (tileHeight * 0.5f);
+            var zStart = -8f;
+            var zEnd = trackLength + 14f;
+
+            for (var side = -1; side <= 1; side += 2)
+            {
+                for (var z = zStart; z <= zEnd; z += tileLength * 0.96f)
+                {
+                    var tile = GetSidewalkTile();
+                    var zJitter = ((float)random.NextDouble() * 2f - 1f) * tileLength * 0.1f;
+                    tile.position = new Vector3(side * sidewalkCenterX, sidewalkY, z + zJitter);
+                    tile.rotation = Quaternion.identity;
+                    tile.localScale = Vector3.one;
+                    ConfigureSidewalkTileGeometry(tile, tileWidth, tileHeight, tileLength);
+                    tile.gameObject.SetActive(true);
+                    _activeSidewalkTiles.Add(tile);
+                }
+            }
+
+            var minZ = Mathf.Max(10f, startZ * 0.44f);
+            var maxZ = Mathf.Max(minZ + 6f, trackLength - 10f);
+            var pedestrianCount = quality == BackdropQuality.High
+                ? Mathf.RoundToInt(Mathf.Lerp(18f, 32f, Mathf.Clamp01((density - 0.5f) / 0.75f)))
+                : quality == BackdropQuality.Medium
+                    ? Mathf.RoundToInt(Mathf.Lerp(10f, 20f, Mathf.Clamp01((density - 0.5f) / 0.75f)))
+                    : Mathf.RoundToInt(Mathf.Lerp(6f, 12f, Mathf.Clamp01((density - 0.5f) / 0.75f)));
+            pedestrianCount = Mathf.Clamp(pedestrianCount, 6, 36);
+
+            for (var i = 0; i < pedestrianCount; i++)
+            {
+                var pedestrian = GetPedestrian();
+                var side = random.NextDouble() < 0.5 ? -1f : 1f;
+                var sideOffset = tileWidth * (0.18f + ((float)random.NextDouble() * 0.52f));
+                var x = side * (sidewalkCenterX + sideOffset - (tileWidth * 0.5f));
+                var y = -0.03f;
+                var z = Mathf.Lerp(minZ, maxZ, (float)random.NextDouble());
+                var direction = random.NextDouble() < 0.5 ? -1f : 1f;
+                var speed = Mathf.Lerp(pedestrianWalkSpeedMin, pedestrianWalkSpeedMax, (float)random.NextDouble()) * direction;
+                pedestrian.position = new Vector3(x, y, z);
+                pedestrian.rotation = Quaternion.Euler(0f, direction > 0f ? 0f : 180f, 0f);
+                pedestrian.localScale = Vector3.one * Mathf.Lerp(0.88f, 1.08f, (float)random.NextDouble());
+                ConfigurePedestrianGeometry(pedestrian, random, quality);
+                pedestrian.gameObject.SetActive(true);
+                _activePedestrians.Add(pedestrian);
+                _pedestrianSpeed.Add(speed);
+                _pedestrianMinZ.Add(minZ);
+                _pedestrianMaxZ.Add(maxZ);
+                _pedestrianPhase.Add((float)random.NextDouble() * Mathf.PI * 2f);
+                _pedestrianYBase.Add(y);
+                _pedestrianLeftArm.Add(pedestrian.Find("LeftArm"));
+                _pedestrianRightArm.Add(pedestrian.Find("RightArm"));
+                _pedestrianLeftLeg.Add(pedestrian.Find("LeftLeg"));
+                _pedestrianRightLeg.Add(pedestrian.Find("RightLeg"));
+            }
+        }
+
+        private void AnimatePedestrians(float deltaTime)
+        {
+            if (deltaTime <= 0f || _activePedestrians.Count == 0)
+            {
+                return;
+            }
+
+            var runTime = Time.time;
+            for (var i = 0; i < _activePedestrians.Count; i++)
+            {
+                var pedestrian = _activePedestrians[i];
+                if (pedestrian == null)
+                {
+                    continue;
+                }
+
+                var speed = _pedestrianSpeed[i];
+                var minZ = _pedestrianMinZ[i];
+                var maxZ = _pedestrianMaxZ[i];
+                var position = pedestrian.position;
+                position.z += speed * deltaTime;
+                if (position.z > maxZ)
+                {
+                    position.z = minZ;
+                }
+                else if (position.z < minZ)
+                {
+                    position.z = maxZ;
+                }
+
+                var phase = runTime * (Mathf.Abs(speed) * 5.6f + 1.1f) + _pedestrianPhase[i];
+                var stride = Mathf.Sin(phase);
+                var bob = Mathf.Sin(phase * 2f) * 0.006f;
+                position.y = _pedestrianYBase[i] + bob;
+                pedestrian.position = position;
+
+                var leftLeg = _pedestrianLeftLeg[i];
+                if (leftLeg != null)
+                {
+                    leftLeg.localRotation = Quaternion.Euler(stride * 24f, 0f, 0f);
+                }
+
+                var rightLeg = _pedestrianRightLeg[i];
+                if (rightLeg != null)
+                {
+                    rightLeg.localRotation = Quaternion.Euler(-stride * 24f, 0f, 0f);
+                }
+
+                var leftArm = _pedestrianLeftArm[i];
+                if (leftArm != null)
+                {
+                    leftArm.localRotation = Quaternion.Euler(-stride * 22f, 0f, 0f);
+                }
+
+                var rightArm = _pedestrianRightArm[i];
+                if (rightArm != null)
+                {
+                    rightArm.localRotation = Quaternion.Euler(stride * 22f, 0f, 0f);
                 }
             }
         }
@@ -942,6 +1146,26 @@ namespace MultiplyRush
             return CreateBeacon();
         }
 
+        private Transform GetSidewalkTile()
+        {
+            if (_sidewalkTilePool.Count > 0)
+            {
+                return _sidewalkTilePool.Pop();
+            }
+
+            return CreateSidewalkTile();
+        }
+
+        private Transform GetPedestrian()
+        {
+            if (_pedestrianPool.Count > 0)
+            {
+                return _pedestrianPool.Pop();
+            }
+
+            return CreatePedestrian();
+        }
+
         private Transform CreateCloud()
         {
             var cloudRoot = new GameObject("BackdropCloud");
@@ -1013,6 +1237,50 @@ namespace MultiplyRush
             return beaconRoot.transform;
         }
 
+        private Transform CreateSidewalkTile()
+        {
+            var tileRoot = new GameObject("SidewalkTile");
+            tileRoot.transform.SetParent(_sidewalkRoot, false);
+
+            var slab = CreateBackdropPart(tileRoot.transform, "Slab", PrimitiveType.Cube, GetSidewalkMaterial());
+            var curb = CreateBackdropPart(tileRoot.transform, "Curb", PrimitiveType.Cube, GetCurbMaterial());
+            var seam = CreateBackdropPart(tileRoot.transform, "Seam", PrimitiveType.Cube, GetCurbMaterial());
+            if (slab != null)
+            {
+                slab.localPosition = Vector3.zero;
+            }
+
+            if (curb != null)
+            {
+                curb.localPosition = Vector3.zero;
+            }
+
+            if (seam != null)
+            {
+                seam.localPosition = Vector3.zero;
+            }
+
+            tileRoot.SetActive(false);
+            return tileRoot.transform;
+        }
+
+        private Transform CreatePedestrian()
+        {
+            var root = new GameObject("Pedestrian");
+            root.transform.SetParent(_pedestrianRoot, false);
+
+            CreateBackdropPart(root.transform, "Torso", PrimitiveType.Capsule, GetPedestrianClothMaterial());
+            CreateBackdropPart(root.transform, "Head", PrimitiveType.Sphere, GetSkinMaterialForPedestrian());
+            CreateBackdropPart(root.transform, "LeftArm", PrimitiveType.Cube, GetPedestrianClothMaterial());
+            CreateBackdropPart(root.transform, "RightArm", PrimitiveType.Cube, GetPedestrianClothMaterial());
+            CreateBackdropPart(root.transform, "LeftLeg", PrimitiveType.Cube, GetPedestrianClothMaterial());
+            CreateBackdropPart(root.transform, "RightLeg", PrimitiveType.Cube, GetPedestrianClothMaterial());
+            CreateBackdropPart(root.transform, "Bag", PrimitiveType.Cube, GetPedestrianAccentMaterial());
+
+            root.SetActive(false);
+            return root.transform;
+        }
+
         private static void ConfigureBeaconGeometry(Transform beacon, float height, float coreScale)
         {
             if (beacon == null)
@@ -1035,6 +1303,95 @@ namespace MultiplyRush
                 core.localPosition = new Vector3(0f, safeHeight + 0.08f, 0f);
                 core.localScale = Vector3.one * safeCoreScale;
             }
+        }
+
+        private static void ConfigureSidewalkTileGeometry(Transform tile, float width, float height, float depth)
+        {
+            if (tile == null)
+            {
+                return;
+            }
+
+            var slab = tile.Find("Slab");
+            if (slab != null)
+            {
+                slab.localPosition = Vector3.zero;
+                slab.localScale = new Vector3(width, Mathf.Max(0.04f, height), depth);
+            }
+
+            var curb = tile.Find("Curb");
+            if (curb != null)
+            {
+                curb.localPosition = new Vector3(-(width * 0.47f), height * 0.18f, 0f);
+                curb.localScale = new Vector3(Mathf.Max(0.08f, width * 0.08f), Mathf.Max(0.06f, height * 1.6f), depth * 0.96f);
+            }
+
+            var seam = tile.Find("Seam");
+            if (seam != null)
+            {
+                seam.localPosition = new Vector3(width * 0.2f, height * 0.32f, 0f);
+                seam.localScale = new Vector3(width * 0.54f, Mathf.Max(0.03f, height * 0.36f), Mathf.Max(0.04f, depth * 0.03f));
+            }
+        }
+
+        private void ConfigurePedestrianGeometry(Transform pedestrian, System.Random random, BackdropQuality quality)
+        {
+            if (pedestrian == null)
+            {
+                return;
+            }
+
+            var scale = quality == BackdropQuality.Low ? 0.85f : 1f;
+            var torso = pedestrian.Find("Torso");
+            if (torso != null)
+            {
+                torso.localPosition = new Vector3(0f, 0.52f * scale, 0f);
+                torso.localScale = new Vector3(0.2f * scale, 0.34f * scale, 0.14f * scale);
+            }
+
+            var head = pedestrian.Find("Head");
+            if (head != null)
+            {
+                head.localPosition = new Vector3(0f, 0.88f * scale, 0f);
+                head.localScale = Vector3.one * (0.15f * scale);
+            }
+
+            var leftArm = pedestrian.Find("LeftArm");
+            if (leftArm != null)
+            {
+                leftArm.localPosition = new Vector3(-0.14f * scale, 0.56f * scale, 0f);
+                leftArm.localScale = new Vector3(0.06f * scale, 0.24f * scale, 0.06f * scale);
+            }
+
+            var rightArm = pedestrian.Find("RightArm");
+            if (rightArm != null)
+            {
+                rightArm.localPosition = new Vector3(0.14f * scale, 0.56f * scale, 0f);
+                rightArm.localScale = new Vector3(0.06f * scale, 0.24f * scale, 0.06f * scale);
+            }
+
+            var leftLeg = pedestrian.Find("LeftLeg");
+            if (leftLeg != null)
+            {
+                leftLeg.localPosition = new Vector3(-0.07f * scale, 0.25f * scale, 0f);
+                leftLeg.localScale = new Vector3(0.08f * scale, 0.28f * scale, 0.08f * scale);
+            }
+
+            var rightLeg = pedestrian.Find("RightLeg");
+            if (rightLeg != null)
+            {
+                rightLeg.localPosition = new Vector3(0.07f * scale, 0.25f * scale, 0f);
+                rightLeg.localScale = new Vector3(0.08f * scale, 0.28f * scale, 0.08f * scale);
+            }
+
+            var bag = pedestrian.Find("Bag");
+            if (bag != null)
+            {
+                bag.gameObject.SetActive(quality != BackdropQuality.Low && random.NextDouble() > 0.35);
+                bag.localPosition = new Vector3(0.1f * scale, 0.56f * scale, -0.09f * scale);
+                bag.localScale = new Vector3(0.1f * scale, 0.14f * scale, 0.07f * scale);
+            }
+
         }
 
         private static Transform CreateBackdropPart(Transform parent, string name, PrimitiveType primitiveType, Material material)
@@ -1374,6 +1731,47 @@ namespace MultiplyRush
             _activeBeacons.Clear();
         }
 
+        private void ClearStreetAmbience()
+        {
+            for (var i = 0; i < _activeSidewalkTiles.Count; i++)
+            {
+                var tile = _activeSidewalkTiles[i];
+                if (tile == null)
+                {
+                    continue;
+                }
+
+                tile.gameObject.SetActive(false);
+                tile.SetParent(_sidewalkRoot != null ? _sidewalkRoot : _trackDecorRoot, false);
+                _sidewalkTilePool.Push(tile);
+            }
+
+            for (var i = 0; i < _activePedestrians.Count; i++)
+            {
+                var pedestrian = _activePedestrians[i];
+                if (pedestrian == null)
+                {
+                    continue;
+                }
+
+                pedestrian.gameObject.SetActive(false);
+                pedestrian.SetParent(_pedestrianRoot != null ? _pedestrianRoot : _trackDecorRoot, false);
+                _pedestrianPool.Push(pedestrian);
+            }
+
+            _activeSidewalkTiles.Clear();
+            _activePedestrians.Clear();
+            _pedestrianSpeed.Clear();
+            _pedestrianMinZ.Clear();
+            _pedestrianMaxZ.Clear();
+            _pedestrianPhase.Clear();
+            _pedestrianYBase.Clear();
+            _pedestrianLeftArm.Clear();
+            _pedestrianRightArm.Clear();
+            _pedestrianLeftLeg.Clear();
+            _pedestrianRightLeg.Clear();
+        }
+
         private void PrewarmStripePool()
         {
             if (_stripePoolPrewarmed)
@@ -1444,6 +1842,40 @@ namespace MultiplyRush
             _beaconPoolPrewarmed = true;
         }
 
+        private void PrewarmSidewalkPool()
+        {
+            if (_sidewalkPoolPrewarmed || !enableStreetAmbience)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, sidewalkTilePoolSize);
+            for (var i = 0; i < count; i++)
+            {
+                var tile = CreateSidewalkTile();
+                _sidewalkTilePool.Push(tile);
+            }
+
+            _sidewalkPoolPrewarmed = true;
+        }
+
+        private void PrewarmPedestrianPool()
+        {
+            if (_pedestrianPoolPrewarmed || !enableStreetAmbience)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, pedestrianPoolSize);
+            for (var i = 0; i < count; i++)
+            {
+                var pedestrian = CreatePedestrian();
+                _pedestrianPool.Push(pedestrian);
+            }
+
+            _pedestrianPoolPrewarmed = true;
+        }
+
         private Material GetStripeMaterial()
         {
             if (_stripeMaterial != null)
@@ -1510,6 +1942,86 @@ namespace MultiplyRush
             return _beaconCoreMaterial;
         }
 
+        private Material GetSidewalkMaterial()
+        {
+            if (_sidewalkMaterial != null)
+            {
+                return _sidewalkMaterial;
+            }
+
+            _sidewalkMaterial = CreateRuntimeMaterial("SidewalkMaterial", sidewalkColor, 0.18f, 0.06f);
+            return _sidewalkMaterial;
+        }
+
+        private Material GetCurbMaterial()
+        {
+            if (_curbMaterial != null)
+            {
+                return _curbMaterial;
+            }
+
+            _curbMaterial = CreateRuntimeMaterial("CurbMaterial", curbColor, 0.22f, 0.08f);
+            return _curbMaterial;
+        }
+
+        private Material GetPedestrianClothMaterial()
+        {
+            if (_pedestrianClothMaterial != null)
+            {
+                return _pedestrianClothMaterial;
+            }
+
+            _pedestrianClothMaterial = CreateRuntimeMaterial("PedestrianCloth", new Color(0.28f, 0.38f, 0.52f, 1f), 0.18f, 0.04f);
+            return _pedestrianClothMaterial;
+        }
+
+        private Material GetPedestrianAccentMaterial()
+        {
+            if (_pedestrianAccentMaterial != null)
+            {
+                return _pedestrianAccentMaterial;
+            }
+
+            _pedestrianAccentMaterial = CreateRuntimeMaterial("PedestrianAccent", new Color(0.82f, 0.9f, 0.98f, 1f), 0.24f, 0.1f);
+            return _pedestrianAccentMaterial;
+        }
+
+        private Material GetSkinMaterialForPedestrian()
+        {
+            if (_pedestrianSkinMaterial != null)
+            {
+                return _pedestrianSkinMaterial;
+            }
+
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                shader = Shader.Find("Standard");
+            }
+
+            _pedestrianSkinMaterial = new Material(shader)
+            {
+                name = "PedestrianSkin"
+            };
+            var color = new Color(0.95f, 0.78f, 0.64f, 1f);
+            if (_pedestrianSkinMaterial.HasProperty("_BaseColor"))
+            {
+                _pedestrianSkinMaterial.SetColor("_BaseColor", color);
+            }
+
+            if (_pedestrianSkinMaterial.HasProperty("_Color"))
+            {
+                _pedestrianSkinMaterial.SetColor("_Color", color);
+            }
+
+            if (_pedestrianSkinMaterial.HasProperty("_Smoothness"))
+            {
+                _pedestrianSkinMaterial.SetFloat("_Smoothness", 0.18f);
+            }
+
+            return _pedestrianSkinMaterial;
+        }
+
         private Material GetHazardMaterial()
         {
             if (_hazardMaterial != null)
@@ -1570,6 +2082,8 @@ namespace MultiplyRush
             backdropColor = ScaleColor(theme.backdropColor, 0.94f + (bandProgress * 0.08f));
             cloudColor = theme.cloudColor;
             cloudColor.a = 1f;
+            sidewalkColor = ScaleColor(theme.groundTint, 0.46f + (bandProgress * 0.12f));
+            curbColor = ScaleColor(theme.cloudColor, 0.72f + (bandProgress * 0.08f));
             beaconPoleColor = ScaleColor(theme.beaconPoleColor, 0.95f + (bandProgress * 0.04f));
             beaconCoreColor = ScaleColor(theme.beaconCoreColor, 1f + (bandProgress * 0.12f));
 
@@ -1593,6 +2107,10 @@ namespace MultiplyRush
             ApplyMaterialColor(_cloudMaterial, cloudColor, 0.22f, 0.2f);
             ApplyMaterialColor(_beaconPoleMaterial, beaconPoleColor, 0.2f, 0.05f);
             ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor, 0.66f, 0.95f);
+            ApplyMaterialColor(_sidewalkMaterial, sidewalkColor, 0.18f, 0.06f);
+            ApplyMaterialColor(_curbMaterial, curbColor, 0.22f, 0.08f);
+            ApplyMaterialColor(_pedestrianClothMaterial, ScaleColor(theme.ambientEquator, 0.88f), 0.18f, 0.05f);
+            ApplyMaterialColor(_pedestrianAccentMaterial, ScaleColor(theme.ambientSky, 1.1f), 0.24f, 0.09f);
             ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f, 0.36f);
 
             SceneVisualTuning.ApplyLevelTheme(
@@ -1825,6 +2343,7 @@ namespace MultiplyRush
             ClearBackdrop();
             ClearClouds();
             ClearBeacons();
+            ClearStreetAmbience();
             SetRailsActive(false);
 
             if (_activeFinish != null)
