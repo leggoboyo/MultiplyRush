@@ -577,6 +577,7 @@ namespace MultiplyRush
             fxObject.transform.SetParent(_bossVisual, false);
             fxObject.transform.localPosition = new Vector3(0f, 0.16f, 1.25f);
             _bossSlamFx = fxObject.AddComponent<ParticleSystem>();
+            _bossSlamFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             var renderer = fxObject.GetComponent<ParticleSystemRenderer>();
             if (renderer != null)
             {
