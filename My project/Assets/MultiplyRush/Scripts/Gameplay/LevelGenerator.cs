@@ -2722,38 +2722,7 @@ namespace MultiplyRush
 
         private int BuildStartCount(int levelIndex, DifficultyMode difficultyMode, bool isMiniBoss)
         {
-            var safeLevel = Mathf.Max(1, levelIndex);
-            int startCount;
-            switch (difficultyMode)
-            {
-                case DifficultyMode.Easy:
-                    startCount = 10 + Mathf.FloorToInt((safeLevel - 1) * 0.28f);
-                    break;
-                case DifficultyMode.Hard:
-                    startCount = 1 + Mathf.FloorToInt((safeLevel - 1) * 0.045f);
-                    break;
-                default:
-                    startCount = 4 + Mathf.FloorToInt((safeLevel - 1) * 0.15f);
-                    break;
-            }
-
-            if (isMiniBoss)
-            {
-                switch (difficultyMode)
-                {
-                    case DifficultyMode.Easy:
-                        startCount += 4;
-                        break;
-                    case DifficultyMode.Hard:
-                        startCount += 1;
-                        break;
-                    default:
-                        startCount += 2;
-                        break;
-                }
-            }
-
-            return Mathf.Clamp(startCount, 1, 220);
+            return 1;
         }
 
         private static int BuildAddGateBase(int levelIndex, DifficultyMode difficultyMode, bool isMiniBoss, float gateDifficulty01)

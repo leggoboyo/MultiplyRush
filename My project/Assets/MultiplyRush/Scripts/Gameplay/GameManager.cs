@@ -22,9 +22,16 @@ namespace MultiplyRush
         public float battleDurationNormal = 4f;
         public float battleDurationMiniBoss = 4.8f;
         public float bossBattleDuration = 10f;
-        public float bossSlamInterval = 1.85f;
-        public float bossSlamUnitLossFraction = 0.11f;
-        public int bossSlamFlatLoss = 8;
+        public float bossSlamInterval = 1f;
+        public float bossSlamUnitLossFraction = 0.1f;
+        public int bossSlamMinimumLoss = 1;
+        [Range(0.35f, 0.85f)]
+        public float bossTargetDurationEasy = 0.52f;
+        [Range(0.35f, 0.85f)]
+        public float bossTargetDurationNormal = 0.62f;
+        [Range(0.35f, 0.85f)]
+        public float bossTargetDurationHard = 0.72f;
+        public float bossHealthSafetyMultiplier = 1f;
         public float bossDamagePerUnitPerSecond = 0.32f;
         public float bossDamageSqrtPerSecond = 2f;
         public float postBattleDelay = 0.24f;
@@ -423,9 +430,19 @@ namespace MultiplyRush
         {
             var finishLine = levelGenerator != null ? levelGenerator.GetActiveFinishLine() : null;
             var battleStartPlayer = playerCrowd != null ? Mathf.Max(0, playerCrowd.Count) : 0;
-            var battleStartBoss = Mathf.Max(1, bossHealth);
+            var duration = Mathf.Max(8f, bossBattleDuration);
+            var targetDuration = duration * GetMiniBossTargetDurationFraction();
+            var estimatedDps = EstimateBossDamagePerSecond(Mathf.Max(1, battleStartPlayer));
+            var healthEfficiency = GetMiniBossHealthEfficiency();
+            var tunedBossHealth = Mathf.Max(
+                1,
+                Mathf.RoundToInt(estimatedDps * targetDuration * healthEfficiency * Mathf.Clamp(bossHealthSafetyMultiplier, 0.5f, 1.15f)));
+            var battleStartBoss = Mathf.Max(1, bossHealth, _currentBuild.tankRequirement, tunedBossHealth);
             var currentBossHealth = battleStartBoss;
             var didWin = false;
+            var slamLossFromStart = Mathf.Max(
+                Mathf.Max(1, bossSlamMinimumLoss),
+                Mathf.CeilToInt(Mathf.Max(1, battleStartPlayer) * Mathf.Clamp(bossSlamUnitLossFraction, 0.01f, 0.95f)));
 
             if (finishLine != null)
             {
@@ -467,9 +484,8 @@ namespace MultiplyRush
                 }
             }
 
-            var duration = Mathf.Max(6f, bossBattleDuration);
             var elapsed = 0f;
-            var slamTimer = Mathf.Clamp(bossSlamInterval * 0.7f, 0.45f, 2.2f);
+            var slamTimer = Mathf.Clamp(bossSlamInterval, 0.45f, 2.2f);
             _battleHitSfxTimer = 0f;
 
             while (elapsed < duration)
@@ -491,8 +507,8 @@ namespace MultiplyRush
                 }
 
                 var modeDamageScale = _difficultyMode == DifficultyMode.Easy
-                    ? 1.12f
-                    : _difficultyMode == DifficultyMode.Hard ? 0.88f : 1f;
+                    ? 1.04f
+                    : _difficultyMode == DifficultyMode.Hard ? 0.76f : 0.9f;
                 var dps = ((playerAlive * bossDamagePerUnitPerSecond) + (Mathf.Sqrt(playerAlive) * bossDamageSqrtPerSecond)) * modeDamageScale;
                 var damage = Mathf.Max(0.6f, dps * deltaTime);
                 var damageInt = Mathf.Max(1, Mathf.RoundToInt(damage));
@@ -516,19 +532,19 @@ namespace MultiplyRush
                 }
 
                 slamTimer -= deltaTime;
-                if (slamTimer <= 0f)
+                while (slamTimer <= 0f)
                 {
-                    slamTimer += Mathf.Max(0.75f, bossSlamInterval);
-                    var slamModeScale = _difficultyMode == DifficultyMode.Easy
-                        ? 0.8f
-                        : _difficultyMode == DifficultyMode.Hard ? 1.22f : 1f;
-                    var slamLoss = Mathf.RoundToInt(
-                        ((playerAlive * bossSlamUnitLossFraction) + bossSlamFlatLoss + (_currentLevelIndex * 0.06f)) * slamModeScale);
-                    slamLoss = Mathf.Clamp(slamLoss, 1, Mathf.Max(1, playerAlive));
+                    slamTimer += Mathf.Max(0.45f, bossSlamInterval);
+                    var slamLoss = Mathf.Clamp(slamLossFromStart, 1, Mathf.Max(1, playerAlive));
                     var removed = playerCrowd != null ? playerCrowd.ApplyBattleLosses(slamLoss) : 0;
                     finishLine?.TriggerBossSlam(1f + Mathf.Clamp01(removed / 24f));
                     AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.7f, Random.Range(0.72f, 0.86f));
                     HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
+                    playerAlive = playerCrowd != null ? playerCrowd.Count : 0;
+                    if (playerAlive <= 0)
+                    {
+                        break;
+                    }
                 }
 
                 yield return null;
@@ -563,6 +579,41 @@ namespace MultiplyRush
 
             ShowResultAfterBattle(didWin, battleStartBoss);
             _battleRoutine = null;
+        }
+
+        private float GetMiniBossTargetDurationFraction()
+        {
+            switch (_difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    return Mathf.Clamp(bossTargetDurationEasy, 0.38f, 0.68f);
+                case DifficultyMode.Hard:
+                    return Mathf.Clamp(bossTargetDurationHard, 0.55f, 0.82f);
+                default:
+                    return Mathf.Clamp(bossTargetDurationNormal, 0.46f, 0.76f);
+            }
+        }
+
+        private float EstimateBossDamagePerSecond(int playerCount)
+        {
+            var safeCount = Mathf.Max(1, playerCount);
+            var modeDamageScale = _difficultyMode == DifficultyMode.Easy
+                ? 1.04f
+                : _difficultyMode == DifficultyMode.Hard ? 0.76f : 0.9f;
+            return ((safeCount * bossDamagePerUnitPerSecond) + (Mathf.Sqrt(safeCount) * bossDamageSqrtPerSecond)) * modeDamageScale;
+        }
+
+        private float GetMiniBossHealthEfficiency()
+        {
+            switch (_difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    return 0.58f;
+                case DifficultyMode.Hard:
+                    return 0.78f;
+                default:
+                    return 0.68f;
+            }
         }
 
         private void ShowResultAfterBattle(bool didWin, int enemyCount)
