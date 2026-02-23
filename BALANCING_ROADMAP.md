@@ -22,6 +22,24 @@ This roadmap is focused on perpetual progression, fair difficulty scaling, and s
 - Next level now starts from the level-generated start count (plus optional consumable buff effects only).
 - This prevents runaway army inflation from level chaining and keeps each level's economy self-contained.
 
+## Latest Balancing Pass (Implemented)
+
+- Route reference profiles are now level-aware per difficulty (Easy/Normal/Hard and mini-boss variants).
+  - This keeps enemy targeting tied to an evolving "expected skill route" instead of static row ratios.
+- Gate economy compression was tightened:
+  - lower additive base growth
+  - lower positive multiplier appearance rate
+  - stricter multiplier budget per level
+  - lower jackpot `x3` frequency
+- Shot-upgrade inflation was tightened:
+  - higher shot thresholds
+  - faster threshold growth per upgrade step
+  - lower add-bonus cap and multiplier cap growth
+- Forward speed progression is now asymptotic instead of raw linear.
+  - Difficulty keeps climbing, but control remains stable at high levels.
+- Enemy scaling was rebuilt around blended reference-path + best-path pressures with stricter floor/ceiling clamps.
+  - This reduces huge player/enemy disparity while preserving progression pressure.
+
 ## Key Risks Remaining
 
 1. Forward speed can become unplayable at very high levels if uncapped for long enough.
@@ -44,6 +62,19 @@ Use these as hard targets during tuning:
 - End-of-level count stability:
   - Avoid regular finishes above low-thousands except late game.
   - Keep normal/hard median in low-hundreds for readability and UX.
+
+## Verification Checklist (Post-Pass)
+
+Run these manually in Unity (all three difficulties):
+
+- Levels: 1, 10, 25, 50, 100
+- Check:
+  - start count feels fair for selected difficulty
+  - enemy count stays within a readable band vs likely finish count
+  - no early runaway from gate-shot upgrades
+  - hard mode remains winnable with strong routing but not forgiving
+  - mini-boss levels (10/20/30/...) feel harder than adjacent non-boss levels
+  - frame time remains stable when counts rise (especially finish battles)
 
 ## Roadmap Phases
 

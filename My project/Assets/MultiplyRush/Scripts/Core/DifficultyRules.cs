@@ -13,30 +13,34 @@ namespace MultiplyRush
 
     public static class DifficultyRules
     {
-        public static DifficultyRouteProfile BuildRouteProfile(DifficultyMode mode, bool isMiniBoss, int totalRows)
+        public static DifficultyRouteProfile BuildRouteProfile(
+            DifficultyMode mode,
+            bool isMiniBoss,
+            int totalRows,
+            int levelIndex)
         {
             var rows = Mathf.Max(1, totalRows);
+            var level = Mathf.Max(1, levelIndex);
+            var progression01 = Mathf.Clamp01((level - 1f) / 120f);
             float betterRatio;
             float worseRatio;
+            float redRatio;
 
             if (!isMiniBoss)
             {
                 switch (mode)
                 {
                     case DifficultyMode.Easy:
-                        // Easy: can still win while taking roughly 7 red + 8 worse out of 15 rows.
-                        betterRatio = 0f;
-                        worseRatio = 8f / 15f;
+                        betterRatio = Mathf.Lerp(0.12f, 0.22f, progression01);
+                        redRatio = Mathf.Lerp(0.24f, 0.3f, progression01);
                         break;
                     case DifficultyMode.Hard:
-                        // Hard: tuned around at least 10 better + up to 5 worse (scaled by row count).
-                        betterRatio = 10f / 15f;
-                        worseRatio = 5f / 15f;
+                        betterRatio = Mathf.Lerp(0.58f, 0.72f, progression01);
+                        redRatio = Mathf.Lerp(0.08f, 0.12f, progression01);
                         break;
                     default:
-                        // Normal: tuned so taking the worse-green route each row can still beat the enemy count.
-                        betterRatio = 0f;
-                        worseRatio = 1f;
+                        betterRatio = Mathf.Lerp(0.32f, 0.5f, progression01);
+                        redRatio = Mathf.Lerp(0.16f, 0.2f, progression01);
                         break;
                 }
             }
@@ -45,27 +49,27 @@ namespace MultiplyRush
                 switch (mode)
                 {
                     case DifficultyMode.Easy:
-                        // Mini-boss easy: around 5 red + 10 worse out of 15 rows.
-                        betterRatio = 0f;
-                        worseRatio = 10f / 15f;
+                        betterRatio = Mathf.Lerp(0.22f, 0.36f, progression01);
+                        redRatio = Mathf.Lerp(0.22f, 0.26f, progression01);
                         break;
                     case DifficultyMode.Hard:
-                        // Mini-boss hard: all better-route execution.
-                        betterRatio = 1f;
-                        worseRatio = 0f;
+                        betterRatio = Mathf.Lerp(0.74f, 0.88f, progression01);
+                        redRatio = Mathf.Lerp(0.04f, 0.08f, progression01);
                         break;
                     default:
-                        // Mini-boss normal: around 13 better + 2 worse out of 15 rows.
-                        betterRatio = 13f / 15f;
-                        worseRatio = 2f / 15f;
+                        betterRatio = Mathf.Lerp(0.52f, 0.68f, progression01);
+                        redRatio = Mathf.Lerp(0.1f, 0.14f, progression01);
                         break;
                 }
             }
 
+            betterRatio = Mathf.Clamp01(betterRatio);
+            redRatio = Mathf.Clamp01(redRatio);
+            worseRatio = Mathf.Clamp01(1f - betterRatio - redRatio);
+
             var better = Mathf.Clamp(Mathf.RoundToInt(rows * betterRatio), 0, rows);
-            var worse = Mathf.Clamp(Mathf.RoundToInt(rows * worseRatio), 0, rows - better);
-            var red = rows - better - worse;
-            red = Mathf.Clamp(red, 0, rows);
+            var red = Mathf.Clamp(Mathf.RoundToInt(rows * redRatio), 0, rows - better);
+            var worse = Mathf.Clamp(rows - better - red, 0, rows);
 
             return new DifficultyRouteProfile
             {

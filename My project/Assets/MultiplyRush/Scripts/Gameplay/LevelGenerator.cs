@@ -248,6 +248,7 @@ namespace MultiplyRush
         private float _effectiveLaneSpacing;
         private float _effectiveTrackHalfWidth;
         private int _activeLevelIndex = 1;
+        private DifficultyMode _activeDifficultyMode = DifficultyMode.Normal;
         private bool _gatePoolPrewarmed;
         private bool _hazardPoolPrewarmed;
         private bool _stripePoolPrewarmed;
@@ -300,6 +301,7 @@ namespace MultiplyRush
         {
             var safeLevel = Mathf.Max(1, levelIndex);
             _activeLevelIndex = safeLevel;
+            _activeDifficultyMode = difficultyMode;
             _effectiveLaneSpacing = Mathf.Max(laneSpacing, minLaneSpacing);
             _effectiveTrackHalfWidth = Mathf.Max(trackHalfWidth, _effectiveLaneSpacing + laneToEdgePadding);
             ApplyGraphicsQualitySettings(backdropQuality);
@@ -2193,14 +2195,53 @@ namespace MultiplyRush
             var trackMinX = -_effectiveTrackHalfWidth + edgePadding;
             var trackMaxX = _effectiveTrackHalfWidth - edgePadding;
             var levelFactor = Mathf.Max(1, _activeLevelIndex);
-            var baseShotThreshold = Mathf.Max(3, Mathf.RoundToInt(gateUpgradeShotsAtLevel1 + (levelFactor - 1) * Mathf.Max(0f, gateUpgradeShotsPerLevel)));
-            var stepGrowth = Mathf.Max(1, gateUpgradeShotsGrowthPerStep + Mathf.FloorToInt((levelFactor - 1) * 0.12f));
+            var thresholdScale = 1.52f + (gateDifficulty01 * 1.65f);
+            switch (_activeDifficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    thresholdScale *= 0.92f;
+                    break;
+                case DifficultyMode.Hard:
+                    thresholdScale *= 1.14f;
+                    break;
+            }
+
+            var baseShotThreshold = Mathf.Max(
+                6,
+                Mathf.RoundToInt(
+                    (gateUpgradeShotsAtLevel1 + (levelFactor - 1) * Mathf.Max(0f, gateUpgradeShotsPerLevel)) * thresholdScale
+                    + Mathf.Sqrt(levelFactor) * 2.45f));
+            var stepGrowth = Mathf.Max(2, gateUpgradeShotsGrowthPerStep + Mathf.FloorToInt((levelFactor - 1) * 0.27f));
             var addCapGrowth = Mathf.Max(0, gateAddUpgradeBonusCapGrowthPer10Levels);
-            var addBonusCap = Mathf.Max(1, gateAddUpgradeBonusCapAtLevel1 + (((levelFactor - 1) / 10) * addCapGrowth));
-            var multiplierCap = Mathf.Clamp(
+            var configuredAddCap = Mathf.Max(1, gateAddUpgradeBonusCapAtLevel1 + (((levelFactor - 1) / 10) * addCapGrowth));
+            var balanceAddCap = 2 + ((levelFactor - 1) / 34);
+            switch (_activeDifficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    balanceAddCap += 1;
+                    break;
+                case DifficultyMode.Hard:
+                    balanceAddCap -= 1;
+                    break;
+            }
+
+            var addBonusCap = Mathf.Clamp(Mathf.Min(configuredAddCap, Mathf.Max(2, balanceAddCap)), 1, 8);
+            var configuredMultiplierCap = Mathf.Clamp(
                 gateMultiplyUpgradeCapAtLevel1 + Mathf.Floor(levelFactor / 20f) * gateMultiplyUpgradeCapGrowthPer20Levels,
                 2.1f,
                 3f);
+            var balanceMultiplierCap = 2.12f + Mathf.Min(0.34f, levelFactor * 0.0018f);
+            switch (_activeDifficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    balanceMultiplierCap -= 0.05f;
+                    break;
+                case DifficultyMode.Hard:
+                    balanceMultiplierCap += 0.05f;
+                    break;
+            }
+
+            var multiplierCap = Mathf.Clamp(Mathf.Min(configuredMultiplierCap, balanceMultiplierCap), 2.05f, 2.45f);
             var multiplierCapTenths = Mathf.Max(21, Mathf.RoundToInt(multiplierCap * 10f));
 
             for (var i = 0; i < rows.Count; i++)
@@ -2479,13 +2520,13 @@ namespace MultiplyRush
 
             var compression = Mathf.Clamp(rowCountCompression, 0.3f, 1f);
             var rowCount = isMiniBoss
-                ? Mathf.Clamp(Mathf.RoundToInt((15 + (levelIndex / 4)) * compression), 8, 28)
-                : Mathf.Clamp(Mathf.RoundToInt((8 + levelIndex) * compression), 4, 22);
+                ? Mathf.Clamp(Mathf.RoundToInt((15 + (levelIndex / 4)) * compression), 8, 24)
+                : Mathf.Clamp(Mathf.RoundToInt((8 + levelIndex) * compression), 4, 18);
             generated.totalRows = rowCount;
             var effectiveRowSpacing = rowSpacing * Mathf.Max(1f, levelLengthMultiplier) * 0.96f * (isMiniBoss ? 1.05f : 1f);
             var baseBadGateChance = Mathf.Clamp01(0.16f + levelIndex * 0.012f + (isMiniBoss ? 0.05f : 0f));
-            var addBase = 3 + Mathf.FloorToInt(levelIndex * 0.85f);
-            var subtractBase = 2 + Mathf.FloorToInt(levelIndex * 0.65f);
+            var addBase = BuildAddGateBase(levelIndex, difficultyMode, isMiniBoss, gateDifficulty01);
+            var subtractBase = BuildSubtractGateBase(levelIndex, difficultyMode, isMiniBoss, addBase, gateDifficulty01);
 
             var moveChance = Mathf.Lerp(movingGateChanceAtStart, movingGateChanceAtHighDifficulty, gateDifficulty01);
             if (modifier.forceMovingGates)
@@ -2630,7 +2671,7 @@ namespace MultiplyRush
 
             generated.finishZ = startZ + (rowCount * effectiveRowSpacing) + endPadding;
             var expectedBest = EstimateBestCaseCount(generated.startCount, generated.rows);
-            var routeProfile = DifficultyRules.BuildRouteProfile(difficultyMode, isMiniBoss, generated.rows.Count);
+            var routeProfile = DifficultyRules.BuildRouteProfile(difficultyMode, isMiniBoss, generated.rows.Count, levelIndex);
             generated.referenceBetterRows = routeProfile.betterRows;
             generated.referenceWorseRows = routeProfile.worseRows;
             generated.referenceRedRows = routeProfile.redRows;
@@ -2657,13 +2698,19 @@ namespace MultiplyRush
         private float CalculateForwardSpeed(int levelIndex)
         {
             var level = Mathf.Max(1, levelIndex);
-            var speed = baseForwardSpeed + ((level - 1) * Mathf.Max(0f, forwardSpeedPerLevel));
-            if (useForwardSpeedCap && maxForwardSpeed > 0f)
+            var linearSpeed = baseForwardSpeed + ((level - 1) * Mathf.Max(0f, forwardSpeedPerLevel));
+            var cap = maxForwardSpeed > 0f
+                ? Mathf.Max(baseForwardSpeed + 1f, maxForwardSpeed)
+                : baseForwardSpeed + 4.8f;
+            var range = Mathf.Max(0.01f, cap - baseForwardSpeed);
+            var travel = Mathf.Max(0f, linearSpeed - baseForwardSpeed);
+            var softened = baseForwardSpeed + (range * (1f - Mathf.Exp(-travel / range)));
+            if (useForwardSpeedCap)
             {
-                speed = Mathf.Min(maxForwardSpeed, speed);
+                softened = Mathf.Min(cap, softened);
             }
 
-            return speed;
+            return Mathf.Clamp(softened, baseForwardSpeed, cap);
         }
 
         private float EvaluateGateDifficulty(int levelIndex)
@@ -2680,13 +2727,13 @@ namespace MultiplyRush
             switch (difficultyMode)
             {
                 case DifficultyMode.Easy:
-                    startCount = 10 + Mathf.FloorToInt((safeLevel - 1) * 0.35f);
+                    startCount = 10 + Mathf.FloorToInt((safeLevel - 1) * 0.28f);
                     break;
                 case DifficultyMode.Hard:
-                    startCount = 1 + Mathf.FloorToInt((safeLevel - 1) * 0.05f);
+                    startCount = 1 + Mathf.FloorToInt((safeLevel - 1) * 0.045f);
                     break;
                 default:
-                    startCount = 4 + Mathf.FloorToInt((safeLevel - 1) * 0.18f);
+                    startCount = 4 + Mathf.FloorToInt((safeLevel - 1) * 0.15f);
                     break;
             }
 
@@ -2706,7 +2753,70 @@ namespace MultiplyRush
                 }
             }
 
-            return Mathf.Clamp(startCount, 1, 320);
+            return Mathf.Clamp(startCount, 1, 220);
+        }
+
+        private static int BuildAddGateBase(int levelIndex, DifficultyMode difficultyMode, bool isMiniBoss, float gateDifficulty01)
+        {
+            var safeLevel = Mathf.Max(1, levelIndex);
+            var baseline = 4f + (safeLevel * 0.24f);
+            if (safeLevel > 45)
+            {
+                baseline += (safeLevel - 45) * 0.1f;
+            }
+
+            if (safeLevel > 120)
+            {
+                baseline += (safeLevel - 120) * 0.04f;
+            }
+
+            switch (difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    baseline += 3f;
+                    break;
+                case DifficultyMode.Hard:
+                    baseline -= 1.6f;
+                    break;
+                default:
+                    baseline += 0.6f;
+                    break;
+            }
+
+            if (isMiniBoss)
+            {
+                baseline += 1.1f;
+            }
+
+            var softCap = 14f + (gateDifficulty01 * 12f) + Mathf.Log(safeLevel + 2f, 2f) * 1.8f;
+            var clamped = Mathf.Min(baseline, softCap);
+            return Mathf.Clamp(Mathf.RoundToInt(clamped), 3, 72);
+        }
+
+        private static int BuildSubtractGateBase(
+            int levelIndex,
+            DifficultyMode difficultyMode,
+            bool isMiniBoss,
+            int addBase,
+            float gateDifficulty01)
+        {
+            var baseline = addBase * 0.54f + Mathf.Lerp(1.1f, 4f, gateDifficulty01);
+            switch (difficultyMode)
+            {
+                case DifficultyMode.Easy:
+                    baseline *= 0.82f;
+                    break;
+                case DifficultyMode.Hard:
+                    baseline *= 1.08f;
+                    break;
+            }
+
+            if (isMiniBoss)
+            {
+                baseline *= 1.06f;
+            }
+
+            return Mathf.Clamp(Mathf.RoundToInt(baseline), 2, Mathf.Max(4, addBase + 6));
         }
 
         private float EvaluateRiskRewardChance(float gateDifficulty01, ModifierState modifier, bool isMiniBoss)
@@ -2973,7 +3083,7 @@ namespace MultiplyRush
                 if (lane == jackpotLane)
                 {
                     var multiplier = 2;
-                    if (levelIndex > 28 && random.NextDouble() < 0.08)
+                    if (levelIndex > 100 && random.NextDouble() < 0.02)
                     {
                         multiplier = 3;
                     }
@@ -3166,10 +3276,11 @@ namespace MultiplyRush
             }
 
             var betterGate = gates[betterIndex];
-            if (betterGate.operation == GateOperation.Add && random.NextDouble() < 0.06f + Mathf.Clamp01(levelIndex / 100f) * 0.08f)
+            var betterToMultiplyChance = 0.025f + Mathf.Clamp01(levelIndex / 180f) * 0.045f;
+            if (betterGate.operation == GateOperation.Add && random.NextDouble() < betterToMultiplyChance)
             {
                 betterGate.operation = GateOperation.Multiply;
-                betterGate.value = levelIndex > 36 && random.NextDouble() < 0.08 ? 3 : 2;
+                betterGate.value = levelIndex > 95 && random.NextDouble() < 0.03 ? 3 : 2;
             }
             else if (betterGate.operation == GateOperation.Add)
             {
@@ -3177,7 +3288,7 @@ namespace MultiplyRush
             }
             else if (betterGate.operation == GateOperation.Multiply)
             {
-                betterGate.value = Mathf.Clamp(betterGate.value, 2, levelIndex > 36 && random.NextDouble() < 0.08 ? 3 : 2);
+                betterGate.value = Mathf.Clamp(betterGate.value, 2, levelIndex > 95 && random.NextDouble() < 0.03 ? 3 : 2);
             }
 
             betterGate.pickTier = GatePickTier.BetterGood;
@@ -3355,7 +3466,7 @@ namespace MultiplyRush
                 return random.NextDouble() < 0.55 ? GateOperation.Subtract : GateOperation.Divide;
             }
 
-            var multiplyChance = Mathf.Clamp01(0.04f + levelIndex * 0.0015f);
+            var multiplyChance = Mathf.Clamp(0.012f + levelIndex * 0.00035f, 0.012f, 0.055f);
             return random.NextDouble() < multiplyChance ? GateOperation.Multiply : GateOperation.Add;
         }
 
@@ -3413,15 +3524,15 @@ namespace MultiplyRush
             {
                 case DifficultyMode.Easy:
                     baseBudget = 1;
-                    growthDivisor = 28;
+                    growthDivisor = 52;
                     break;
                 case DifficultyMode.Hard:
-                    baseBudget = 3;
-                    growthDivisor = 18;
+                    baseBudget = 2;
+                    growthDivisor = 34;
                     break;
                 default:
-                    baseBudget = 2;
-                    growthDivisor = 22;
+                    baseBudget = 1;
+                    growthDivisor = 44;
                     break;
             }
 
@@ -3431,7 +3542,7 @@ namespace MultiplyRush
                 budget += 1;
             }
 
-            var rowCap = Mathf.Max(1, safeRows / 4);
+            var rowCap = Mathf.Max(1, safeRows / 7);
             return Mathf.Clamp(budget, 1, rowCap);
         }
 
@@ -3514,43 +3625,49 @@ namespace MultiplyRush
             var safeStart = Mathf.Max(1, startCount);
             var safeExpectedBest = Mathf.Max(safeStart + 2, expectedBest);
             var safeReference = Mathf.Clamp(referenceRouteCount, safeStart + 2, safeExpectedBest);
-            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.9f);
-            var curvePower = Mathf.Max(1.01f, enemyFormulaPower * 0.88f);
-            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, curvePower) * enemyFormulaPowerMultiplier * 0.11f);
+            var linearTarget = enemyFormulaBase + Mathf.RoundToInt((safeLevel - 1) * enemyFormulaLinear * 0.75f);
+            var curvePower = Mathf.Max(1.005f, enemyFormulaPower * 0.7f);
+            var curvatureBoost = Mathf.RoundToInt(Mathf.Pow(safeLevel, curvePower) * enemyFormulaPowerMultiplier * 0.08f);
             var formulaTarget = linearTarget + curvatureBoost;
 
+            float referencePressure;
             float blendToBest;
-            float pressure;
+            float floorFractionOfReference;
             float floorFractionOfBest;
             float ceilingFractionOfBest;
             switch (difficultyMode)
             {
                 case DifficultyMode.Easy:
-                    blendToBest = 0.18f;
-                    pressure = 0.84f;
-                    floorFractionOfBest = 0.32f;
-                    ceilingFractionOfBest = 0.88f;
+                    referencePressure = 0.86f;
+                    blendToBest = 0.2f;
+                    floorFractionOfReference = 0.68f;
+                    floorFractionOfBest = 0.42f;
+                    ceilingFractionOfBest = 0.84f;
                     break;
                 case DifficultyMode.Hard:
-                    blendToBest = 0.5f;
-                    pressure = 0.96f;
-                    floorFractionOfBest = 0.62f;
-                    ceilingFractionOfBest = 0.97f;
+                    referencePressure = 1.02f;
+                    blendToBest = 0.42f;
+                    floorFractionOfReference = 0.94f;
+                    floorFractionOfBest = 0.66f;
+                    ceilingFractionOfBest = 0.95f;
                     break;
                 default:
-                    blendToBest = 0.32f;
-                    pressure = 0.91f;
-                    floorFractionOfBest = 0.48f;
-                    ceilingFractionOfBest = 0.93f;
+                    referencePressure = 0.94f;
+                    blendToBest = 0.3f;
+                    floorFractionOfReference = 0.82f;
+                    floorFractionOfBest = 0.55f;
+                    ceilingFractionOfBest = 0.9f;
                     break;
             }
 
             if (isMiniBoss)
             {
-                pressure += 0.02f;
-                floorFractionOfBest += 0.04f;
+                referencePressure += 0.05f;
+                blendToBest += 0.08f;
+                floorFractionOfReference += 0.03f;
+                floorFractionOfBest += 0.035f;
                 ceilingFractionOfBest += 0.015f;
-                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.08f) + 8;
+                formulaTarget = Mathf.RoundToInt(formulaTarget * 1.06f) + 6;
             }
 
             if (modifier.tankSurge)
@@ -3558,14 +3675,15 @@ namespace MultiplyRush
                 formulaTarget += Mathf.RoundToInt(levelIndex * 0.14f);
             }
 
-            var routeBlend = Mathf.Lerp(safeReference, safeExpectedBest, Mathf.Clamp01(blendToBest));
-            var skillTarget = Mathf.RoundToInt(routeBlend * Mathf.Clamp(pressure, 0.75f, 1.02f));
-            var baseline = Mathf.Max(safeStart + 2, formulaTarget);
+            var referenceTarget = Mathf.RoundToInt(safeReference * Mathf.Clamp(referencePressure, 0.72f, 1.08f));
+            var bestTarget = Mathf.RoundToInt(safeExpectedBest * Mathf.Clamp01(Mathf.Lerp(0.64f, 0.94f, Mathf.Clamp01(blendToBest))));
+            var baseline = Mathf.Max(safeStart + 2, formulaTarget, referenceTarget);
 
-            var floorByBest = Mathf.FloorToInt(safeExpectedBest * Mathf.Clamp(floorFractionOfBest, 0.2f, 0.92f));
-            var enemyFloor = Mathf.Max(baseline, floorByBest);
+            var floorByReference = Mathf.RoundToInt(safeReference * Mathf.Clamp01(floorFractionOfReference));
+            var floorByBest = Mathf.RoundToInt(safeExpectedBest * Mathf.Clamp01(floorFractionOfBest));
+            var enemyFloor = Mathf.Max(baseline, floorByReference, floorByBest);
             var ceilingConfig = Mathf.Min(
-                Mathf.Clamp01(enemyMaxFractionOfBestPath + (isMiniBoss ? 0.04f : 0f)),
+                Mathf.Clamp01(enemyMaxFractionOfBestPath + (isMiniBoss ? 0.03f : 0f)),
                 Mathf.Clamp(ceilingFractionOfBest, 0.5f, 0.99f));
             var enemyCeiling = Mathf.Max(enemyFloor + 1, Mathf.FloorToInt(safeExpectedBest * ceilingConfig));
             enemyCeiling = Mathf.Min(enemyCeiling, safeExpectedBest - 1);
@@ -3574,7 +3692,7 @@ namespace MultiplyRush
                 enemyCeiling = Mathf.Min(safeExpectedBest - 1, enemyFloor + 1);
             }
 
-            var target = Mathf.Max(baseline, skillTarget);
+            var target = Mathf.Max(baseline, Mathf.RoundToInt(Mathf.Lerp(referenceTarget, bestTarget, Mathf.Clamp01(blendToBest))));
             var enemyCount = Mathf.Clamp(target, enemyFloor, enemyCeiling);
             var playableCeiling = Mathf.Max(1, safeExpectedBest - 1);
             return Mathf.Clamp(enemyCount, 1, playableCeiling);
