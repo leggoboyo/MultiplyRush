@@ -390,6 +390,13 @@ MonoBehaviour:
   tempoPhaseOffset: 0
   tempoPanelPulseScale: 1.05
   tempoLabelPulseScale: 1.08
+  allowShotUpgrades: 1
+  shotsForFirstUpgrade: 12
+  shotsPerUpgradeGrowth: 4
+  addUpgradeMaxBonus: 8
+  multiplierUpgradeTenthsCap: 30
+  shotUpgradePulseDuration: 0.2
+  shotUpgradePulseScale: 1.18
 --- !u!1 &7789363151159868017
 GameObject:
   m_ObjectHideFlags: 0

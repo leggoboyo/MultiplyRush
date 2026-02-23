@@ -240,12 +240,12 @@ MonoBehaviour:
   initialPoolSize: 60
   formationRoot: {fileID: 3112700058579953739}
   soldierUnitPrefab: {fileID: 8406282504723514312, guid: 12cde735bf4c2489696aff8de00e7fcf, type: 3}
-  unitSpacingX: 0.55
-  unitSpacingZ: 0.62
+  unitSpacingX: 0.66
+  unitSpacingZ: 0.72
   maxColumns: 12
   unitYOffset: 0
-  unitVisualScale: 1.32
-  shooterFrontRows: 3
+  unitVisualScale: 1.45
+  shooterFrontRows: 2
   formationLerpSpeed: 18
   runBobAmplitude: 0.08
   runBobFrequency: 9.2
@@ -266,14 +266,30 @@ MonoBehaviour:
   gateAuraMaxScale: 2.2
   gateAuraHeight: 0.03
   enableWeaponVfx: 1
-  baseShotsPerSecond: 8
-  shotsPerVisibleUnit: 0.34
-  maxShotsPerSecond: 38
+  baseShotsPerSecond: 2.1
+  shotsPerVisibleUnit: 0.055
+  maxShotsPerSecond: 16
+  combatBaseShotsPerSecond: 14
+  combatShotsPerVisibleUnit: 2.4
+  combatMaxShotsPerSecond: 320
   tracerSpeed: 35
-  tracerLifetime: 0.24
+  tracerLifetime: 0.15
   tracerSpread: 0.1
   tracerMuzzleJitter: 0.07
-  tracerSpawnForwardOffset: 0.12
+  tracerSpawnForwardOffset: 0.18
+  gateShotRayDistance: 88
+  maxCombatShotsPerFrame: 92
   allowOnlyOneGatePerRow: 1
+  autoCenterDuringCombat: 1
+  combatCenterX: 0
+  combatCenterSpeed: 14
+  battleLossBurstCount: 18
+  battleLossBurstSpread: 0.44
+  battleLossBurstUpwardSpeed: 2.2
+  enableBattleDeathFx: 1
+  maxDeathFxPerLossWave: 18
+  deathFxDuration: 0.42
+  deathFxRandomImpulse: 0.82
+  deathFxGravity: 10.5
   minSpeedMultiplier: 0.55
   dragInput: {fileID: 7321350815742664562}

@@ -1,6 +1,21 @@
 # MultiplyRush
 An actually-playable version of the clickbait gate-multiplier runner ads. Free, offline, no ads.
 
+## Privacy Policy + Support Website (GitHub Pages)
+- Static site source: `docs/`
+- Home: `docs/index.html`
+- Privacy Policy: `docs/privacy.html`
+- Support: `docs/support.html`
+
+After enabling GitHub Pages for this repository, the site will be available at:
+- `https://leggoboyo.github.io/MultiplyRush/`
+
+### Enable GitHub Pages
+1. Open repository **Settings** -> **Pages**.
+2. Set **Source** to **Deploy from a branch**.
+3. Set **Branch** to `main` and **Folder** to `/docs`.
+4. Save and wait for the first publish to complete.
+
 ## Unity Project
 - Project root: `My project/`
 - Recommended Unity version: `6000.3.9f1`

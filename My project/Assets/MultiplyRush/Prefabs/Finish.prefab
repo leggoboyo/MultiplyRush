@@ -268,8 +268,9 @@ MonoBehaviour:
   tankRequirementLabel: {fileID: 0}
   labelPulseAmplitude: 0.08
   labelPulseSpeed: 2.5
-  enemyGroupLocalOffset: {x: 0, y: 0, z: 3.2}
+  enemyGroupLocalOffset: {x: 0, y: 0, z: 6.6}
   enemyGroupLocalScale: {x: 1, y: 1, z: 1}
+  minEnemyDistanceBehindLine: 5.4
 --- !u!1001 &9157961405732842069
 PrefabInstance:
   m_ObjectHideFlags: 0

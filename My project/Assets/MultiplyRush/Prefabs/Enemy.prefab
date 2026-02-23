@@ -155,21 +155,27 @@ MonoBehaviour:
   countLabel: {fileID: 7821516125316693852}
   maxVisibleUnits: 100
   initialPoolSize: 70
-  maxColumns: 10
-  spacingX: 0.55
-  spacingZ: 0.55
+  maxColumns: 8
+  spacingX: 0.74
+  spacingZ: 0.82
   formationLerpSpeed: 14
   bobAmplitude: 0.06
   bobFrequency: 7.8
   tiltDegrees: 5
+  unitVisualScale: 1.9
   enableWeaponVfx: 1
-  baseShotsPerSecond: 6
-  shotsPerUnit: 0.3
-  maxShotsPerSecond: 34
+  baseShotsPerSecond: 11
+  shotsPerUnit: 2.1
+  maxShotsPerSecond: 260
   tracerSpeed: 31
   tracerLifetime: 0.2
   tracerSpread: 0.08
   tracerColor: {r: 1, g: 0.5, b: 0.38, a: 1}
+  enableDeathFx: 1
+  maxDeathFxPerLossWave: 18
+  deathFxDuration: 0.42
+  deathFxRandomImpulse: 0.85
+  deathFxGravity: 10.5
 --- !u!1 &4888222602296053463
 GameObject:
   m_ObjectHideFlags: 0
