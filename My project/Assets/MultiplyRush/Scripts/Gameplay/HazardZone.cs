@@ -13,6 +13,7 @@ namespace MultiplyRush
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
         [Header("Visuals")]
         public MeshRenderer zoneRenderer;
@@ -50,6 +51,8 @@ namespace MultiplyRush
         private Transform _pitVisualRoot;
         private MeshRenderer _pitVoidRenderer;
         private MeshRenderer _pitRimRenderer;
+        private MeshRenderer _pitWallRenderer;
+        private MeshRenderer _pitCoreRenderer;
         private Transform _pitSwirlOuter;
         private Transform _pitSwirlInner;
         private MeshRenderer _pitSwirlOuterRenderer;
@@ -57,6 +60,8 @@ namespace MultiplyRush
         private MeshRenderer _pitGlowRenderer;
         private MaterialPropertyBlock _pitVoidBlock;
         private MaterialPropertyBlock _pitRimBlock;
+        private MaterialPropertyBlock _pitWallBlock;
+        private MaterialPropertyBlock _pitCoreBlock;
         private MaterialPropertyBlock _pitSwirlOuterBlock;
         private MaterialPropertyBlock _pitSwirlInnerBlock;
         private MaterialPropertyBlock _pitGlowBlock;
@@ -65,6 +70,8 @@ namespace MultiplyRush
         private int _pitUnitsPerTick = 6;
         private Vector3 _pitRimBaseScale = new Vector3(1.08f, 0.04f, 1.08f);
         private Vector3 _pitVoidBaseScale = new Vector3(0.96f, 0.02f, 0.96f);
+        private Vector3 _pitWallBaseScale = new Vector3(0.9f, 0.36f, 0.9f);
+        private Vector3 _pitCoreBaseScale = new Vector3(0.58f, 0.48f, 0.58f);
         private Vector3 _pitSwirlOuterBaseScale = new Vector3(0.78f, 0.01f, 0.78f);
         private Vector3 _pitSwirlInnerBaseScale = new Vector3(0.56f, 0.01f, 0.56f);
         private Vector3 _pitGlowBaseScale = new Vector3(1.12f, 0.012f, 1.12f);
@@ -162,7 +169,7 @@ namespace MultiplyRush
             {
                 if (hazardType == HazardType.UnitPit)
                 {
-                    labelText.text = "VOID PIT";
+                    labelText.text = string.Empty;
                 }
                 else
                 {
@@ -179,6 +186,7 @@ namespace MultiplyRush
                     ? new Vector3(0f, 0.48f, -0.08f)
                     : new Vector3(0f, 1.05f, -0.08f);
                 labelText.transform.localScale = Vector3.one * (emphasize ? 0.17f : 0.14f);
+                labelText.gameObject.SetActive(hazardType != HazardType.UnitPit);
             }
 
             _baseScale = transform.localScale;
@@ -188,9 +196,9 @@ namespace MultiplyRush
                 _baseColor *= 1.14f;
             }
 
-            _pitVoidColor = Color.Lerp(_baseColor, Color.black, 0.84f);
-            _pitRimColor = Color.Lerp(_baseColor, Color.white, 0.22f);
-            _pitSwirlColor = Color.Lerp(_pitRimColor, Color.white, 0.12f);
+            _pitVoidColor = Color.Lerp(new Color(0.02f, 0.02f, 0.03f, 1f), _baseColor, 0.08f);
+            _pitRimColor = Color.Lerp(_baseColor, new Color(0.08f, 0.09f, 0.12f, 1f), 0.74f);
+            _pitSwirlColor = Color.Lerp(_pitRimColor, new Color(0.52f, 0.62f, 0.72f, 1f), 0.28f);
             ApplyPitVisualState();
             UpdateVisuals();
         }
@@ -298,7 +306,26 @@ namespace MultiplyRush
             if (_pitVoidRenderer != null)
             {
                 var voidPulse = 1f + Mathf.Sin((time * pitBreatheSpeed * 1.35f) + (_phaseOffset * 0.8f)) * (pitBreatheStrength * 0.6f);
-                _pitVoidRenderer.transform.localScale = _pitVoidBaseScale * voidPulse;
+                var wobbleX = 1f + Mathf.Sin((time * 2.2f) + _phaseOffset) * 0.08f;
+                var wobbleZ = 1f + Mathf.Cos((time * 2.5f) + (_phaseOffset * 1.3f)) * 0.08f;
+                var scale = _pitVoidBaseScale * voidPulse;
+                scale.x *= wobbleX;
+                scale.z *= wobbleZ;
+                _pitVoidRenderer.transform.localScale = scale;
+            }
+
+            if (_pitWallRenderer != null)
+            {
+                var wallPulse = 1f + Mathf.Sin((time * pitBreatheSpeed * 0.82f) + (_phaseOffset * 1.1f)) * 0.08f;
+                _pitWallRenderer.transform.localScale = _pitWallBaseScale * wallPulse;
+                _pitWallRenderer.transform.localPosition = new Vector3(0f, -0.19f - (Mathf.Abs(Mathf.Sin(time * 1.7f + _phaseOffset)) * 0.05f), 0f);
+            }
+
+            if (_pitCoreRenderer != null)
+            {
+                var corePulse = 1f + Mathf.Sin((time * pitBreatheSpeed * 1.7f) + (_phaseOffset * 1.8f)) * 0.12f;
+                _pitCoreRenderer.transform.localScale = _pitCoreBaseScale * corePulse;
+                _pitCoreRenderer.transform.localPosition = new Vector3(0f, -0.32f - (Mathf.Abs(Mathf.Sin(time * 2.3f + _phaseOffset)) * 0.08f), 0f);
             }
 
             if (_pitSwirlOuter != null)
@@ -337,6 +364,8 @@ namespace MultiplyRush
 
             ApplyRendererColor(_pitVoidRenderer, ref _pitVoidBlock, _pitVoidColor);
             ApplyRendererColor(_pitRimRenderer, ref _pitRimBlock, _pitRimColor);
+            ApplyRendererColor(_pitWallRenderer, ref _pitWallBlock, Color.Lerp(_pitVoidColor, Color.black, 0.28f));
+            ApplyRendererColor(_pitCoreRenderer, ref _pitCoreBlock, Color.Lerp(_pitVoidColor, Color.black, 0.46f));
             ApplyRendererColor(_pitSwirlOuterRenderer, ref _pitSwirlOuterBlock, _pitSwirlColor);
             ApplyRendererColor(_pitSwirlInnerRenderer, ref _pitSwirlInnerBlock, Color.Lerp(_pitSwirlColor, Color.black, 0.22f));
             ApplyRendererColor(_pitGlowRenderer, ref _pitGlowBlock, Color.Lerp(_pitRimColor, Color.white, 0.24f));
@@ -357,6 +386,7 @@ namespace MultiplyRush
             renderer.GetPropertyBlock(block);
             block.SetColor(BaseColorId, color);
             block.SetColor(ColorId, color);
+            block.SetColor(EmissionColorId, color * 0.18f);
             renderer.SetPropertyBlock(block);
         }
 
@@ -387,6 +417,24 @@ namespace MultiplyRush
             voidObj.transform.localScale = _pitVoidBaseScale;
             StripCollider(voidObj);
             _pitVoidRenderer = voidObj.GetComponent<MeshRenderer>();
+
+            var wallObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            wallObj.name = "PitWall";
+            wallObj.transform.SetParent(_pitVisualRoot, false);
+            wallObj.transform.localPosition = new Vector3(0f, -0.2f, 0f);
+            wallObj.transform.localRotation = Quaternion.identity;
+            wallObj.transform.localScale = _pitWallBaseScale;
+            StripCollider(wallObj);
+            _pitWallRenderer = wallObj.GetComponent<MeshRenderer>();
+
+            var coreObj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            coreObj.name = "PitCore";
+            coreObj.transform.SetParent(_pitVisualRoot, false);
+            coreObj.transform.localPosition = new Vector3(0f, -0.34f, 0f);
+            coreObj.transform.localRotation = Quaternion.identity;
+            coreObj.transform.localScale = _pitCoreBaseScale;
+            StripCollider(coreObj);
+            _pitCoreRenderer = coreObj.GetComponent<MeshRenderer>();
 
             var swirlOuter = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             swirlOuter.name = "PitSwirlOuter";
@@ -443,6 +491,16 @@ namespace MultiplyRush
                     if (_pitVoidRenderer != null)
                     {
                         _pitVoidRenderer.sharedMaterial = shared;
+                    }
+
+                    if (_pitWallRenderer != null)
+                    {
+                        _pitWallRenderer.sharedMaterial = shared;
+                    }
+
+                    if (_pitCoreRenderer != null)
+                    {
+                        _pitCoreRenderer.sharedMaterial = shared;
                     }
 
                     if (_pitSwirlOuterRenderer != null)

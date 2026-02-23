@@ -23,6 +23,9 @@ namespace MultiplyRush
         private RectTransform _countRect;
         private RectTransform _enemyCountRect;
         private RectTransform _enemyBadgeRect;
+        private RectTransform _bossHealthRootRect;
+        private Image _bossHealthFillImage;
+        private Text _bossHealthLabel;
         private Vector2 _lastLayoutCanvasSize = new Vector2(-1f, -1f);
         private Vector3 _countBaseScale = Vector3.one;
         private Color _countBaseColor = Color.white;
@@ -39,6 +42,13 @@ namespace MultiplyRush
         private bool _enemyCountInitialized;
         private bool _enemyCountVisible;
         private float _enemyCountFlash;
+        private bool _bossHealthVisible;
+        private bool _bossHealthInitialized;
+        private int _bossHealthMax;
+        private int _targetBossHealth;
+        private float _displayBossHealth;
+        private float _targetBossHealth01;
+        private float _displayBossHealth01;
         private float _targetProgress;
         private float _displayProgress;
         private int _levelIndex = 1;
@@ -62,6 +72,7 @@ namespace MultiplyRush
 
             EnsureEnemyCountLabel();
             EnsureEnemyCountBackdrop();
+            EnsureBossHealthBar();
             if (enemyCountText != null)
             {
                 _enemyCountRect = enemyCountText.rectTransform;
@@ -74,6 +85,7 @@ namespace MultiplyRush
                 _enemyBadgeRect = _enemyBadgeImage.rectTransform;
                 _enemyBadgeImage.gameObject.SetActive(false);
             }
+            SetBossHealthVisible(false);
 
             ApplyTextStyle(levelText, 20, FontStyle.Bold, new Color(0.94f, 0.97f, 1f, 1f));
             ApplyTextStyle(countText, 44, FontStyle.Bold, Color.white);
@@ -124,6 +136,7 @@ namespace MultiplyRush
             AnimateProgress(Time.deltaTime);
             AnimateCount(Time.deltaTime);
             AnimateEnemyCount(Time.deltaTime);
+            AnimateBossHealth(Time.deltaTime);
             AnimateDeltaLabel(Time.deltaTime);
         }
 
@@ -223,6 +236,32 @@ namespace MultiplyRush
             if (_enemyBadgeImage != null)
             {
                 _enemyBadgeImage.gameObject.SetActive(visible);
+            }
+        }
+
+        public void SetBossHealth(int currentHealth, int maxHealth, bool visible = true)
+        {
+            var safeMax = Mathf.Max(1, maxHealth);
+            var safeCurrent = Mathf.Clamp(currentHealth, 0, safeMax);
+            _bossHealthMax = safeMax;
+            _targetBossHealth = safeCurrent;
+            _targetBossHealth01 = safeCurrent / (float)safeMax;
+            if (!_bossHealthInitialized)
+            {
+                _displayBossHealth = safeCurrent;
+                _displayBossHealth01 = _targetBossHealth01;
+                _bossHealthInitialized = true;
+            }
+
+            SetBossHealthVisible(visible);
+        }
+
+        public void SetBossHealthVisible(bool visible)
+        {
+            _bossHealthVisible = visible;
+            if (_bossHealthRootRect != null)
+            {
+                _bossHealthRootRect.gameObject.SetActive(visible);
             }
         }
 

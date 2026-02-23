@@ -86,11 +86,15 @@ namespace MultiplyRush
         private RectTransform _progressOverlayRect;
         private CanvasGroup _progressOverlayGroup;
         private RectTransform _progressPanelRect;
+        private ScrollRect _progressScrollRect;
+        private RectTransform _progressViewportRect;
+        private RectTransform _progressContentRect;
+        private Button _progressCloseButton;
         private Text _progressSummaryText;
-        private readonly List<RectTransform> _progressRowRects = new List<RectTransform>(12);
-        private readonly List<Text> _progressLevelTexts = new List<Text>(12);
-        private readonly List<Text> _progressScoreTexts = new List<Text>(12);
-        private readonly List<Button> _progressReplayButtons = new List<Button>(12);
+        private readonly List<RectTransform> _progressRowRects = new List<RectTransform>(48);
+        private readonly List<Text> _progressLevelTexts = new List<Text>(48);
+        private readonly List<Text> _progressScoreTexts = new List<Text>(48);
+        private readonly List<Button> _progressReplayButtons = new List<Button>(48);
         private int _requestedReplayLevel = -1;
         private RectTransform _backdropLayerRect;
         private RectTransform _backdropNebulaARect;
@@ -1286,6 +1290,25 @@ namespace MultiplyRush
                     Mathf.Clamp((width - 180f) * layoutScale, 450f, 780f),
                     64f * layoutScale);
             }
+
+            if (_progressViewportRect != null)
+            {
+                _progressViewportRect.sizeDelta = new Vector2(
+                    Mathf.Clamp((width - 170f) * layoutScale, 460f, 760f),
+                    Mathf.Clamp((height - 420f) * layoutScale, 420f, 920f));
+            }
+
+            if (_progressCloseButton != null)
+            {
+                var closeRect = _progressCloseButton.GetComponent<RectTransform>();
+                if (closeRect != null)
+                {
+                    closeRect.anchoredPosition = new Vector2(0f, Mathf.Clamp((-height * 0.36f) * layoutScale, -568f, -420f));
+                    closeRect.sizeDelta = new Vector2(
+                        Mathf.Clamp((width - 420f) * layoutScale, 220f, 280f),
+                        62f * layoutScale);
+                }
+            }
         }
 
         private void EnsureProceduralBackdrop()
@@ -2025,9 +2048,18 @@ namespace MultiplyRush
             _progressOverlayGroup.alpha = show ? 1f : 0f;
             _progressOverlayGroup.interactable = show;
             _progressOverlayGroup.blocksRaycasts = show;
+            if (_progressButton != null)
+            {
+                _progressButton.gameObject.SetActive(!show);
+            }
             if (show)
             {
                 RefreshProgressOverlay();
+                if (_progressScrollRect != null)
+                {
+                    _progressScrollRect.verticalNormalizedPosition = 1f;
+                }
+
                 AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.6f, 1.04f);
             }
         }
@@ -2108,23 +2140,173 @@ namespace MultiplyRush
                 new Vector2(700f, 64f));
             StyleBodyText(_progressSummaryText, 28, true);
 
+            var viewportObject = new GameObject("ScrollViewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            viewportObject.transform.SetParent(_progressPanelRect, false);
+            _progressViewportRect = viewportObject.GetComponent<RectTransform>();
+            _progressViewportRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _progressViewportRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _progressViewportRect.pivot = new Vector2(0.5f, 0.5f);
+            _progressViewportRect.anchoredPosition = new Vector2(0f, -30f);
+            _progressViewportRect.sizeDelta = new Vector2(700f, 792f);
+
+            var viewportImage = viewportObject.GetComponent<Image>();
+            viewportImage.color = new Color(0f, 0f, 0f, 0.001f);
+            viewportImage.raycastTarget = true;
+
+            var contentObject = new GameObject("ScrollContent", typeof(RectTransform));
+            contentObject.transform.SetParent(_progressViewportRect, false);
+            _progressContentRect = contentObject.GetComponent<RectTransform>();
+            _progressContentRect.anchorMin = new Vector2(0.5f, 1f);
+            _progressContentRect.anchorMax = new Vector2(0.5f, 1f);
+            _progressContentRect.pivot = new Vector2(0.5f, 1f);
+            _progressContentRect.anchoredPosition = Vector2.zero;
+            _progressContentRect.sizeDelta = new Vector2(674f, 40f);
+
+            _progressScrollRect = viewportObject.GetComponent<ScrollRect>();
+            _progressScrollRect.horizontal = false;
+            _progressScrollRect.vertical = true;
+            _progressScrollRect.movementType = ScrollRect.MovementType.Clamped;
+            _progressScrollRect.inertia = true;
+            _progressScrollRect.decelerationRate = 0.12f;
+            _progressScrollRect.scrollSensitivity = 52f;
+            _progressScrollRect.viewport = _progressViewportRect;
+            _progressScrollRect.content = _progressContentRect;
+
             _progressRowRects.Clear();
             _progressLevelTexts.Clear();
             _progressScoreTexts.Clear();
             _progressReplayButtons.Clear();
+            EnsureProgressRows(24);
 
-            for (var i = 0; i < 10; i++)
+            _progressCloseButton = EnsureDifficultyButton(_progressPanelRect, "CloseButton", "CLOSE", new Vector2(0f, -526f), out var closeLabel);
+            if (_progressCloseButton != null)
             {
-                var y = 352f - (i * 84f);
+                var closeRect = _progressCloseButton.GetComponent<RectTransform>();
+                if (closeRect != null)
+                {
+                    closeRect.sizeDelta = new Vector2(248f, 62f);
+                }
+
+                _progressCloseButton.onClick.RemoveAllListeners();
+                _progressCloseButton.onClick.AddListener(ToggleProgressOverlay);
+            }
+
+            if (closeLabel != null)
+            {
+                closeLabel.fontSize = 28;
+            }
+
+            _progressOverlayRect.gameObject.SetActive(false);
+            _progressOverlayGroup.alpha = 0f;
+            _progressOverlayGroup.interactable = false;
+            _progressOverlayGroup.blocksRaycasts = false;
+        }
+
+        private void RefreshProgressOverlay()
+        {
+            var unlocked = ProgressionStore.GetUnlockedLevel();
+            var best = ProgressionStore.GetBestLevel();
+            if (_progressSummaryText != null)
+            {
+                _progressSummaryText.text = "Unlocked " + unlocked + "   •   Best " + best + "   •   Replay Any Level";
+            }
+
+            EnsureProgressRows(Mathf.Max(1, unlocked));
+            var visibleRows = Mathf.Max(1, unlocked);
+            const float rowHeight = 72f;
+            const float rowGap = 12f;
+            if (_progressContentRect != null)
+            {
+                var contentHeight = 16f + visibleRows * (rowHeight + rowGap);
+                _progressContentRect.sizeDelta = new Vector2(674f, contentHeight);
+                _progressContentRect.anchoredPosition = new Vector2(0f, 0f);
+            }
+
+            for (var i = 0; i < _progressRowRects.Count; i++)
+            {
+                var level = unlocked - i;
+                var visible = i < visibleRows;
+                var rowRect = _progressRowRects[i];
+                if (rowRect != null)
+                {
+                    rowRect.gameObject.SetActive(visible);
+                    if (visible)
+                    {
+                        rowRect.anchoredPosition = new Vector2(0f, -(8f + (i * (rowHeight + rowGap))));
+                    }
+
+                    var rowImage = rowRect.GetComponent<Image>();
+                    if (rowImage != null)
+                    {
+                        var baseColor = i % 2 == 0
+                            ? new Color(0.12f, 0.26f, 0.42f, 0.84f)
+                            : new Color(0.09f, 0.2f, 0.35f, 0.82f);
+                        rowImage.color = baseColor;
+                    }
+                }
+
+                if (!visible)
+                {
+                    continue;
+                }
+
+                if (i < _progressLevelTexts.Count && _progressLevelTexts[i] != null)
+                {
+                    _progressLevelTexts[i].text = "LEVEL " + level;
+                }
+
+                var bestSurvivors = ProgressionStore.GetBestSurvivorsForLevel(level);
+                if (i < _progressScoreTexts.Count && _progressScoreTexts[i] != null)
+                {
+                    _progressScoreTexts[i].text = bestSurvivors > 0
+                        ? "Best Survivors " + NumberFormatter.ToCompact(bestSurvivors)
+                        : "No clear yet";
+                }
+
+                if (i < _progressReplayButtons.Count && _progressReplayButtons[i] != null)
+                {
+                    var replayButton = _progressReplayButtons[i];
+                    var canReplay = level <= unlocked;
+                    replayButton.interactable = canReplay;
+                    replayButton.onClick.RemoveAllListeners();
+                    var levelCopy = Mathf.Max(1, level);
+                    replayButton.onClick.AddListener(() =>
+                    {
+                        _requestedReplayLevel = levelCopy;
+                        ToggleProgressOverlay();
+                        Play();
+                    });
+                    var replayImage = replayButton.GetComponent<Image>();
+                    if (replayImage != null)
+                    {
+                        replayImage.color = canReplay
+                            ? new Color(0.22f, 0.74f, 1f, 0.96f)
+                            : new Color(0.22f, 0.32f, 0.45f, 0.65f);
+                    }
+                }
+            }
+        }
+
+        private void EnsureProgressRows(int requiredRows)
+        {
+            if (_progressContentRect == null)
+            {
+                return;
+            }
+
+            var safeRequiredRows = Mathf.Clamp(requiredRows, 1, 5000);
+            EnsureBackdropSprites();
+            for (var i = _progressRowRects.Count; i < safeRequiredRows; i++)
+            {
                 var row = FindOrCreateImage(
-                    _progressPanelRect,
+                    _progressContentRect,
                     "Row_" + i,
                     i % 2 == 0
                         ? new Color(0.12f, 0.26f, 0.42f, 0.84f)
                         : new Color(0.09f, 0.2f, 0.35f, 0.82f),
-                    new Vector2(0.5f, 0.5f),
-                    new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, y),
+                    new Vector2(0.5f, 1f),
+                    new Vector2(0.5f, 1f),
+                    new Vector2(0f, 0f),
                     new Vector2(674f, 72f));
                 if (row == null)
                 {
@@ -2132,6 +2314,7 @@ namespace MultiplyRush
                 }
 
                 var rowRect = row.rectTransform;
+                rowRect.pivot = new Vector2(0.5f, 1f);
                 _progressRowRects.Add(rowRect);
                 var rowOutline = row.GetComponent<Outline>();
                 if (rowOutline == null)
@@ -2142,7 +2325,6 @@ namespace MultiplyRush
                 rowOutline.effectColor = new Color(0f, 0f, 0f, 0.48f);
                 rowOutline.effectDistance = new Vector2(1.2f, -1.2f);
 
-                EnsureBackdropSprites();
                 var nodeGlow = FindOrCreateImage(
                     rowRect,
                     "NodeGlow",
@@ -2198,101 +2380,7 @@ namespace MultiplyRush
                         replayLabel.fontSize = 22;
                     }
 
-                    var indexCopy = i;
-                    replayButton.onClick.RemoveAllListeners();
-                    replayButton.onClick.AddListener(() =>
-                    {
-                        var unlocked = ProgressionStore.GetUnlockedLevel();
-                        var level = Mathf.Max(1, unlocked - indexCopy);
-                        _requestedReplayLevel = level;
-                        ToggleProgressOverlay();
-                        Play();
-                    });
                     _progressReplayButtons.Add(replayButton);
-                }
-            }
-
-            var closeButton = EnsureDifficultyButton(_progressPanelRect, "CloseButton", "CLOSE", new Vector2(0f, -504f), out var closeLabel);
-            if (closeButton != null)
-            {
-                var closeRect = closeButton.GetComponent<RectTransform>();
-                if (closeRect != null)
-                {
-                    closeRect.sizeDelta = new Vector2(232f, 58f);
-                }
-
-                closeButton.onClick.RemoveAllListeners();
-                closeButton.onClick.AddListener(ToggleProgressOverlay);
-            }
-
-            if (closeLabel != null)
-            {
-                closeLabel.fontSize = 27;
-            }
-
-            _progressOverlayRect.gameObject.SetActive(false);
-            _progressOverlayGroup.alpha = 0f;
-            _progressOverlayGroup.interactable = false;
-            _progressOverlayGroup.blocksRaycasts = false;
-        }
-
-        private void RefreshProgressOverlay()
-        {
-            var unlocked = ProgressionStore.GetUnlockedLevel();
-            var best = ProgressionStore.GetBestLevel();
-            if (_progressSummaryText != null)
-            {
-                _progressSummaryText.text = "Unlocked " + unlocked + "   •   Best " + best;
-            }
-
-            for (var i = 0; i < _progressRowRects.Count; i++)
-            {
-                var level = unlocked - i;
-                var visible = level >= 1;
-                var rowRect = _progressRowRects[i];
-                if (rowRect != null)
-                {
-                    rowRect.gameObject.SetActive(visible);
-                    var rowImage = rowRect.GetComponent<Image>();
-                    if (rowImage != null)
-                    {
-                        var baseColor = i % 2 == 0
-                            ? new Color(0.12f, 0.26f, 0.42f, 0.84f)
-                            : new Color(0.09f, 0.2f, 0.35f, 0.82f);
-                        rowImage.color = baseColor;
-                    }
-                }
-
-                if (!visible)
-                {
-                    continue;
-                }
-
-                if (i < _progressLevelTexts.Count && _progressLevelTexts[i] != null)
-                {
-                    _progressLevelTexts[i].text = "LEVEL " + level;
-                }
-
-                var bestSurvivors = ProgressionStore.GetBestSurvivorsForLevel(level);
-                if (i < _progressScoreTexts.Count && _progressScoreTexts[i] != null)
-                {
-                    _progressScoreTexts[i].text = bestSurvivors > 0
-                        ? "Best Survivors " + NumberFormatter.ToCompact(bestSurvivors)
-                        : "No clear yet";
-                }
-
-                if (i < _progressReplayButtons.Count && _progressReplayButtons[i] != null)
-                {
-                    var replayButton = _progressReplayButtons[i];
-                    var canReplay = level <= unlocked;
-                    replayButton.interactable = canReplay;
-                    var replayImage = replayButton.GetComponent<Image>();
-                    if (replayImage != null)
-                    {
-                        replayImage.color = canReplay
-                            ? new Color(0.22f, 0.74f, 1f, 0.96f)
-                            : new Color(0.22f, 0.32f, 0.45f, 0.65f);
-                    }
                 }
             }
         }

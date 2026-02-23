@@ -21,9 +21,11 @@ namespace MultiplyRush
 
         [Header("Mini-Boss Visual")]
         public Vector3 bossLocalOffset = new Vector3(0f, 0.24f, 9.8f);
-        public Vector3 bossLocalScale = new Vector3(1.45f, 1.45f, 1.45f);
+        public Vector3 bossLocalScale = new Vector3(2.35f, 2.35f, 2.35f);
         public float bossPulseAmplitude = 0.04f;
         public float bossPulseSpeed = 2.1f;
+        public float bossSlamDropDistance = 0.95f;
+        public float bossSlamRecoverSpeed = 4.8f;
         public Color bossBodyColor = new Color(0.42f, 0.44f, 0.48f, 1f);
         public Color bossAccentColor = new Color(1f, 0.58f, 0.24f, 1f);
 
@@ -37,12 +39,15 @@ namespace MultiplyRush
         private Transform _bossVisual;
         private Transform _bossTurret;
         private Vector3 _bossBaseScale = Vector3.one;
+        private Vector3 _bossBaseLocalPosition = Vector3.zero;
+        private float _bossSlamOffset;
         private Material _bossBodyMaterial;
         private Material _bossAccentMaterial;
 
         public int EnemyCount => _enemyCount;
         public int TankRequirement => _tankRequirement;
         public bool IsMiniBoss => _isMiniBoss;
+        public Transform BossVisual => _bossVisual;
 
         private void Awake()
         {
@@ -95,6 +100,8 @@ namespace MultiplyRush
             {
                 var pulse = 1f + Mathf.Sin(Time.time * bossPulseSpeed) * bossPulseAmplitude;
                 _bossVisual.localScale = _bossBaseScale * pulse;
+                _bossSlamOffset = Mathf.MoveTowards(_bossSlamOffset, 0f, Mathf.Max(0.25f, bossSlamRecoverSpeed) * Time.deltaTime);
+                _bossVisual.localPosition = _bossBaseLocalPosition + Vector3.down * _bossSlamOffset;
                 if (_bossTurret != null)
                 {
                     _bossTurret.localRotation = Quaternion.Euler(0f, Mathf.Sin(Time.time * 0.92f) * 16f, 0f);
@@ -115,38 +122,42 @@ namespace MultiplyRush
             var distanceBehindLine = Mathf.Max(Mathf.Abs(enemyGroupLocalOffset.z), Mathf.Max(1f, minEnemyDistanceBehindLine));
             if (enemyGroup != null)
             {
-                var safeOffset = enemyGroupLocalOffset;
-                var formationDepth = enemyGroup.EstimateFormationDepth(_enemyCount);
-                distanceBehindLine = Mathf.Max(distanceBehindLine, formationDepth * 0.7f + Mathf.Max(1f, minEnemyDistanceBehindLine));
-                var worldPosition = new Vector3(
-                    transform.position.x + safeOffset.x,
-                    transform.position.y + safeOffset.y,
-                    transform.position.z + distanceBehindLine);
+                if (isMiniBoss)
+                {
+                    enemyGroup.gameObject.SetActive(false);
+                    enemyGroup.EndCombat();
+                }
+                else
+                {
+                    var safeOffset = enemyGroupLocalOffset;
+                    var formationDepth = enemyGroup.EstimateFormationDepth(_enemyCount);
+                    distanceBehindLine = Mathf.Max(distanceBehindLine, formationDepth * 0.7f + Mathf.Max(1f, minEnemyDistanceBehindLine));
+                    var worldPosition = new Vector3(
+                        transform.position.x + safeOffset.x,
+                        transform.position.y + safeOffset.y,
+                        transform.position.z + distanceBehindLine);
 
-                enemyGroup.transform.SetParent(transform, true);
-                enemyGroup.transform.position = worldPosition;
-                enemyGroup.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
-                enemyGroup.transform.localScale = enemyGroupLocalScale * (isMiniBoss ? 1.16f : 1f);
-                enemyGroup.SetCount(_enemyCount);
+                    enemyGroup.gameObject.SetActive(true);
+                    enemyGroup.transform.SetParent(transform, true);
+                    enemyGroup.transform.position = worldPosition;
+                    enemyGroup.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                    enemyGroup.transform.localScale = enemyGroupLocalScale;
+                    enemyGroup.SetCount(_enemyCount);
+                }
             }
 
             if (enemyCountLabel != null)
             {
-                enemyCountLabel.text = isMiniBoss ? "BOSS " + _enemyCount : "Enemy " + _enemyCount;
+                enemyCountLabel.text = isMiniBoss ? "BOSS HP " + _enemyCount : "Enemy " + _enemyCount;
                 enemyCountLabel.color = isMiniBoss ? new Color(1f, 0.52f, 0.3f, 1f) : Color.white;
+                enemyCountLabel.transform.localPosition = isMiniBoss
+                    ? new Vector3(0f, 2.6f, 0.8f)
+                    : new Vector3(0f, 2.05f, -0.44f);
             }
 
             if (tankRequirementLabel != null)
             {
-                var showBossLabel = isMiniBoss;
-                tankRequirementLabel.gameObject.SetActive(showBossLabel);
-                if (showBossLabel)
-                {
-                    tankRequirementLabel.text = _tankRequirement > 0
-                        ? "Boss Armor " + _tankRequirement
-                        : "Boss Unit";
-                    tankRequirementLabel.color = new Color(1f, 0.92f, 0.45f, 1f);
-                }
+                tankRequirementLabel.gameObject.SetActive(false);
             }
 
             if (_bossVisual != null)
@@ -154,11 +165,13 @@ namespace MultiplyRush
                 _bossVisual.gameObject.SetActive(isMiniBoss);
                 if (isMiniBoss)
                 {
-                    var safeBossZ = Mathf.Max(Mathf.Abs(bossLocalOffset.z), distanceBehindLine + 2.5f);
-                    _bossVisual.localPosition = new Vector3(bossLocalOffset.x, bossLocalOffset.y, safeBossZ);
+                    var safeBossZ = Mathf.Max(Mathf.Abs(bossLocalOffset.z), distanceBehindLine + 1.3f);
+                    _bossBaseLocalPosition = new Vector3(bossLocalOffset.x, bossLocalOffset.y, safeBossZ);
+                    _bossVisual.localPosition = _bossBaseLocalPosition;
                     _bossVisual.localRotation = Quaternion.identity;
                     _bossVisual.localScale = bossLocalScale;
                     _bossBaseScale = _bossVisual.localScale;
+                    _bossSlamOffset = 0f;
                 }
             }
         }
@@ -177,6 +190,35 @@ namespace MultiplyRush
             }
 
             crowd.NotifyFinishReached(_enemyCount);
+        }
+
+        public void SetBossVisualActive(bool active)
+        {
+            if (_bossVisual == null)
+            {
+                return;
+            }
+
+            _bossVisual.gameObject.SetActive(active);
+            if (active)
+            {
+                _bossVisual.localPosition = _bossBaseLocalPosition;
+            }
+            else
+            {
+                _bossSlamOffset = 0f;
+            }
+        }
+
+        public void TriggerBossSlam(float strength = 1f)
+        {
+            if (_bossVisual == null || !_bossVisual.gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            var safeStrength = Mathf.Clamp(strength, 0.4f, 1.6f);
+            _bossSlamOffset = Mathf.Max(_bossSlamOffset, bossSlamDropDistance * safeStrength);
         }
 
         private void EnsureLabels()
@@ -233,6 +275,7 @@ namespace MultiplyRush
                 _bossVisual = existing;
                 _bossTurret = _bossVisual.Find("Turret");
                 _bossBaseScale = _bossVisual.localScale;
+                _bossBaseLocalPosition = _bossVisual.localPosition;
                 return;
             }
 
@@ -259,6 +302,7 @@ namespace MultiplyRush
             bossRoot.localScale = bossLocalScale;
             _bossVisual = bossRoot;
             _bossBaseScale = bossRoot.localScale;
+            _bossBaseLocalPosition = bossRoot.localPosition;
             _bossVisual.gameObject.SetActive(false);
         }
 
