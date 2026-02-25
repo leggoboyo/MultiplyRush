@@ -25,7 +25,6 @@ namespace MultiplyRush.Editor
 
             importer.forceToMono = false;
             importer.loadInBackground = true;
-            importer.preloadAudioData = true;
             importer.ambisonic = false;
 
             var sampleSettings = importer.defaultSampleSettings;
@@ -33,6 +32,7 @@ namespace MultiplyRush.Editor
             sampleSettings.compressionFormat = AudioCompressionFormat.Vorbis;
             sampleSettings.quality = 0.58f;
             sampleSettings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
+            sampleSettings.preloadAudioData = true;
             importer.defaultSampleSettings = sampleSettings;
         }
     }
