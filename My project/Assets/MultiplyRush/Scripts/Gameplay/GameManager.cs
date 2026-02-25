@@ -32,6 +32,8 @@ namespace MultiplyRush
         [Range(0.35f, 0.85f)]
         public float bossTargetDurationHard = 0.72f;
         public float bossHealthSafetyMultiplier = 1f;
+        [Range(1f, 5f)]
+        public float bossDifficultyMultiplier = 2f;
         public float bossDamagePerUnitPerSecond = 0.32f;
         public float bossDamageSqrtPerSecond = 2f;
         public float postBattleDelay = 0.24f;
@@ -442,9 +444,10 @@ namespace MultiplyRush
             var targetDuration = duration * GetMiniBossTargetDurationFraction();
             var estimatedDps = EstimateBossDamagePerSecond(Mathf.Max(1, battleStartPlayer));
             var healthEfficiency = GetMiniBossHealthEfficiency();
+            var bossDifficultyScale = Mathf.Clamp(bossDifficultyMultiplier, 1f, 5f);
             var tunedBossHealth = Mathf.Max(
                 1,
-                Mathf.RoundToInt(estimatedDps * targetDuration * healthEfficiency * Mathf.Clamp(bossHealthSafetyMultiplier, 0.5f, 1.15f)));
+                Mathf.RoundToInt(estimatedDps * targetDuration * healthEfficiency * bossDifficultyScale * Mathf.Clamp(bossHealthSafetyMultiplier, 0.5f, 1.15f)));
             var battleStartBoss = Mathf.Max(1, bossHealth, _currentBuild.tankRequirement, tunedBossHealth);
             var currentBossHealth = battleStartBoss;
             var didWin = false;

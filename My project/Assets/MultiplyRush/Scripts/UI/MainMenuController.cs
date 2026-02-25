@@ -1075,6 +1075,7 @@ namespace MultiplyRush
             }
 
             audio.SetGameplayTrackIndex(next, false);
+            audio.PreviewGameplayTrack(5.2f, AudioMusicCue.MainMenu);
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.ButtonTap, 0.64f, 1.06f);
             HapticsDirector.Instance?.Play(HapticCue.LightTap);
             RefreshMusicTrackLabel();

@@ -66,6 +66,7 @@ namespace MultiplyRush
         private readonly AudioClip[] _gameplayTracks = new AudioClip[GameplayMusicTrackCount];
         private readonly string[] _gameplayTrackNames = new string[GameplayMusicTrackCount];
         private readonly Dictionary<AudioSfxCue, float> _sfxLastPlayedAt = new Dictionary<AudioSfxCue, float>(13);
+        private int _loadedExternalTrackCount;
 
         private AudioSource _musicPrimary;
         private AudioSource _musicSecondary;
@@ -867,6 +868,13 @@ namespace MultiplyRush
             var loaded = Resources.LoadAll<AudioClip>("MultiplyRush/Music/Gameplay");
             if (loaded == null || loaded.Length == 0)
             {
+                loaded = Resources.LoadAll<AudioClip>("Music/Gameplay");
+            }
+
+            if (loaded == null || loaded.Length == 0)
+            {
+                _loadedExternalTrackCount = 0;
+                Debug.Log("Multiply Rush Audio: no external gameplay tracks found in Resources; using procedural fallback.");
                 return;
             }
 
@@ -885,6 +893,9 @@ namespace MultiplyRush
                 _gameplayTracks[i] = ordered[i];
                 _gameplayTrackNames[i] = SanitizeTrackLabel(ordered[i].name, i);
             }
+
+            _loadedExternalTrackCount = replaceCount;
+            Debug.Log("Multiply Rush Audio: loaded " + _loadedExternalTrackCount + " external gameplay track(s).");
         }
 
         private static string SanitizeTrackLabel(string rawName, int fallbackIndex)
