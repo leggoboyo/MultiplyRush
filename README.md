@@ -34,7 +34,10 @@ After enabling GitHub Pages for this repository, the site will be available at:
 
 ## Production Features Implemented
 - Offline-only architecture with no ads/analytics/IAP/network calls.
-- Runtime procedural audio (menu/game/pause music + SFX).
+- Expanded audio system:
+  - 10 gameplay music tracks (CC0 pack, local assets, no network dependency at runtime).
+  - Runtime fallback procedural music if external clips are missing.
+  - Pooled SFX playback to prevent clipping/cutout under heavy battle/gate events.
 - Device-tier runtime tuning (target FPS + render scale).
 - Quality selector (Auto/Low/Medium/High) and camera-motion slider.
 - Haptics toggle with persisted preference.
@@ -69,6 +72,8 @@ After enabling GitHub Pages for this repository, the site will be available at:
   - `docs/RELEASE_PACKET_TEMPLATE.md`
 - Maintenance policy:
   - `docs/MAINTENANCE_POLICY.md`
+- Third-party audio manifest:
+  - `docs/THIRD_PARTY_AUDIO.md`
 
 ## CI + Hygiene
 - Offline policy is enforced in CI via `.github/workflows/offline-policy.yml`.

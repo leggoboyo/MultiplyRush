@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -38,17 +40,22 @@ namespace MultiplyRush
         private const int SampleRate = 44100;
         private const float MusicBaseVolume = 0.62f;
         private const float SfxBaseVolume = 0.94f;
-        private const int GameplayMusicTrackCount = 6;
+        private const int GameplayMusicTrackCount = 10;
+        private const int SfxSourcePoolSize = 18;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
-        private static readonly string[] GameplayTrackNames =
+        private static readonly string[] DefaultGameplayTrackNames =
         {
             "Hyper Neon",
             "Skyline Rush",
             "Steel Pulse",
             "Turbo Drift",
             "Glass Horizon",
-            "Voltage Lane"
+            "Voltage Lane",
+            "Crimson Rush",
+            "Pulse Driver",
+            "Night Voltage",
+            "Afterburn Echo"
         };
 
         private static AudioDirector _instance;
@@ -57,10 +64,13 @@ namespace MultiplyRush
         private readonly Dictionary<AudioSfxCue, AudioClip> _sfxClips = new Dictionary<AudioSfxCue, AudioClip>(13);
         private readonly Dictionary<AudioSfxCue, AudioClip[]> _sfxClipVariants = new Dictionary<AudioSfxCue, AudioClip[]>(13);
         private readonly AudioClip[] _gameplayTracks = new AudioClip[GameplayMusicTrackCount];
+        private readonly string[] _gameplayTrackNames = new string[GameplayMusicTrackCount];
+        private readonly Dictionary<AudioSfxCue, float> _sfxLastPlayedAt = new Dictionary<AudioSfxCue, float>(13);
 
         private AudioSource _musicPrimary;
         private AudioSource _musicSecondary;
-        private AudioSource _sfxSource;
+        private AudioSource[] _sfxSources;
+        private int _sfxSourceCursor;
         private AudioSource _activeMusic;
         private AudioSource _incomingMusic;
         private AudioMusicCue _currentCue = AudioMusicCue.None;
@@ -225,7 +235,12 @@ namespace MultiplyRush
 
         public void PlaySfx(AudioSfxCue cue, float volumeScale = 1f, float pitch = 1f)
         {
-            if (_sfxSource == null)
+            if (_sfxSources == null || _sfxSources.Length == 0)
+            {
+                return;
+            }
+
+            if (!CanPlaySfxCue(cue))
             {
                 return;
             }
@@ -248,8 +263,17 @@ namespace MultiplyRush
                 return;
             }
 
-            _sfxSource.pitch = ShapeSfxPitch(cue, pitch);
-            _sfxSource.PlayOneShot(clip, ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume);
+            var source = AcquireSfxSource();
+            if (source == null)
+            {
+                return;
+            }
+
+            source.loop = false;
+            source.pitch = ShapeSfxPitch(cue, pitch);
+            source.volume = ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume;
+            source.clip = clip;
+            source.Play();
         }
 
         public void RefreshMasterVolume()
@@ -269,13 +293,14 @@ namespace MultiplyRush
 
         public string GetGameplayTrackName(int index)
         {
-            if (GameplayTrackNames.Length == 0)
+            if (_gameplayTrackNames == null || _gameplayTrackNames.Length == 0)
             {
                 return "Track";
             }
 
-            var safeIndex = Mathf.Clamp(index, 0, GameplayTrackNames.Length - 1);
-            return GameplayTrackNames[safeIndex];
+            var safeIndex = Mathf.Clamp(index, 0, _gameplayTrackNames.Length - 1);
+            var label = _gameplayTrackNames[safeIndex];
+            return string.IsNullOrWhiteSpace(label) ? "Track " + (safeIndex + 1) : label;
         }
 
         public void SetGameplayTrackIndex(int index, bool refreshActiveCue = true)
@@ -329,12 +354,22 @@ namespace MultiplyRush
         {
             _musicPrimary = CreateChildSource("MusicA", true);
             _musicSecondary = CreateChildSource("MusicB", true);
-            _sfxSource = CreateChildSource("Sfx", false);
+            _sfxSources = new AudioSource[Mathf.Max(8, SfxSourcePoolSize)];
+            for (var i = 0; i < _sfxSources.Length; i++)
+            {
+                _sfxSources[i] = CreateChildSource("Sfx_" + i, false);
+            }
 
             _activeMusic = _musicPrimary;
             _musicPrimary.volume = 0f;
             _musicSecondary.volume = 0f;
-            _sfxSource.volume = 1f;
+            for (var i = 0; i < _sfxSources.Length; i++)
+            {
+                if (_sfxSources[i] != null)
+                {
+                    _sfxSources[i].volume = 1f;
+                }
+            }
         }
 
         private AudioSource CreateChildSource(string name, bool loop)
@@ -365,6 +400,18 @@ namespace MultiplyRush
                 _musicClips[AudioMusicCue.ResultLose] = BuildResultLoseLoop();
             }
 
+            for (var i = 0; i < GameplayMusicTrackCount; i++)
+            {
+                if (i < DefaultGameplayTrackNames.Length)
+                {
+                    _gameplayTrackNames[i] = DefaultGameplayTrackNames[i];
+                }
+                else
+                {
+                    _gameplayTrackNames[i] = "Track " + (i + 1);
+                }
+            }
+
             if (_gameplayTracks[0] == null)
             {
                 _gameplayTracks[0] = BuildGameplayTrackA();
@@ -373,7 +420,13 @@ namespace MultiplyRush
                 _gameplayTracks[3] = BuildGameplayTrackD();
                 _gameplayTracks[4] = BuildGameplayTrackE();
                 _gameplayTracks[5] = BuildGameplayTrackF();
+                _gameplayTracks[6] = BuildGameplayTrackG();
+                _gameplayTracks[7] = BuildGameplayTrackH();
+                _gameplayTracks[8] = BuildGameplayTrackI();
+                _gameplayTracks[9] = BuildGameplayTrackJ();
             }
+
+            LoadExternalGameplayTracks();
 
             if (_sfxClips.Count == 0)
             {
@@ -484,6 +537,71 @@ namespace MultiplyRush
                 default:
                     return clamped;
             }
+        }
+
+        private bool CanPlaySfxCue(AudioSfxCue cue)
+        {
+            var minInterval = GetSfxMinInterval(cue);
+            if (minInterval <= 0f)
+            {
+                return true;
+            }
+
+            var now = Time.unscaledTime;
+            if (_sfxLastPlayedAt.TryGetValue(cue, out var lastPlayedAt))
+            {
+                if (now - lastPlayedAt < minInterval)
+                {
+                    return false;
+                }
+            }
+
+            _sfxLastPlayedAt[cue] = now;
+            return true;
+        }
+
+        private static float GetSfxMinInterval(AudioSfxCue cue)
+        {
+            switch (cue)
+            {
+                case AudioSfxCue.BattleHit:
+                    return 0.022f;
+                case AudioSfxCue.GatePositive:
+                case AudioSfxCue.GateNegative:
+                    return 0.016f;
+                case AudioSfxCue.ButtonTap:
+                    return 0.05f;
+                default:
+                    return 0f;
+            }
+        }
+
+        private AudioSource AcquireSfxSource()
+        {
+            if (_sfxSources == null || _sfxSources.Length == 0)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < _sfxSources.Length; i++)
+            {
+                var index = (_sfxSourceCursor + i) % _sfxSources.Length;
+                var source = _sfxSources[index];
+                if (source == null)
+                {
+                    continue;
+                }
+
+                if (!source.isPlaying)
+                {
+                    _sfxSourceCursor = (index + 1) % _sfxSources.Length;
+                    return source;
+                }
+            }
+
+            var fallback = _sfxSources[_sfxSourceCursor];
+            _sfxSourceCursor = (_sfxSourceCursor + 1) % _sfxSources.Length;
+            return fallback;
         }
 
         private void QueueCue(AudioMusicCue cue, float delaySeconds)
@@ -690,6 +808,117 @@ namespace MultiplyRush
                 energy: 0.94f,
                 atmosphere: 0.32f,
                 sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackG()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_07_CrimsonRush",
+                bpm: 124f,
+                bars: 8,
+                chordRoots: new[] { 40, 45, 43, 47 },
+                minorKey: true,
+                energy: 0.84f,
+                atmosphere: 0.36f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackH()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_08_PulseDriver",
+                bpm: 128f,
+                bars: 8,
+                chordRoots: new[] { 52, 48, 55, 50 },
+                minorKey: false,
+                energy: 0.88f,
+                atmosphere: 0.4f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackI()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_09_NightVoltage",
+                bpm: 132f,
+                bars: 8,
+                chordRoots: new[] { 45, 50, 47, 43 },
+                minorKey: true,
+                energy: 0.9f,
+                atmosphere: 0.34f,
+                sparseLead: false);
+        }
+
+        private static AudioClip BuildGameplayTrackJ()
+        {
+            return BuildModernLoop(
+                clipName: "Music_Gameplay_10_AfterburnEcho",
+                bpm: 120f,
+                bars: 8,
+                chordRoots: new[] { 55, 52, 50, 57 },
+                minorKey: false,
+                energy: 0.74f,
+                atmosphere: 0.58f,
+                sparseLead: false);
+        }
+
+        private void LoadExternalGameplayTracks()
+        {
+            var loaded = Resources.LoadAll<AudioClip>("MultiplyRush/Music/Gameplay");
+            if (loaded == null || loaded.Length == 0)
+            {
+                return;
+            }
+
+            var ordered = loaded
+                .Where(clip => clip != null)
+                .OrderBy(clip => clip.name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (ordered.Length == 0)
+            {
+                return;
+            }
+
+            var replaceCount = Mathf.Min(GameplayMusicTrackCount, ordered.Length);
+            for (var i = 0; i < replaceCount; i++)
+            {
+                _gameplayTracks[i] = ordered[i];
+                _gameplayTrackNames[i] = SanitizeTrackLabel(ordered[i].name, i);
+            }
+        }
+
+        private static string SanitizeTrackLabel(string rawName, int fallbackIndex)
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                return "Track " + (fallbackIndex + 1);
+            }
+
+            var normalized = rawName.Replace("_", " ").Replace("-", " ");
+            while (normalized.Contains("  "))
+            {
+                normalized = normalized.Replace("  ", " ");
+            }
+
+            var trimIndex = 0;
+            while (trimIndex < normalized.Length && (char.IsDigit(normalized[trimIndex]) || normalized[trimIndex] == ' '))
+            {
+                trimIndex++;
+            }
+
+            if (trimIndex > 0 && trimIndex < normalized.Length)
+            {
+                normalized = normalized.Substring(trimIndex);
+            }
+
+            normalized = normalized.Trim();
+            if (normalized.Length == 0)
+            {
+                return "Track " + (fallbackIndex + 1);
+            }
+
+            normalized = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized.ToLowerInvariant());
+            return normalized;
         }
 
         private static AudioClip BuildBattleMusic()

@@ -168,6 +168,11 @@ namespace MultiplyRush
         public float beaconMaxHeight = 3.6f;
         public Color beaconPoleColor = new Color(0.08f, 0.12f, 0.18f, 1f);
         public Color beaconCoreColor = new Color(0.36f, 0.88f, 1f, 1f);
+        public bool enableBeaconLights = true;
+        [Range(0f, 1f)]
+        public float beaconLightDensity = 0.42f;
+        public float beaconLightRange = 5.8f;
+        public float beaconLightIntensity = 1.25f;
 
         [Header("Street Ambience")]
         public bool enableStreetAmbience = true;
@@ -642,14 +647,14 @@ namespace MultiplyRush
                 var maxWidth = Mathf.Max(minWidth + 0.25f, backdropMaxWidth);
                 var minDepth = Mathf.Max(0.8f, backdropMinDepth);
                 var maxDepth = Mathf.Max(minDepth + 0.3f, backdropMaxDepth);
-                var layerCount = quality == BackdropQuality.Low ? 1 : 2;
+                var layerCount = quality == BackdropQuality.Low ? 1 : (quality == BackdropQuality.High ? 3 : 2);
                 for (var layer = 0; layer < layerCount; layer++)
                 {
-                    var layerScale = 1f + (layer * 0.38f);
-                    var layerSpacing = spacing * (1f + (layer * 0.52f));
-                    var layerDepthOffset = layer * Mathf.Lerp(7f, 11f, density01);
-                    var layerYawJitter = layer == 0 ? 4f : 8f;
-                    var layerHeightBoost = Mathf.Lerp(0.96f, 1.2f, layer / Mathf.Max(1f, layerCount - 1f));
+                    var layerScale = 1f + (layer * 0.42f);
+                    var layerSpacing = spacing * (1f + (layer * 0.56f));
+                    var layerDepthOffset = layer * Mathf.Lerp(7.5f, 12.8f, density01);
+                    var layerYawJitter = 4f + (layer * 3.2f);
+                    var layerHeightBoost = Mathf.Lerp(0.96f, 1.28f, layer / Mathf.Max(1f, layerCount - 1f));
                     for (var side = -1; side <= 1; side += 2)
                     {
                         for (var z = zStart; z <= zEnd; z += layerSpacing)
@@ -660,8 +665,12 @@ namespace MultiplyRush
                                 * Mathf.Lerp(0.92f, 1.14f, density01)
                                 * layerHeightBoost;
                             var depth = Mathf.Lerp(minDepth, maxDepth, (float)random.NextDouble()) * layerScale;
+                            if (layer == layerCount - 1)
+                            {
+                                height *= 1.08f;
+                            }
                             var zJitter = ((float)random.NextDouble() * 2f - 1f) * layerSpacing * 0.36f;
-                            var xJitter = ((float)random.NextDouble() * 2f - 1f) * (1.25f + layer * 0.5f);
+                            var xJitter = ((float)random.NextDouble() * 2f - 1f) * (1.35f + layer * 0.68f);
                             block.position = new Vector3(
                                 side * (sideX + layerDepthOffset + xJitter + width * 0.4f),
                                 (height * 0.5f) - 0.2f,
@@ -725,6 +734,7 @@ namespace MultiplyRush
             }
 
             PrewarmBeaconPool();
+            var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
             var random = new System.Random(27109 + (_activeLevelIndex * 83));
             var density = GetBackdropDensityMultiplier();
             var spacing = Mathf.Max(4.2f, beaconSpacing / Mathf.Max(0.6f, density));
@@ -733,6 +743,10 @@ namespace MultiplyRush
             var baseX = effectiveTrackHalfWidth + railInset + Mathf.Max(0.2f, beaconOffsetFromRail);
             var minHeight = Mathf.Max(1f, beaconMinHeight);
             var maxHeight = Mathf.Max(minHeight + 0.3f, beaconMaxHeight);
+            var qualityLightScale = quality == BackdropQuality.High ? 1f : (quality == BackdropQuality.Medium ? 0.72f : 0.42f);
+            var lightChance = Mathf.Clamp01(beaconLightDensity * qualityLightScale);
+            var maxActiveLights = quality == BackdropQuality.High ? 28 : (quality == BackdropQuality.Medium ? 18 : 10);
+            var lightsEnabled = 0;
 
             for (var side = -1; side <= 1; side += 2)
             {
@@ -747,6 +761,27 @@ namespace MultiplyRush
                     beacon.rotation = Quaternion.Euler(0f, side < 0 ? 90f : -90f, 0f);
                     beacon.localScale = Vector3.one;
                     ConfigureBeaconGeometry(beacon, height, coreScale);
+
+                    var lightTransform = beacon.Find("LampLight");
+                    if (lightTransform != null)
+                    {
+                        var lightComponent = lightTransform.GetComponent<Light>();
+                        if (lightComponent != null)
+                        {
+                            var canEnable = enableBeaconLights &&
+                                            lightsEnabled < maxActiveLights &&
+                                            random.NextDouble() < lightChance;
+                            lightComponent.enabled = canEnable;
+                            if (canEnable)
+                            {
+                                lightsEnabled++;
+                                lightComponent.range = Mathf.Clamp(beaconLightRange * Mathf.Lerp(0.86f, 1.16f, (float)random.NextDouble()), 2.2f, 11.5f);
+                                lightComponent.intensity = Mathf.Clamp(beaconLightIntensity * Mathf.Lerp(0.82f, 1.2f, (float)random.NextDouble()), 0.35f, 3.2f);
+                                lightComponent.color = Color.Lerp(beaconCoreColor, Color.white, 0.18f + ((float)random.NextDouble() * 0.16f));
+                            }
+                        }
+                    }
+
                     beacon.gameObject.SetActive(true);
                     _activeBeacons.Add(beacon);
                 }
@@ -937,6 +972,36 @@ namespace MultiplyRush
             ApplyMaterialColor(_stripeMaterial, stripeColor * pulse, 0.42f, 0.42f * pulse);
             ApplyMaterialColor(_railMaterial, railColor * (0.98f + pulseStrength * 0.2f), 0.24f, 0.1f * pulse);
             ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor * pulse, 0.66f, 0.95f * pulse);
+
+            if (enableBeaconLights && _activeBeacons.Count > 0)
+            {
+                var baseIntensity = Mathf.Clamp(beaconLightIntensity, 0f, 3.2f);
+                var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
+                var qualityScale = quality == BackdropQuality.High ? 1f : (quality == BackdropQuality.Medium ? 0.86f : 0.7f);
+                for (var i = 0; i < _activeBeacons.Count; i++)
+                {
+                    var beacon = _activeBeacons[i];
+                    if (beacon == null)
+                    {
+                        continue;
+                    }
+
+                    var lightTransform = beacon.Find("LampLight");
+                    if (lightTransform == null)
+                    {
+                        continue;
+                    }
+
+                    var lightComponent = lightTransform.GetComponent<Light>();
+                    if (lightComponent == null || !lightComponent.enabled)
+                    {
+                        continue;
+                    }
+
+                    var flicker = 0.88f + (Mathf.Sin((runTime * (speed * 2.2f)) + (i * 0.47f)) * 0.1f);
+                    lightComponent.intensity = Mathf.Clamp(baseIntensity * pulse * flicker * qualityScale, 0.2f, 3.4f);
+                }
+            }
         }
 
         private float GetBackdropDensityMultiplier()
@@ -1123,6 +1188,13 @@ namespace MultiplyRush
             CreateBackdropPart(blockRoot.transform, "RoofRim", PrimitiveType.Cube, GetBackdropMaterial());
             CreateBackdropPart(blockRoot.transform, "Antenna", PrimitiveType.Cube, GetBeaconPoleMaterial());
             CreateBackdropPart(blockRoot.transform, "ServiceBox", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Podium", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "SpireA", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "SpireB", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "Bridge", PrimitiveType.Cube, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "SkyFrame", PrimitiveType.Cube, GetBeaconCoreMaterial());
+            CreateBackdropPart(blockRoot.transform, "RoofDish", PrimitiveType.Cylinder, GetBackdropMaterial());
+            CreateBackdropPart(blockRoot.transform, "AntennaTip", PrimitiveType.Sphere, GetBeaconCoreMaterial());
 
             blockRoot.SetActive(false);
             return blockRoot.transform;
@@ -1192,6 +1264,23 @@ namespace MultiplyRush
                 }
             }
 
+            var underbelly = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            underbelly.name = "Underbelly";
+            underbelly.transform.SetParent(cloudRoot.transform, false);
+            var underbellyCollider = underbelly.GetComponent<Collider>();
+            if (underbellyCollider != null)
+            {
+                Destroy(underbellyCollider);
+            }
+
+            var underbellyRenderer = underbelly.GetComponent<MeshRenderer>();
+            if (underbellyRenderer != null)
+            {
+                underbellyRenderer.sharedMaterial = GetCloudMaterial();
+                underbellyRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                underbellyRenderer.receiveShadows = false;
+            }
+
             cloudRoot.SetActive(false);
             return cloudRoot.transform;
         }
@@ -1234,6 +1323,68 @@ namespace MultiplyRush
                 coreRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 coreRenderer.receiveShadows = false;
             }
+
+            var arm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            arm.name = "Arm";
+            arm.transform.SetParent(beaconRoot.transform, false);
+            var armCollider = arm.GetComponent<Collider>();
+            if (armCollider != null)
+            {
+                Destroy(armCollider);
+            }
+
+            var armRenderer = arm.GetComponent<MeshRenderer>();
+            if (armRenderer != null)
+            {
+                armRenderer.sharedMaterial = GetBeaconPoleMaterial();
+                armRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                armRenderer.receiveShadows = false;
+            }
+
+            var cap = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cap.name = "Cap";
+            cap.transform.SetParent(beaconRoot.transform, false);
+            var capCollider = cap.GetComponent<Collider>();
+            if (capCollider != null)
+            {
+                Destroy(capCollider);
+            }
+
+            var capRenderer = cap.GetComponent<MeshRenderer>();
+            if (capRenderer != null)
+            {
+                capRenderer.sharedMaterial = GetBeaconPoleMaterial();
+                capRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                capRenderer.receiveShadows = false;
+            }
+
+            var baseBlock = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            baseBlock.name = "Base";
+            baseBlock.transform.SetParent(beaconRoot.transform, false);
+            var baseCollider = baseBlock.GetComponent<Collider>();
+            if (baseCollider != null)
+            {
+                Destroy(baseCollider);
+            }
+
+            var baseRenderer = baseBlock.GetComponent<MeshRenderer>();
+            if (baseRenderer != null)
+            {
+                baseRenderer.sharedMaterial = GetBeaconPoleMaterial();
+                baseRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                baseRenderer.receiveShadows = false;
+            }
+
+            var lampLightObject = new GameObject("LampLight");
+            lampLightObject.transform.SetParent(beaconRoot.transform, false);
+            var lampLight = lampLightObject.AddComponent<Light>();
+            lampLight.type = LightType.Point;
+            lampLight.range = Mathf.Max(2.2f, beaconLightRange);
+            lampLight.intensity = Mathf.Max(0f, beaconLightIntensity);
+            lampLight.color = Color.Lerp(beaconCoreColor, Color.white, 0.24f);
+            lampLight.shadows = LightShadows.None;
+            lampLight.renderMode = LightRenderMode.Auto;
+            lampLight.enabled = false;
 
             beaconRoot.SetActive(false);
             return beaconRoot.transform;
@@ -1304,6 +1455,35 @@ namespace MultiplyRush
             {
                 core.localPosition = new Vector3(0f, safeHeight + 0.08f, 0f);
                 core.localScale = Vector3.one * safeCoreScale;
+            }
+
+            var arm = beacon.Find("Arm");
+            if (arm != null)
+            {
+                arm.localPosition = new Vector3(0f, safeHeight * 0.82f, 0.1f);
+                arm.localScale = new Vector3(0.11f, 0.06f, 0.46f);
+            }
+
+            var cap = beacon.Find("Cap");
+            if (cap != null)
+            {
+                cap.localPosition = new Vector3(0f, safeHeight + 0.12f, 0f);
+                cap.localScale = new Vector3(0.22f, 0.06f, 0.18f);
+            }
+
+            var baseBlock = beacon.Find("Base");
+            if (baseBlock != null)
+            {
+                baseBlock.localPosition = new Vector3(0f, 0.06f, 0f);
+                baseBlock.localScale = new Vector3(0.2f, 0.12f, 0.2f);
+            }
+
+            var lampLight = beacon.Find("LampLight");
+            if (lampLight != null)
+            {
+                lampLight.localPosition = new Vector3(0f, safeHeight + 0.1f, 0.04f);
+                lampLight.localRotation = Quaternion.identity;
+                lampLight.localScale = Vector3.one;
             }
         }
 
@@ -1445,6 +1625,8 @@ namespace MultiplyRush
             var useMedium = quality == BackdropQuality.Medium || quality == BackdropQuality.High;
             var useHigh = quality == BackdropQuality.High;
             var detailSeed = (float)random.NextDouble();
+            var silhouetteStyle = random.Next(0, 4);
+            var crownHeight = safeHeight * Mathf.Lerp(0.16f, 0.34f, (float)random.NextDouble());
 
             var midPart = root.Find("Mid");
             if (midPart != null)
@@ -1460,11 +1642,14 @@ namespace MultiplyRush
             var topPart = root.Find("Top");
             if (topPart != null)
             {
-                topPart.gameObject.SetActive(useHigh);
-                if (useHigh)
+                topPart.gameObject.SetActive(useHigh || (useMedium && silhouetteStyle == 1));
+                if (topPart.gameObject.activeSelf)
                 {
-                    topPart.localPosition = new Vector3(0f, safeHeight * 0.35f, 0f);
-                    topPart.localScale = new Vector3(safeWidth * 0.48f, safeHeight * 0.34f, safeDepth * 0.5f);
+                    topPart.localPosition = new Vector3(0f, safeHeight * Mathf.Lerp(0.28f, 0.38f, detailSeed), 0f);
+                    topPart.localScale = new Vector3(
+                        safeWidth * Mathf.Lerp(0.42f, 0.56f, detailSeed),
+                        safeHeight * Mathf.Lerp(0.28f, 0.38f, detailSeed),
+                        safeDepth * Mathf.Lerp(0.42f, 0.58f, detailSeed));
                 }
             }
 
@@ -1594,6 +1779,90 @@ namespace MultiplyRush
                     serviceBox.localScale = new Vector3(safeWidth * 0.16f, Mathf.Max(0.07f, safeHeight * 0.08f), safeDepth * 0.18f);
                 }
             }
+
+            var podium = root.Find("Podium");
+            if (podium != null)
+            {
+                podium.gameObject.SetActive(useMedium && silhouetteStyle != 3);
+                if (podium.gameObject.activeSelf)
+                {
+                    podium.localPosition = new Vector3(0f, -(safeHeight * 0.32f), safeDepth * 0.02f);
+                    podium.localScale = new Vector3(safeWidth * 1.1f, safeHeight * 0.2f, safeDepth * 1.04f);
+                }
+            }
+
+            var spireA = root.Find("SpireA");
+            if (spireA != null)
+            {
+                spireA.gameObject.SetActive(useHigh && silhouetteStyle != 2);
+                if (spireA.gameObject.activeSelf)
+                {
+                    spireA.localPosition = new Vector3(safeWidth * -0.16f, safeHeight * 0.5f + (crownHeight * 0.42f), -safeDepth * 0.08f);
+                    spireA.localScale = new Vector3(
+                        Mathf.Max(0.08f, safeWidth * 0.1f),
+                        Mathf.Max(0.2f, crownHeight),
+                        Mathf.Max(0.08f, safeDepth * 0.12f));
+                }
+            }
+
+            var spireB = root.Find("SpireB");
+            if (spireB != null)
+            {
+                spireB.gameObject.SetActive(useHigh && silhouetteStyle > 0);
+                if (spireB.gameObject.activeSelf)
+                {
+                    spireB.localPosition = new Vector3(safeWidth * 0.19f, safeHeight * 0.48f + (crownHeight * 0.33f), safeDepth * 0.04f);
+                    spireB.localScale = new Vector3(
+                        Mathf.Max(0.07f, safeWidth * 0.08f),
+                        Mathf.Max(0.18f, crownHeight * 0.82f),
+                        Mathf.Max(0.07f, safeDepth * 0.1f));
+                }
+            }
+
+            var bridge = root.Find("Bridge");
+            if (bridge != null)
+            {
+                bridge.gameObject.SetActive(useHigh && silhouetteStyle == 3);
+                if (bridge.gameObject.activeSelf)
+                {
+                    bridge.localPosition = new Vector3(0f, safeHeight * 0.26f, safeDepth * 0.07f);
+                    bridge.localScale = new Vector3(safeWidth * 0.96f, Mathf.Max(0.05f, safeHeight * 0.04f), safeDepth * 0.12f);
+                }
+            }
+
+            var skyFrame = root.Find("SkyFrame");
+            if (skyFrame != null)
+            {
+                skyFrame.gameObject.SetActive(useHigh && detailSeed > 0.5f);
+                if (skyFrame.gameObject.activeSelf)
+                {
+                    skyFrame.localPosition = new Vector3(0f, safeHeight * 0.36f, safeDepth * 0.47f);
+                    skyFrame.localScale = new Vector3(safeWidth * 0.28f, safeHeight * 0.38f, Mathf.Max(0.04f, safeDepth * 0.03f));
+                }
+            }
+
+            var roofDish = root.Find("RoofDish");
+            if (roofDish != null)
+            {
+                roofDish.gameObject.SetActive(useHigh && silhouetteStyle == 2);
+                if (roofDish.gameObject.activeSelf)
+                {
+                    roofDish.localPosition = new Vector3(0f, safeHeight * 0.58f, safeDepth * -0.12f);
+                    roofDish.localScale = new Vector3(safeWidth * 0.2f, Mathf.Max(0.05f, safeHeight * 0.03f), safeDepth * 0.2f);
+                    roofDish.localRotation = Quaternion.Euler(88f, 0f, 0f);
+                }
+            }
+
+            var antennaTip = root.Find("AntennaTip");
+            if (antennaTip != null)
+            {
+                antennaTip.gameObject.SetActive(useHigh && antenna != null && antenna.gameObject.activeSelf);
+                if (antennaTip.gameObject.activeSelf && antenna != null)
+                {
+                    antennaTip.localPosition = antenna.localPosition + new Vector3(0f, (antenna.localScale.y * 0.58f), 0f);
+                    antennaTip.localScale = Vector3.one * Mathf.Max(0.04f, safeWidth * 0.04f);
+                }
+            }
         }
 
         private void ConfigureCloudGeometry(Transform root, float baseScale, System.Random random)
@@ -1605,11 +1874,20 @@ namespace MultiplyRush
 
             var quality = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
             var safeScale = Mathf.Max(1f, baseScale);
-            var baseWidth = safeScale * 2.2f;
-            var baseHeight = safeScale * 0.62f;
-            var baseDepth = safeScale * 1.35f;
+            var baseWidth = safeScale * 2.28f;
+            var baseHeight = safeScale * 0.56f;
+            var baseDepth = safeScale * 1.48f;
             root.localScale = new Vector3(baseWidth, baseHeight, baseDepth);
-            var activeLobes = quality == BackdropQuality.High ? CloudLobeCount : (quality == BackdropQuality.Medium ? 10 : 6);
+            var activeLobes = quality == BackdropQuality.High ? CloudLobeCount : (quality == BackdropQuality.Medium ? 11 : 7);
+            var clusterCount = quality == BackdropQuality.Low ? 3 : 4;
+            var clusterCenters = new[]
+            {
+                new Vector3(-0.34f, 0.02f, -0.06f),
+                new Vector3(0.02f, 0.09f, 0.01f),
+                new Vector3(0.36f, 0.03f, -0.02f),
+                new Vector3(0f, 0.2f, 0.11f)
+            };
+
             for (var i = 0; i < CloudLobeCount; i++)
             {
                 var lobe = root.Find("Lobe" + i);
@@ -1625,28 +1903,44 @@ namespace MultiplyRush
                     continue;
                 }
 
-                var ringIndex = i % 7;
-                var layer = i / 7;
-                var normalized = ringIndex / 7f;
-                var angle = normalized * Mathf.PI * 2f + (((float)random.NextDouble() - 0.5f) * 0.42f);
-                var radius = (layer == 0 ? 0.36f : 0.22f) + ((float)random.NextDouble() * 0.1f);
-                var x = Mathf.Cos(angle) * radius;
-                var z = Mathf.Sin(angle) * (0.52f + (layer * 0.11f));
-                var y = (layer == 0 ? 0.04f : 0.18f)
-                    + Mathf.Sin(angle * 2f) * 0.03f
-                    + (((float)random.NextDouble() - 0.5f) * 0.04f);
+                var clusterIndex = i % clusterCount;
+                var cluster = clusterCenters[clusterIndex];
+                var scatter = quality == BackdropQuality.Low ? 0.12f : (quality == BackdropQuality.Medium ? 0.16f : 0.2f);
+                var jitterX = (((float)random.NextDouble() * 2f) - 1f) * scatter;
+                var jitterY = (((float)random.NextDouble() * 2f) - 1f) * (scatter * 0.34f);
+                var jitterZ = (((float)random.NextDouble() * 2f) - 1f) * (scatter * 0.92f);
+                var altitudeBias = clusterIndex == 3 ? 0.08f : -0.01f;
+                var y = cluster.y + altitudeBias + jitterY;
+                var x = cluster.x + jitterX;
+                var z = cluster.z + jitterZ;
 
-                var lobeScale = 0.38f
-                    + (layer == 0 ? 0.24f : 0.34f)
-                    + ((float)random.NextDouble() * 0.2f);
-                var lobeScaleX = lobeScale * (1.12f + ((float)random.NextDouble() * 0.24f));
-                var lobeScaleY = lobeScale * (0.66f + ((float)random.NextDouble() * 0.18f));
-                var lobeScaleZ = lobeScale * (0.9f + ((float)random.NextDouble() * 0.18f));
+                // Flatten lower lobes and keep top lobes softer to avoid "stacked ovals" look.
+                var lobeSize = Mathf.Lerp(0.42f, 0.78f, (float)random.NextDouble());
+                if (clusterIndex == 3)
+                {
+                    lobeSize *= 0.86f;
+                }
+
+                var lobeScaleX = lobeSize * Mathf.Lerp(1.08f, 1.36f, (float)random.NextDouble());
+                var lobeScaleY = lobeSize * Mathf.Lerp(clusterIndex == 3 ? 0.72f : 0.52f, clusterIndex == 3 ? 0.96f : 0.72f, (float)random.NextDouble());
+                var lobeScaleZ = lobeSize * Mathf.Lerp(0.9f, 1.28f, (float)random.NextDouble());
                 lobe.localPosition = new Vector3(x, y, z);
                 lobe.localScale = new Vector3(
                     Mathf.Max(0.28f, lobeScaleX),
                     Mathf.Max(0.22f, lobeScaleY),
                     Mathf.Max(0.24f, lobeScaleZ));
+            }
+
+            var underbelly = root.Find("Underbelly");
+            if (underbelly != null)
+            {
+                var showUnderbelly = quality != BackdropQuality.Low;
+                underbelly.gameObject.SetActive(showUnderbelly);
+                if (showUnderbelly)
+                {
+                    underbelly.localPosition = new Vector3(0f, -0.06f, 0.02f);
+                    underbelly.localScale = new Vector3(1.08f, 0.09f, 0.72f);
+                }
             }
         }
 
