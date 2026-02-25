@@ -41,7 +41,7 @@ namespace MultiplyRush
         private const float MusicBaseVolume = 0.62f;
         private const float SfxBaseVolume = 0.94f;
         private const int GameplayMusicTrackCount = 10;
-        private const int SfxSourcePoolSize = 18;
+        private const int SfxSourcePoolSize = 32;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
         private static readonly string[] DefaultGameplayTrackNames =
@@ -272,9 +272,7 @@ namespace MultiplyRush
 
             source.loop = false;
             source.pitch = ShapeSfxPitch(cue, pitch);
-            source.volume = ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume;
-            source.clip = clip;
-            source.Play();
+            source.PlayOneShot(clip, ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume);
         }
 
         public void RefreshMasterVolume()
@@ -566,10 +564,10 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.BattleHit:
-                    return 0.022f;
+                    return 0.05f;
                 case AudioSfxCue.GatePositive:
                 case AudioSfxCue.GateNegative:
-                    return 0.016f;
+                    return 0.03f;
                 case AudioSfxCue.ButtonTap:
                     return 0.05f;
                 default:
@@ -600,9 +598,8 @@ namespace MultiplyRush
                 }
             }
 
-            var fallback = _sfxSources[_sfxSourceCursor];
-            _sfxSourceCursor = (_sfxSourceCursor + 1) % _sfxSources.Length;
-            return fallback;
+            // Never steal a busy source; dropping a burst cue is less jarring than hard-cutting an active sound.
+            return null;
         }
 
         private void QueueCue(AudioMusicCue cue, float delaySeconds)
