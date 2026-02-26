@@ -551,7 +551,7 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.ButtonTap:
-                    minimum = 0.2f;
+                    minimum = 0.15f;
                     break;
                 case AudioSfxCue.PlayTransition:
                 case AudioSfxCue.PauseOpen:
@@ -570,7 +570,7 @@ namespace MultiplyRush
                     minimum = 0.35f;
                     break;
                 case AudioSfxCue.BattleHit:
-                    minimum = 0.22f;
+                    minimum = 0.14f;
                     break;
                 default:
                     minimum = 0f;
@@ -586,11 +586,11 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.ButtonTap:
-                    return Mathf.Clamp(clamped, 0.9f, 1.2f);
+                    return Mathf.Clamp(clamped, 0.92f, 1.08f);
                 case AudioSfxCue.GateNegative:
                     return Mathf.Clamp(clamped, 0.84f, 1.04f);
                 case AudioSfxCue.BattleHit:
-                    return Mathf.Clamp(clamped, 0.86f, 1.04f);
+                    return Mathf.Clamp(clamped, 0.9f, 1.02f);
                 default:
                     return clamped;
             }
@@ -621,12 +621,12 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.BattleHit:
-                    return 0.125f;
+                    return 0.15f;
                 case AudioSfxCue.GatePositive:
                 case AudioSfxCue.GateNegative:
                     return 0.075f;
                 case AudioSfxCue.ButtonTap:
-                    return 0.05f;
+                    return 0.07f;
                 default:
                     return 0f;
             }
@@ -1263,14 +1263,15 @@ namespace MultiplyRush
             const float duration = 0.15f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddNoiseBand(data, 0f, 0.018f, 0.07f, 0.12f, 0.18f);
-            AddSweepLayer(data, 0f, 0.06f, 1500f, 620f, 0.16f, Waveform.Triangle, 0.6f, 6.4f, 0.003f);
-            AddSweepLayer(data, 0f, 0.08f, 540f, 280f, 0.13f, Waveform.Sine, 0.82f);
-            AddSweepLayer(data, 0.008f, 0.12f, 340f, 190f, 0.09f, Waveform.Sine, 1.25f);
-            ApplyOnePoleLowPass(data, 8600f);
-            ApplyOnePoleHighPass(data, 120f);
-            NormalizePeak(data, 0.72f);
-            SoftClip(data, 0.9f);
+            AddNoiseBand(data, 0f, 0.012f, 0.03f, 0.06f, 0.16f);
+            AddSweepLayer(data, 0f, 0.055f, 1120f, 520f, 0.1f, Waveform.Triangle, 0.62f, 4.2f, 0.0018f);
+            AddSweepLayer(data, 0f, 0.082f, 430f, 205f, 0.08f, Waveform.Sine, 0.86f);
+            AddSweepLayer(data, 0.01f, 0.1f, 300f, 180f, 0.06f, Waveform.Sine, 1.08f);
+            ApplyOnePoleLowPass(data, 6200f);
+            ApplyOnePoleHighPass(data, 110f);
+            ApplyEdgeFade(data, 0.004f, 0.02f);
+            NormalizePeak(data, 0.56f);
+            SoftClip(data, 0.8f);
             var clip = AudioClip.Create("Sfx_Button", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -1402,14 +1403,15 @@ namespace MultiplyRush
             const float duration = 0.22f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddSweepLayer(data, 0f, 0.14f, 180f, 72f, 0.22f, Waveform.Sine, 1.18f);
-            AddSweepLayer(data, 0f, 0.1f, 920f, 240f, 0.14f, Waveform.Saw, 1.05f);
-            AddNoiseBand(data, 0f, 0.16f, 0.08f, 0.16f, 0.3f);
-            AddNoiseBand(data, 0.028f, 0.12f, 0.03f, 0.08f, 0.12f);
-            ApplyOnePoleLowPass(data, 5400f);
-            ApplyOnePoleHighPass(data, 46f);
-            NormalizePeak(data, 0.9f);
-            SoftClip(data, 1.02f);
+            AddSweepLayer(data, 0f, 0.15f, 160f, 78f, 0.16f, Waveform.Sine, 1.05f);
+            AddSweepLayer(data, 0f, 0.08f, 680f, 190f, 0.08f, Waveform.Triangle, 0.95f);
+            AddNoiseBand(data, 0f, 0.13f, 0.03f, 0.07f, 0.22f);
+            AddNoiseBand(data, 0.022f, 0.09f, 0.015f, 0.04f, 0.14f);
+            ApplyOnePoleLowPass(data, 3600f);
+            ApplyOnePoleHighPass(data, 52f);
+            ApplyEdgeFade(data, 0.003f, 0.03f);
+            NormalizePeak(data, 0.62f);
+            SoftClip(data, 0.84f);
             var clip = AudioClip.Create("Sfx_BattleHit", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -1440,13 +1442,14 @@ namespace MultiplyRush
             const float duration = 0.14f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddNoiseBand(data, 0f, 0.015f, 0.1f, 0.18f, 0.24f);
-            AddSweepLayer(data, 0f, 0.055f, 1960f, 860f, 0.16f, Waveform.Triangle, 0.56f, 7.4f, 0.002f);
-            AddSweepLayer(data, 0.006f, 0.09f, 820f, 330f, 0.11f, Waveform.Sine, 0.68f, 3.6f, 0.0016f);
-            ApplyOnePoleLowPass(data, 9800f);
-            ApplyOnePoleHighPass(data, 140f);
-            NormalizePeak(data, 0.74f);
-            SoftClip(data, 0.91f);
+            AddNoiseBand(data, 0f, 0.012f, 0.04f, 0.08f, 0.22f);
+            AddSweepLayer(data, 0f, 0.05f, 1360f, 640f, 0.1f, Waveform.Triangle, 0.58f, 5.2f, 0.0014f);
+            AddSweepLayer(data, 0.005f, 0.084f, 660f, 300f, 0.07f, Waveform.Sine, 0.7f, 3.2f, 0.0012f);
+            ApplyOnePoleLowPass(data, 7200f);
+            ApplyOnePoleHighPass(data, 130f);
+            ApplyEdgeFade(data, 0.004f, 0.02f);
+            NormalizePeak(data, 0.54f);
+            SoftClip(data, 0.8f);
             var clip = AudioClip.Create("Sfx_Button_Bright", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -1457,13 +1460,14 @@ namespace MultiplyRush
             const float duration = 0.17f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddSweepLayer(data, 0f, 0.075f, 920f, 410f, 0.12f, Waveform.Sine, 0.74f, 3.2f, 0.0025f);
-            AddSweepLayer(data, 0.01f, 0.12f, 360f, 210f, 0.11f, Waveform.Triangle, 1.02f, 1.4f, 0.001f);
-            AddNoiseBand(data, 0f, 0.02f, 0.03f, 0.05f, 0.12f);
-            ApplyOnePoleLowPass(data, 7600f);
+            AddSweepLayer(data, 0f, 0.08f, 820f, 360f, 0.08f, Waveform.Sine, 0.76f, 2.8f, 0.0018f);
+            AddSweepLayer(data, 0.01f, 0.115f, 320f, 190f, 0.07f, Waveform.Triangle, 1.02f, 1.2f, 0.0008f);
+            AddNoiseBand(data, 0f, 0.018f, 0.02f, 0.03f, 0.12f);
+            ApplyOnePoleLowPass(data, 5800f);
             ApplyOnePoleHighPass(data, 100f);
-            NormalizePeak(data, 0.7f);
-            SoftClip(data, 0.88f);
+            ApplyEdgeFade(data, 0.005f, 0.024f);
+            NormalizePeak(data, 0.5f);
+            SoftClip(data, 0.78f);
             var clip = AudioClip.Create("Sfx_Button_Soft", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -1615,14 +1619,15 @@ namespace MultiplyRush
             const float duration = 0.24f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddSweepLayer(data, 0f, 0.13f, 260f, 86f, 0.22f, Waveform.Sine, 1.26f);
-            AddSweepLayer(data, 0f, 0.11f, 1280f, 280f, 0.15f, Waveform.Saw, 0.9f, 7.1f, 0.0025f);
-            AddNoiseBand(data, 0f, 0.17f, 0.09f, 0.24f, 0.34f);
+            AddSweepLayer(data, 0f, 0.13f, 210f, 84f, 0.18f, Waveform.Sine, 1.16f);
+            AddSweepLayer(data, 0f, 0.1f, 760f, 220f, 0.1f, Waveform.Triangle, 0.9f, 5.8f, 0.0018f);
+            AddNoiseBand(data, 0f, 0.14f, 0.04f, 0.1f, 0.28f);
             ApplyFeedbackDelay(data, Mathf.RoundToInt(0.04f * SampleRate), 0.18f, 0.1f);
-            ApplyOnePoleLowPass(data, 5600f);
+            ApplyOnePoleLowPass(data, 3400f);
             ApplyOnePoleHighPass(data, 50f);
-            NormalizePeak(data, 0.9f);
-            SoftClip(data, 1.02f);
+            ApplyEdgeFade(data, 0.003f, 0.03f);
+            NormalizePeak(data, 0.64f);
+            SoftClip(data, 0.86f);
             var clip = AudioClip.Create("Sfx_BattleHit_Crunch", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -1633,13 +1638,14 @@ namespace MultiplyRush
             const float duration = 0.28f;
             var sampleCount = Mathf.Max(1, Mathf.CeilToInt(duration * SampleRate));
             var data = new float[sampleCount];
-            AddSweepLayer(data, 0f, 0.18f, 190f, 58f, 0.26f, Waveform.Sine, 1.4f);
-            AddSweepLayer(data, 0.012f, 0.14f, 640f, 160f, 0.11f, Waveform.Triangle, 1.18f);
-            AddNoiseBand(data, 0f, 0.12f, 0.05f, 0.14f, 0.22f);
-            ApplyOnePoleLowPass(data, 4200f);
+            AddSweepLayer(data, 0f, 0.18f, 170f, 62f, 0.2f, Waveform.Sine, 1.32f);
+            AddSweepLayer(data, 0.012f, 0.12f, 460f, 150f, 0.08f, Waveform.Triangle, 1.12f);
+            AddNoiseBand(data, 0f, 0.1f, 0.03f, 0.08f, 0.2f);
+            ApplyOnePoleLowPass(data, 3000f);
             ApplyOnePoleHighPass(data, 44f);
-            NormalizePeak(data, 0.9f);
-            SoftClip(data, 1f);
+            ApplyEdgeFade(data, 0.003f, 0.04f);
+            NormalizePeak(data, 0.64f);
+            SoftClip(data, 0.86f);
             var clip = AudioClip.Create("Sfx_BattleHit_Thump", sampleCount, 1, SampleRate, false);
             clip.SetData(data, 0);
             return clip;
@@ -2285,6 +2291,37 @@ namespace MultiplyRush
             for (var i = 0; i < samples.Length; i++)
             {
                 samples[i] *= scale;
+            }
+        }
+
+        private static void ApplyEdgeFade(float[] samples, float fadeInSeconds, float fadeOutSeconds)
+        {
+            if (samples == null || samples.Length < 2)
+            {
+                return;
+            }
+
+            var fadeIn = Mathf.Clamp(Mathf.RoundToInt(Mathf.Max(0f, fadeInSeconds) * SampleRate), 0, samples.Length - 1);
+            if (fadeIn > 0)
+            {
+                for (var i = 0; i < fadeIn; i++)
+                {
+                    var t = i / (float)Mathf.Max(1, fadeIn - 1);
+                    var gain = Mathf.SmoothStep(0f, 1f, t);
+                    samples[i] *= gain;
+                }
+            }
+
+            var fadeOut = Mathf.Clamp(Mathf.RoundToInt(Mathf.Max(0f, fadeOutSeconds) * SampleRate), 0, samples.Length - 1);
+            if (fadeOut > 0)
+            {
+                var start = samples.Length - fadeOut;
+                for (var i = start; i < samples.Length; i++)
+                {
+                    var t = (i - start) / (float)Mathf.Max(1, fadeOut - 1);
+                    var gain = Mathf.SmoothStep(1f, 0f, t);
+                    samples[i] *= gain;
+                }
             }
         }
 
