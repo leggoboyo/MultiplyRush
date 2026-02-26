@@ -41,10 +41,10 @@ namespace MultiplyRush
         private const float MusicBaseVolume = 0.62f;
         private const float SfxBaseVolume = 0.88f;
         private const int GameplayMusicTrackCount = 10;
-        private const int SfxSourcePoolSize = 40;
-        private const int MaxConcurrentBattleHitVoices = 2;
-        private const int MaxConcurrentGateVoices = 4;
-        private const int MaxActiveSfxSoftLimit = 28;
+        private const int SfxSourcePoolSize = 56;
+        private const int MaxConcurrentBattleHitVoices = 3;
+        private const int MaxConcurrentGateVoices = 5;
+        private const int MaxActiveSfxSoftLimit = 38;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
         private static readonly string[] DefaultGameplayTrackNames =
@@ -320,7 +320,7 @@ namespace MultiplyRush
                 return;
             }
 
-            if (!TryAcquireSfxSource(out var source, out var sourceIndex))
+            if (!TryAcquireSfxSource(cue, now, out var source, out var sourceIndex))
             {
                 return;
             }
@@ -496,9 +496,7 @@ namespace MultiplyRush
                 var playTransition = BuildPlayTransitionSfx();
                 var gatePositive = BuildGatePositiveSfx();
                 var gatePositiveSpark = BuildGatePositiveSfxSpark();
-                var gatePositivePunch = BuildGatePositiveSfxPunch();
                 var gateNegative = BuildGateNegativeSfx();
-                var gateNegativeCrunch = BuildGateNegativeSfxCrunch();
                 var gateNegativeThud = BuildGateNegativeSfxThud();
                 var pauseOpen = BuildPauseOpenSfx();
                 var pauseOpenSoft = BuildPauseOpenSfxSoft();
@@ -511,7 +509,6 @@ namespace MultiplyRush
                 var shield = BuildShieldSfx();
                 var shieldPulse = BuildShieldSfxPulse();
                 var battleHit = BuildBattleHitSfx();
-                var battleHitCrunch = BuildBattleHitSfxCrunch();
                 var battleHitThump = BuildBattleHitSfxThump();
                 var battleStart = BuildBattleStartSfx();
                 var battleStartHeavy = BuildBattleStartSfxHeavy();
@@ -533,15 +530,15 @@ namespace MultiplyRush
 
                 _sfxClipVariants[AudioSfxCue.ButtonTap] = new[] { buttonTap, buttonTapBright, buttonTapSoft };
                 _sfxClipVariants[AudioSfxCue.PlayTransition] = new[] { playTransition };
-                _sfxClipVariants[AudioSfxCue.GatePositive] = new[] { gatePositive, gatePositiveSpark, gatePositivePunch };
-                _sfxClipVariants[AudioSfxCue.GateNegative] = new[] { gateNegative, gateNegativeCrunch, gateNegativeThud };
+                _sfxClipVariants[AudioSfxCue.GatePositive] = new[] { gatePositive, gatePositiveSpark };
+                _sfxClipVariants[AudioSfxCue.GateNegative] = new[] { gateNegative, gateNegativeThud };
                 _sfxClipVariants[AudioSfxCue.PauseOpen] = new[] { pauseOpen, pauseOpenSoft };
                 _sfxClipVariants[AudioSfxCue.PauseClose] = new[] { pauseClose, pauseCloseSoft };
                 _sfxClipVariants[AudioSfxCue.Win] = new[] { win };
                 _sfxClipVariants[AudioSfxCue.Lose] = new[] { lose };
                 _sfxClipVariants[AudioSfxCue.Reinforcement] = new[] { reinforcement, reinforcementHeroic };
                 _sfxClipVariants[AudioSfxCue.Shield] = new[] { shield, shieldPulse };
-                _sfxClipVariants[AudioSfxCue.BattleHit] = new[] { battleHit, battleHitCrunch, battleHitThump };
+                _sfxClipVariants[AudioSfxCue.BattleHit] = new[] { battleHitThump, battleHit };
                 _sfxClipVariants[AudioSfxCue.BattleStart] = new[] { battleStart, battleStartHeavy };
                 _sfxClipVariants[AudioSfxCue.WinIntro] = new[] { winIntro };
             }
@@ -585,15 +582,15 @@ namespace MultiplyRush
 
         private static float ShapeSfxPitch(AudioSfxCue cue, float pitch)
         {
-            var clamped = Mathf.Clamp(pitch, 0.7f, 1.35f);
+            var clamped = Mathf.Clamp(pitch, 0.8f, 1.2f);
             switch (cue)
             {
                 case AudioSfxCue.ButtonTap:
                     return Mathf.Clamp(clamped, 0.9f, 1.2f);
                 case AudioSfxCue.GateNegative:
-                    return Mathf.Clamp(clamped, 0.72f, 1.08f);
+                    return Mathf.Clamp(clamped, 0.84f, 1.04f);
                 case AudioSfxCue.BattleHit:
-                    return Mathf.Clamp(clamped, 0.68f, 1.12f);
+                    return Mathf.Clamp(clamped, 0.86f, 1.04f);
                 default:
                     return clamped;
             }
@@ -624,10 +621,10 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.BattleHit:
-                    return 0.085f;
+                    return 0.125f;
                 case AudioSfxCue.GatePositive:
                 case AudioSfxCue.GateNegative:
-                    return 0.05f;
+                    return 0.075f;
                 case AudioSfxCue.ButtonTap:
                     return 0.05f;
                 default:
@@ -742,7 +739,7 @@ namespace MultiplyRush
             _sfxSourceReleaseTimes[sourceIndex] = startedAt + Mathf.Max(0.02f, clipLength / safePitch);
         }
 
-        private bool TryAcquireSfxSource(out AudioSource source, out int sourceIndex)
+        private bool TryAcquireSfxSource(AudioSfxCue requestedCue, float now, out AudioSource source, out int sourceIndex)
         {
             source = null;
             sourceIndex = -1;
@@ -751,6 +748,9 @@ namespace MultiplyRush
                 return false;
             }
 
+            var fallbackStealIndex = -1;
+            var fallbackStealRemaining = float.MaxValue;
+            var requestedPriority = GetSfxPriority(requestedCue);
             for (var i = 0; i < _sfxSources.Length; i++)
             {
                 var index = (_sfxSourceCursor + i) % _sfxSources.Length;
@@ -767,9 +767,42 @@ namespace MultiplyRush
                     sourceIndex = index;
                     return true;
                 }
+
+                var remaining = Mathf.Max(0f, _sfxSourceReleaseTimes[index] - now);
+                var activeCue = _sfxSourceCueTags[index];
+                var activePriority = GetSfxPriority(activeCue);
+                if (!IsLowPrioritySfxCue(activeCue))
+                {
+                    continue;
+                }
+
+                if (activePriority < requestedPriority)
+                {
+                    continue;
+                }
+
+                if (remaining >= fallbackStealRemaining)
+                {
+                    continue;
+                }
+
+                fallbackStealRemaining = remaining;
+                fallbackStealIndex = index;
             }
 
-            // Never steal a busy source; dropping a burst cue is less jarring than hard-cutting an active sound.
+            if (fallbackStealIndex >= 0 && fallbackStealRemaining <= 0.06f)
+            {
+                var stealSource = _sfxSources[fallbackStealIndex];
+                if (stealSource != null)
+                {
+                    stealSource.Stop();
+                    _sfxSourceCursor = (fallbackStealIndex + 1) % _sfxSources.Length;
+                    source = stealSource;
+                    sourceIndex = fallbackStealIndex;
+                    return true;
+                }
+            }
+
             return false;
         }
 

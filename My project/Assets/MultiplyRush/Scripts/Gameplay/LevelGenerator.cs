@@ -298,6 +298,8 @@ namespace MultiplyRush
         private Material _streetPropBaseMaterial;
         private Material _streetPropAccentMaterial;
         private Material _hazardMaterial;
+        private Texture2D _trackDetailTexture;
+        private Texture2D _sidewalkDetailTexture;
         private Color _trackColor = new Color(0.18f, 0.22f, 0.29f, 1f);
         private Color _gatePositiveColor = new Color(0.2f, 0.85f, 0.35f, 1f);
         private Color _gateNegativeColor = new Color(0.9f, 0.25f, 0.25f, 1f);
@@ -563,6 +565,8 @@ namespace MultiplyRush
             {
                 material.SetFloat("_Smoothness", 0.11f);
             }
+
+            ApplySurfaceDetailTexture(material, true);
         }
 
         private void BuildTrackDecor(float trackLength, float effectiveTrackHalfWidth)
@@ -715,8 +719,13 @@ namespace MultiplyRush
             }
 
             PrewarmCloudPool();
-            var cloudCount = Mathf.RoundToInt(Mathf.Lerp(10f, 26f, density01));
-            cloudCount = Mathf.Clamp(cloudCount, 8, 30);
+            var qualityForClouds = backdropQuality == BackdropQuality.Auto ? ResolveAutoQuality() : backdropQuality;
+            var cloudCount = qualityForClouds == BackdropQuality.High
+                ? Mathf.RoundToInt(Mathf.Lerp(14f, 34f, density01))
+                : qualityForClouds == BackdropQuality.Medium
+                    ? Mathf.RoundToInt(Mathf.Lerp(11f, 28f, density01))
+                    : Mathf.RoundToInt(Mathf.Lerp(9f, 22f, density01));
+            cloudCount = Mathf.Clamp(cloudCount, 8, 38);
             var cloudMinX = -(sideX + 18f);
             var cloudMaxX = sideX + 18f;
             var cloudBandMinX = Mathf.Max(Mathf.Abs(cloudMinX), _effectiveTrackHalfWidth + Mathf.Max(1.5f, cloudTrackExclusionPadding));
@@ -769,8 +778,10 @@ namespace MultiplyRush
             var maxHeight = Mathf.Max(minHeight + 0.3f, beaconMaxHeight);
             var qualityLightScale = quality == BackdropQuality.High ? 1f : (quality == BackdropQuality.Medium ? 0.72f : 0.42f);
             var lightChance = Mathf.Clamp01(beaconLightDensity * qualityLightScale);
-            var maxActiveLights = quality == BackdropQuality.High ? 28 : (quality == BackdropQuality.Medium ? 18 : 10);
+            var maxActiveLights = quality == BackdropQuality.High ? 40 : (quality == BackdropQuality.Medium ? 20 : 10);
+            var maxShadowedLights = quality == BackdropQuality.High ? 8 : (quality == BackdropQuality.Medium ? 2 : 0);
             var lightsEnabled = 0;
+            var shadowedLights = 0;
 
             for (var side = -1; side <= 1; side += 2)
             {
@@ -802,6 +813,21 @@ namespace MultiplyRush
                                 lightComponent.range = Mathf.Clamp(beaconLightRange * Mathf.Lerp(0.86f, 1.16f, (float)random.NextDouble()), 2.2f, 11.5f);
                                 lightComponent.intensity = Mathf.Clamp(beaconLightIntensity * Mathf.Lerp(0.82f, 1.2f, (float)random.NextDouble()), 0.35f, 3.2f);
                                 lightComponent.color = Color.Lerp(beaconCoreColor, Color.white, 0.18f + ((float)random.NextDouble() * 0.16f));
+                                var allowShadows = quality == BackdropQuality.High && shadowedLights < maxShadowedLights && random.NextDouble() < 0.5;
+                                lightComponent.shadows = allowShadows ? LightShadows.Soft : LightShadows.None;
+                                if (allowShadows)
+                                {
+                                    shadowedLights++;
+                                }
+                                lightComponent.shadowStrength = allowShadows ? 0.42f : 0f;
+                                lightComponent.shadowBias = 0.16f;
+                                lightComponent.shadowNormalBias = 0.42f;
+                                lightComponent.renderMode = allowShadows ? LightRenderMode.ForcePixel : LightRenderMode.Auto;
+                            }
+                            else
+                            {
+                                lightComponent.shadows = LightShadows.None;
+                                lightComponent.shadowStrength = 0f;
                             }
                         }
                     }
@@ -854,11 +880,11 @@ namespace MultiplyRush
             var minZ = Mathf.Max(10f, startZ * 0.44f);
             var maxZ = Mathf.Max(minZ + 6f, trackLength - 10f);
             var pedestrianCount = quality == BackdropQuality.High
-                ? Mathf.RoundToInt(Mathf.Lerp(18f, 32f, Mathf.Clamp01((density - 0.5f) / 0.75f)))
+                ? Mathf.RoundToInt(Mathf.Lerp(22f, 40f, Mathf.Clamp01((density - 0.5f) / 0.75f)))
                 : quality == BackdropQuality.Medium
                     ? Mathf.RoundToInt(Mathf.Lerp(10f, 20f, Mathf.Clamp01((density - 0.5f) / 0.75f)))
                     : Mathf.RoundToInt(Mathf.Lerp(6f, 12f, Mathf.Clamp01((density - 0.5f) / 0.75f)));
-            pedestrianCount = Mathf.Clamp(pedestrianCount, 6, 36);
+            pedestrianCount = Mathf.Clamp(pedestrianCount, 6, 44);
 
             for (var i = 0; i < pedestrianCount; i++)
             {
@@ -905,7 +931,7 @@ namespace MultiplyRush
             var start = Mathf.Max(8f, startZ * 0.35f);
             var end = Mathf.Max(start + 6f, trackLength - 8f);
             var qualityDensity = quality == BackdropQuality.High
-                ? 1f
+                ? 1.12f
                 : (quality == BackdropQuality.Medium ? 0.76f : 0.56f);
             var baseX = effectiveTrackHalfWidth +
                         railInset +
@@ -1222,11 +1248,11 @@ namespace MultiplyRush
                     QualitySettings.pixelLightCount = 2;
                     break;
                 case BackdropQuality.High:
-                    QualitySettings.antiAliasing = 4;
-                    QualitySettings.lodBias = 1.15f;
-                    QualitySettings.shadowDistance = 62f;
-                    QualitySettings.shadowCascades = 2;
-                    QualitySettings.pixelLightCount = 3;
+                    QualitySettings.antiAliasing = 8;
+                    QualitySettings.lodBias = 1.28f;
+                    QualitySettings.shadowDistance = 78f;
+                    QualitySettings.shadowCascades = 4;
+                    QualitySettings.pixelLightCount = 4;
                     break;
             }
         }
@@ -2475,6 +2501,7 @@ namespace MultiplyRush
             }
 
             _sidewalkMaterial = CreateRuntimeMaterial("SidewalkMaterial", sidewalkColor, 0.18f, 0.06f);
+            ApplySurfaceDetailTexture(_sidewalkMaterial, false);
             return _sidewalkMaterial;
         }
 
@@ -2486,6 +2513,7 @@ namespace MultiplyRush
             }
 
             _curbMaterial = CreateRuntimeMaterial("CurbMaterial", curbColor, 0.22f, 0.08f);
+            ApplySurfaceDetailTexture(_curbMaterial, false);
             return _curbMaterial;
         }
 
@@ -2578,6 +2606,126 @@ namespace MultiplyRush
 
             _hazardMaterial = CreateRuntimeMaterial("HazardZoneMaterial", new Color(0.95f, 0.72f, 0.14f, 1f), 0.08f, 0.32f);
             return _hazardMaterial;
+        }
+
+        private void ApplySurfaceDetailTexture(Material material, bool isTrack)
+        {
+            if (material == null)
+            {
+                return;
+            }
+
+            var texture = isTrack ? GetTrackDetailTexture() : GetSidewalkDetailTexture();
+            if (texture == null)
+            {
+                return;
+            }
+
+            var textureProperty = material.HasProperty("_BaseMap")
+                ? "_BaseMap"
+                : material.HasProperty("_MainTex")
+                    ? "_MainTex"
+                    : null;
+            if (string.IsNullOrEmpty(textureProperty))
+            {
+                return;
+            }
+
+            material.SetTexture(textureProperty, texture);
+            if (isTrack)
+            {
+                var tileY = Mathf.Clamp(_lastTrackLength * 0.085f, 4f, 44f);
+                material.SetTextureScale(textureProperty, new Vector2(1.28f, tileY));
+            }
+            else
+            {
+                material.SetTextureScale(textureProperty, new Vector2(1.8f, 3.2f));
+            }
+        }
+
+        private Texture2D GetTrackDetailTexture()
+        {
+            if (_trackDetailTexture != null)
+            {
+                return _trackDetailTexture;
+            }
+
+            _trackDetailTexture = BuildProceduralPavedTexture(
+                "TrackDetailTex",
+                256,
+                new Color(0.12f, 0.14f, 0.18f, 1f),
+                new Color(0.2f, 0.23f, 0.28f, 1f),
+                0.16f,
+                true);
+            return _trackDetailTexture;
+        }
+
+        private Texture2D GetSidewalkDetailTexture()
+        {
+            if (_sidewalkDetailTexture != null)
+            {
+                return _sidewalkDetailTexture;
+            }
+
+            _sidewalkDetailTexture = BuildProceduralPavedTexture(
+                "SidewalkDetailTex",
+                128,
+                new Color(0.28f, 0.32f, 0.38f, 1f),
+                new Color(0.39f, 0.44f, 0.52f, 1f),
+                0.1f,
+                false);
+            return _sidewalkDetailTexture;
+        }
+
+        private static Texture2D BuildProceduralPavedTexture(
+            string name,
+            int size,
+            Color darkColor,
+            Color lightColor,
+            float crackStrength,
+            bool addRoadWear)
+        {
+            var safeSize = Mathf.Clamp(size, 32, 512);
+            var texture = new Texture2D(safeSize, safeSize, TextureFormat.RGBA32, false, true)
+            {
+                name = name,
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear
+            };
+
+            var seedA = UnityEngine.Random.Range(0f, 1000f);
+            var seedB = UnityEngine.Random.Range(0f, 1000f);
+            for (var y = 0; y < safeSize; y++)
+            {
+                var v = y / (float)(safeSize - 1);
+                for (var x = 0; x < safeSize; x++)
+                {
+                    var u = x / (float)(safeSize - 1);
+                    var coarse = Mathf.PerlinNoise(seedA + (u * 3.2f), seedB + (v * 3.2f));
+                    var fine = Mathf.PerlinNoise((seedA * 0.37f) + (u * 19.4f), (seedB * 0.41f) + (v * 19.4f));
+                    var blend = Mathf.Clamp01((coarse * 0.72f) + (fine * 0.28f));
+                    var color = Color.Lerp(darkColor, lightColor, blend);
+
+                    var crack = Mathf.PerlinNoise((seedA * 0.78f) + (u * 28.5f), (seedB * 0.82f) + (v * 28.5f));
+                    if (crack > 0.74f)
+                    {
+                        var crackDarken = Mathf.InverseLerp(0.74f, 1f, crack) * crackStrength;
+                        color = Color.Lerp(color, darkColor * 0.62f, crackDarken);
+                    }
+
+                    if (addRoadWear)
+                    {
+                        var centerWear = 1f - Mathf.Abs((u - 0.5f) * 2f);
+                        var wear = Mathf.Pow(centerWear, 2.4f) * 0.08f;
+                        color = Color.Lerp(color, lightColor * 1.06f, wear);
+                    }
+
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply(false, false);
+            return texture;
         }
 
         private static Material CreateRuntimeMaterial(string name, Color color, float smoothness, float emission = 0f)

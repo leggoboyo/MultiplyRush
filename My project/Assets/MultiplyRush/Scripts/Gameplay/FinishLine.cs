@@ -162,6 +162,7 @@ namespace MultiplyRush
         private Vector3 _crowdLastPosition;
         private Vector3 _crowdVelocityWorld;
         private bool _bossThrowFromLeft;
+        private float _nextRockThrowSfxAt;
         private bool _pendingRockLaunch;
         private bool _pendingRockLaunchFromLeft;
         private float _pendingRockLaunchTimer;
@@ -277,9 +278,8 @@ namespace MultiplyRush
             {
                 enemyCountLabel.text = isMiniBoss ? "BOSS HP " + _enemyCount : "Enemy " + _enemyCount;
                 enemyCountLabel.color = isMiniBoss ? new Color(1f, 0.7f, 0.55f, 1f) : Color.white;
-                enemyCountLabel.transform.localPosition = isMiniBoss
-                    ? new Vector3(0f, 3.25f, 1.4f)
-                    : new Vector3(0f, 2.05f, -0.44f);
+                // Screen-space HUD carries the primary enemy count readout to avoid duplicate clutter.
+                enemyCountLabel.gameObject.SetActive(false);
             }
 
             if (tankRequirementLabel != null)
@@ -382,6 +382,7 @@ namespace MultiplyRush
             _bossThrowActive = false;
             _bossThrowElapsed = 0f;
             _bossThrowDuration = 0f;
+            _nextRockThrowSfxAt = 0f;
             for (var i = 0; i < _rockProjectiles.Count; i++)
             {
                 var projectile = _rockProjectiles[i];
@@ -457,41 +458,42 @@ namespace MultiplyRush
                 if (t < windup)
                 {
                     var phase = EaseOutCubic(t / windup);
-                    coreYOffset = Mathf.Lerp(coreYOffset, bossSlamDropDistance * 0.42f * _bossSlamStrength, phase);
-                    rootZOffset = Mathf.Lerp(0f, -bossStepForwardOnStrike * 0.35f, phase);
-                    armPitch = Mathf.Lerp(armPitch, -bossArmWindupDegrees * _bossSlamStrength, phase);
-                    forearmPitch = Mathf.Lerp(forearmPitch, -bossArmWindupDegrees * 0.55f * _bossSlamStrength, phase);
-                    handPitch = Mathf.Lerp(handPitch, -bossArmWindupDegrees * 0.36f * _bossSlamStrength, phase);
-                    headPitch = Mathf.Lerp(headPitch, -bossHeadRoarDegrees * 0.7f * _bossSlamStrength, phase);
+                    // Crouch before impact so the motion reads as a downward slam rather than an upward hop.
+                    coreYOffset = Mathf.Lerp(coreYOffset, -bossSlamDropDistance * 0.28f * _bossSlamStrength, phase);
+                    rootZOffset = Mathf.Lerp(0f, -bossStepForwardOnStrike * 0.18f, phase);
+                    armPitch = Mathf.Lerp(armPitch, -bossArmWindupDegrees * 0.82f * _bossSlamStrength, phase);
+                    forearmPitch = Mathf.Lerp(forearmPitch, -bossArmWindupDegrees * 0.5f * _bossSlamStrength, phase);
+                    handPitch = Mathf.Lerp(handPitch, -bossArmWindupDegrees * 0.24f * _bossSlamStrength, phase);
+                    headPitch = Mathf.Lerp(headPitch, -bossHeadRoarDegrees * 0.35f * _bossSlamStrength, phase);
                     jawPitch = Mathf.Lerp(jawPitch, bossJawOpenDegrees * _bossSlamStrength, phase);
                 }
                 else if (t < windup + strike)
                 {
                     var phase = EaseInCubic((t - windup) / strike);
                     coreYOffset = Mathf.Lerp(
-                        bossSlamDropDistance * 0.42f * _bossSlamStrength,
-                        -bossSlamDropDistance * _bossSlamStrength,
+                        -bossSlamDropDistance * 0.28f * _bossSlamStrength,
+                        -bossSlamDropDistance * 1.24f * _bossSlamStrength,
                         phase);
-                    rootZOffset = Mathf.Lerp(-bossStepForwardOnStrike * 0.35f, bossStepForwardOnStrike * _bossSlamStrength, phase);
+                    rootZOffset = Mathf.Lerp(-bossStepForwardOnStrike * 0.18f, bossStepForwardOnStrike * 1.18f * _bossSlamStrength, phase);
                     armPitch = Mathf.Lerp(
-                        -bossArmWindupDegrees * _bossSlamStrength,
-                        bossArmStrikeDegrees * _bossSlamStrength,
+                        -bossArmWindupDegrees * 0.82f * _bossSlamStrength,
+                        bossArmStrikeDegrees * 1.16f * _bossSlamStrength,
                         phase);
                     forearmPitch = Mathf.Lerp(
-                        -bossArmWindupDegrees * 0.55f * _bossSlamStrength,
-                        bossArmStrikeDegrees * 0.72f * _bossSlamStrength,
+                        -bossArmWindupDegrees * 0.5f * _bossSlamStrength,
+                        bossArmStrikeDegrees * 0.88f * _bossSlamStrength,
                         phase);
                     handPitch = Mathf.Lerp(
-                        -bossArmWindupDegrees * 0.36f * _bossSlamStrength,
-                        bossArmStrikeDegrees * 0.48f * _bossSlamStrength,
+                        -bossArmWindupDegrees * 0.24f * _bossSlamStrength,
+                        bossArmStrikeDegrees * 0.56f * _bossSlamStrength,
                         phase);
                     headPitch = Mathf.Lerp(
-                        -bossHeadRoarDegrees * 0.7f * _bossSlamStrength,
-                        bossHeadRoarDegrees * 0.22f,
+                        -bossHeadRoarDegrees * 0.35f * _bossSlamStrength,
+                        bossHeadRoarDegrees * 0.52f,
                         phase);
-                    jawPitch = Mathf.Lerp(bossJawOpenDegrees * _bossSlamStrength, bossJawOpenDegrees * 0.18f, phase);
+                    jawPitch = Mathf.Lerp(bossJawOpenDegrees * _bossSlamStrength, bossJawOpenDegrees * 0.12f, phase);
 
-                    if (!_bossSlamImpactTriggered && phase >= 0.42f)
+                    if (!_bossSlamImpactTriggered && phase >= 0.3f)
                     {
                         _bossSlamImpactTriggered = true;
                         _bossSlamImpactFlash = 1f;
@@ -506,13 +508,13 @@ namespace MultiplyRush
                 else if (t < slamDuration)
                 {
                     var phase = EaseOutCubic((t - windup - strike) / recover);
-                    coreYOffset = Mathf.Lerp(-bossSlamDropDistance * _bossSlamStrength, idleBob, phase);
-                    rootZOffset = Mathf.Lerp(bossStepForwardOnStrike * _bossSlamStrength, 0f, phase);
-                    armPitch = Mathf.Lerp(bossArmStrikeDegrees * _bossSlamStrength, Mathf.Sin(Time.time * 1.86f) * 8f, phase);
-                    forearmPitch = Mathf.Lerp(bossArmStrikeDegrees * 0.72f * _bossSlamStrength, Mathf.Sin(Time.time * 1.74f + 0.35f) * 7f, phase);
-                    handPitch = Mathf.Lerp(bossArmStrikeDegrees * 0.48f * _bossSlamStrength, Mathf.Sin(Time.time * 2.18f + 0.9f) * 9f, phase);
-                    headPitch = Mathf.Lerp(bossHeadRoarDegrees * 0.22f, Mathf.Sin(Time.time * 1.24f) * 3.2f, phase);
-                    jawPitch = Mathf.Lerp(bossJawOpenDegrees * 0.18f, Mathf.Abs(Mathf.Sin(Time.time * 1.12f)) * 2.8f, phase);
+                    coreYOffset = Mathf.Lerp(-bossSlamDropDistance * 1.24f * _bossSlamStrength, idleBob, phase);
+                    rootZOffset = Mathf.Lerp(bossStepForwardOnStrike * 1.18f * _bossSlamStrength, 0f, phase);
+                    armPitch = Mathf.Lerp(bossArmStrikeDegrees * 1.16f * _bossSlamStrength, Mathf.Sin(Time.time * 1.86f) * 8f, phase);
+                    forearmPitch = Mathf.Lerp(bossArmStrikeDegrees * 0.88f * _bossSlamStrength, Mathf.Sin(Time.time * 1.74f + 0.35f) * 7f, phase);
+                    handPitch = Mathf.Lerp(bossArmStrikeDegrees * 0.56f * _bossSlamStrength, Mathf.Sin(Time.time * 2.18f + 0.9f) * 9f, phase);
+                    headPitch = Mathf.Lerp(bossHeadRoarDegrees * 0.52f, Mathf.Sin(Time.time * 1.24f) * 3.2f, phase);
+                    jawPitch = Mathf.Lerp(bossJawOpenDegrees * 0.12f, Mathf.Abs(Mathf.Sin(Time.time * 1.12f)) * 2.8f, phase);
                 }
                 else
                 {
@@ -985,7 +987,11 @@ namespace MultiplyRush
                 Random.Range(-330f, 330f),
                 Random.Range(-460f, 460f),
                 Random.Range(-330f, 330f));
-            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.38f, Random.Range(0.66f, 0.8f));
+            if (Time.unscaledTime >= _nextRockThrowSfxAt)
+            {
+                _nextRockThrowSfxAt = Time.unscaledTime + 0.16f;
+                AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.28f, Random.Range(0.9f, 1.02f));
+            }
 
             var scale = radius * 2f;
             projectile.root.gameObject.SetActive(true);

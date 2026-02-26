@@ -43,8 +43,13 @@ namespace MultiplyRush
         public float enemyBattlePowerSqrt = 0.86f;
         public float winnerPowerBias = 1.2f;
         public float loserPowerBias = 0.84f;
-        public float battleHitSfxInterval = 0.09f;
+        public float battleHitSfxInterval = 0.12f;
         public float preBattleCenterTime = 0.46f;
+        [Header("Mini-Boss Slam Pressure")]
+        public float bossSlamPressureDuration = 3f;
+        public float bossSlamPressureInterval = 0.58f;
+        [Range(0.8f, 2.6f)]
+        public float bossSlamStrengthBase = 1.25f;
 
         private enum GameFlowState
         {
@@ -68,6 +73,7 @@ namespace MultiplyRush
 
         private void Awake()
         {
+            SanitizeRuntimeTuning();
             CanvasRootGuard.NormalizeAllRootCanvasScales();
             SceneVisualTuning.ApplyGameLook();
             var audio = AudioDirector.EnsureInstance();
@@ -94,6 +100,15 @@ namespace MultiplyRush
             _difficultyMode = ProgressionStore.GetDifficultyMode(DifficultyMode.Normal);
             RefreshInventoryHud();
             EnsurePauseMenu();
+        }
+
+        private void SanitizeRuntimeTuning()
+        {
+            battleHitSfxInterval = Mathf.Clamp(battleHitSfxInterval, 0.1f, 0.24f);
+            bossSlamPressureDuration = Mathf.Clamp(bossSlamPressureDuration, 2f, 4f);
+            bossSlamPressureInterval = Mathf.Clamp(bossSlamPressureInterval, 0.36f, 1f);
+            bossSlamStrengthBase = Mathf.Clamp(bossSlamStrengthBase, 0.85f, 2.5f);
+            bossSlamInterval = Mathf.Clamp(bossSlamInterval, 0.45f, 2.2f);
         }
 
         private void Start()
@@ -312,6 +327,7 @@ namespace MultiplyRush
             }
 
             var audio = AudioDirector.Instance;
+            audio?.StopGameplayPreview();
             audio?.SetMusicCueLock(AudioMusicCue.Battle, true, true);
             audio?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
 
@@ -484,6 +500,7 @@ namespace MultiplyRush
             }
 
             var audio = AudioDirector.Instance;
+            audio?.StopGameplayPreview();
             audio?.SetMusicCueLock(AudioMusicCue.Battle, true, true);
             audio?.PlaySfx(AudioSfxCue.BattleStart, 0.9f, 0.95f);
 
@@ -506,7 +523,13 @@ namespace MultiplyRush
             }
 
             var elapsed = 0f;
-            var slamTimer = Mathf.Clamp(bossSlamInterval, 0.45f, 2.2f);
+            var sustainSlamInterval = Mathf.Clamp(bossSlamInterval, 0.45f, 2.2f);
+            var pressureSlamInterval = Mathf.Clamp(bossSlamPressureInterval, 0.32f, sustainSlamInterval);
+            var slamPressureDuration = Mathf.Clamp(
+                bossSlamPressureDuration,
+                1f,
+                Mathf.Max(1f, duration - 0.2f));
+            var slamTimer = pressureSlamInterval;
             _battleHitSfxTimer = 0f;
 
             while (elapsed < duration)
@@ -555,10 +578,15 @@ namespace MultiplyRush
                 slamTimer -= deltaTime;
                 while (slamTimer <= 0f)
                 {
-                    slamTimer += Mathf.Max(0.45f, bossSlamInterval);
+                    var inPressureWindow = elapsed <= slamPressureDuration;
+                    slamTimer += inPressureWindow ? pressureSlamInterval : sustainSlamInterval;
                     var slamLoss = Mathf.Clamp(slamLossFromStart, 1, Mathf.Max(1, playerAlive));
                     var removed = playerCrowd != null ? playerCrowd.ApplyBattleLosses(slamLoss) : 0;
-                    finishLine?.TriggerBossSlam(1f + Mathf.Clamp01(removed / 24f));
+                    var slamStrength = Mathf.Clamp(
+                        bossSlamStrengthBase + Mathf.Clamp01(removed / 22f) * 0.9f,
+                        1f,
+                        2.5f);
+                    finishLine?.TriggerBossSlam(slamStrength);
                     AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleHit, 0.7f, Random.Range(0.72f, 0.86f));
                     HapticsDirector.Instance?.Play(HapticCue.MediumImpact);
                     playerAlive = playerCrowd != null ? playerCrowd.Count : 0;
