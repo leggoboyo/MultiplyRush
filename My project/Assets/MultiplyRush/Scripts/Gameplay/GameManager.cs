@@ -70,7 +70,9 @@ namespace MultiplyRush
         {
             CanvasRootGuard.NormalizeAllRootCanvasScales();
             SceneVisualTuning.ApplyGameLook();
-            AudioDirector.EnsureInstance().SetMusicCue(AudioMusicCue.Gameplay, true);
+            var audio = AudioDirector.EnsureInstance();
+            audio.SetMusicCueLock(AudioMusicCue.Battle, false, false);
+            audio.SetMusicCue(AudioMusicCue.Gameplay, true);
             AppLifecycleController.EnsureInstance().SetPauseOnFocusLoss(true);
             HapticsDirector.EnsureInstance();
 
@@ -136,6 +138,8 @@ namespace MultiplyRush
                 _battleRoutine = null;
             }
 
+            AudioDirector.Instance?.SetMusicCueLock(AudioMusicCue.Battle, false, false);
+
             if (Time.timeScale != 1f)
             {
                 Time.timeScale = 1f;
@@ -155,6 +159,8 @@ namespace MultiplyRush
                 StopCoroutine(_battleRoutine);
                 _battleRoutine = null;
             }
+
+            AudioDirector.Instance?.SetMusicCueLock(AudioMusicCue.Battle, false, false);
 
             _state = GameFlowState.Transitioning;
             _currentLevelIndex = Mathf.Max(1, levelIndex);
@@ -220,6 +226,7 @@ namespace MultiplyRush
             }
 
             AudioDirector.Instance?.StopGameplayPreview();
+            AudioDirector.Instance?.SetMusicCueLock(AudioMusicCue.Battle, false, false);
             AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Gameplay, false);
             _roundActive = true;
             _state = GameFlowState.Running;
@@ -304,8 +311,9 @@ namespace MultiplyRush
                 playerCrowd.BeginCombat(target);
             }
 
-            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
-            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Battle, false);
+            var audio = AudioDirector.Instance;
+            audio?.SetMusicCueLock(AudioMusicCue.Battle, true, true);
+            audio?.PlaySfx(AudioSfxCue.BattleStart, 0.85f, 1f);
 
             var centerTime = Mathf.Clamp(preBattleCenterTime, 0f, 1.2f);
             if (centerTime > 0f)
@@ -432,6 +440,7 @@ namespace MultiplyRush
                 var finalEnemyCount = enemyGroup != null ? enemyGroup.Count : targetEnemyRemaining;
                 hud.SetEnemyCount(finalEnemyCount, true);
             }
+            audio?.SetMusicCueLock(AudioMusicCue.Battle, false, false);
             ShowResultAfterBattle(didWin, battleStartEnemy);
             _battleRoutine = null;
         }
@@ -474,8 +483,9 @@ namespace MultiplyRush
                 playerCrowd.BeginCombat(target);
             }
 
-            AudioDirector.Instance?.PlaySfx(AudioSfxCue.BattleStart, 0.9f, 0.95f);
-            AudioDirector.Instance?.SetMusicCue(AudioMusicCue.Battle, false);
+            var audio = AudioDirector.Instance;
+            audio?.SetMusicCueLock(AudioMusicCue.Battle, true, true);
+            audio?.PlaySfx(AudioSfxCue.BattleStart, 0.9f, 0.95f);
 
             var centerTime = Mathf.Clamp(preBattleCenterTime, 0f, 1.2f);
             if (centerTime > 0f)
@@ -588,6 +598,7 @@ namespace MultiplyRush
                 hud.SetEnemyCountVisible(false);
             }
 
+            audio?.SetMusicCueLock(AudioMusicCue.Battle, false, false);
             ShowResultAfterBattle(didWin, battleStartBoss);
             _battleRoutine = null;
         }

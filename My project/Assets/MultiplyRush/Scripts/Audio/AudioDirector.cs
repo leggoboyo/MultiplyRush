@@ -39,9 +39,12 @@ namespace MultiplyRush
     {
         private const int SampleRate = 44100;
         private const float MusicBaseVolume = 0.62f;
-        private const float SfxBaseVolume = 0.94f;
+        private const float SfxBaseVolume = 0.88f;
         private const int GameplayMusicTrackCount = 10;
-        private const int SfxSourcePoolSize = 32;
+        private const int SfxSourcePoolSize = 40;
+        private const int MaxConcurrentBattleHitVoices = 2;
+        private const int MaxConcurrentGateVoices = 4;
+        private const int MaxActiveSfxSoftLimit = 28;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
         private static readonly string[] DefaultGameplayTrackNames =
@@ -71,10 +74,14 @@ namespace MultiplyRush
         private AudioSource _musicPrimary;
         private AudioSource _musicSecondary;
         private AudioSource[] _sfxSources;
+        private AudioSfxCue[] _sfxSourceCueTags;
+        private float[] _sfxSourceReleaseTimes;
         private int _sfxSourceCursor;
         private AudioSource _activeMusic;
         private AudioSource _incomingMusic;
         private AudioMusicCue _currentCue = AudioMusicCue.None;
+        private bool _musicCueLockActive;
+        private AudioMusicCue _musicCueLock = AudioMusicCue.None;
         private float _musicBlend;
         private float _musicBlendDuration = 0.45f;
         private bool _isMusicBlending;
@@ -151,19 +158,19 @@ namespace MultiplyRush
 
         public void SetMusicCue(AudioMusicCue cue, bool immediate = false)
         {
+            if (_musicCueLockActive && cue != _musicCueLock && cue != AudioMusicCue.None)
+            {
+                return;
+            }
+
             if (cue != AudioMusicCue.Gameplay)
             {
                 _hasGameplayPreview = false;
             }
 
-            if (cue == _currentCue && !immediate)
-            {
-                return;
-            }
-
-            _hasQueuedCue = false;
             if (cue == AudioMusicCue.None)
             {
+                _hasQueuedCue = false;
                 StopMusic(immediate);
                 _currentCue = cue;
                 return;
@@ -196,6 +203,19 @@ namespace MultiplyRush
                 return;
             }
 
+            if (cue == _currentCue && !immediate)
+            {
+                var cueAlreadyPlaying = _activeMusic != null && _activeMusic.isPlaying && _activeMusic.clip == clip;
+                if (cueAlreadyPlaying)
+                {
+                    return;
+                }
+
+                // Recover from any unexpected stop/drop by forcing this cue to restart.
+                immediate = true;
+            }
+
+            _hasQueuedCue = false;
             if (_activeMusic == null)
             {
                 _activeMusic = _musicPrimary;
@@ -234,6 +254,36 @@ namespace MultiplyRush
             _currentCue = cue;
         }
 
+        public void SetMusicCueLock(AudioMusicCue cue, bool active, bool forceCueNow = true)
+        {
+            if (active)
+            {
+                _musicCueLockActive = true;
+                _musicCueLock = cue;
+                _hasGameplayPreview = false;
+                _hasQueuedCue = false;
+                if (forceCueNow && cue != AudioMusicCue.None)
+                {
+                    SetMusicCue(cue, true);
+                }
+
+                return;
+            }
+
+            if (!_musicCueLockActive)
+            {
+                return;
+            }
+
+            if (cue != AudioMusicCue.None && cue != _musicCueLock)
+            {
+                return;
+            }
+
+            _musicCueLockActive = false;
+            _musicCueLock = AudioMusicCue.None;
+        }
+
         public void PlaySfx(AudioSfxCue cue, float volumeScale = 1f, float pitch = 1f)
         {
             if (_sfxSources == null || _sfxSources.Length == 0)
@@ -241,7 +291,13 @@ namespace MultiplyRush
                 return;
             }
 
-            if (!CanPlaySfxCue(cue))
+            var now = Time.unscaledTime;
+            if (!CanPlaySfxCue(cue, now))
+            {
+                return;
+            }
+
+            if (ShouldDropSfxForVoiceBudget(cue, now))
             {
                 return;
             }
@@ -264,15 +320,17 @@ namespace MultiplyRush
                 return;
             }
 
-            var source = AcquireSfxSource();
-            if (source == null)
+            if (!TryAcquireSfxSource(out var source, out var sourceIndex))
             {
                 return;
             }
 
             source.loop = false;
             source.pitch = ShapeSfxPitch(cue, pitch);
-            source.PlayOneShot(clip, ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume);
+            source.priority = GetSfxPriority(cue);
+            var shapedVolume = ShapeSfxVolume(cue, volumeScale) * SfxBaseVolume;
+            source.PlayOneShot(clip, shapedVolume);
+            TrackSfxVoice(cue, sourceIndex, now, clip, source.pitch);
         }
 
         public void RefreshMasterVolume()
@@ -354,9 +412,12 @@ namespace MultiplyRush
             _musicPrimary = CreateChildSource("MusicA", true);
             _musicSecondary = CreateChildSource("MusicB", true);
             _sfxSources = new AudioSource[Mathf.Max(8, SfxSourcePoolSize)];
+            _sfxSourceCueTags = new AudioSfxCue[_sfxSources.Length];
+            _sfxSourceReleaseTimes = new float[_sfxSources.Length];
             for (var i = 0; i < _sfxSources.Length; i++)
             {
                 _sfxSources[i] = CreateChildSource("Sfx_" + i, false);
+                _sfxSources[i].priority = 170;
             }
 
             _activeMusic = _musicPrimary;
@@ -538,7 +599,7 @@ namespace MultiplyRush
             }
         }
 
-        private bool CanPlaySfxCue(AudioSfxCue cue)
+        private bool CanPlaySfxCue(AudioSfxCue cue, float now)
         {
             var minInterval = GetSfxMinInterval(cue);
             if (minInterval <= 0f)
@@ -546,7 +607,6 @@ namespace MultiplyRush
                 return true;
             }
 
-            var now = Time.unscaledTime;
             if (_sfxLastPlayedAt.TryGetValue(cue, out var lastPlayedAt))
             {
                 if (now - lastPlayedAt < minInterval)
@@ -564,10 +624,10 @@ namespace MultiplyRush
             switch (cue)
             {
                 case AudioSfxCue.BattleHit:
-                    return 0.05f;
+                    return 0.085f;
                 case AudioSfxCue.GatePositive:
                 case AudioSfxCue.GateNegative:
-                    return 0.03f;
+                    return 0.05f;
                 case AudioSfxCue.ButtonTap:
                     return 0.05f;
                 default:
@@ -575,31 +635,142 @@ namespace MultiplyRush
             }
         }
 
-        private AudioSource AcquireSfxSource()
+        private bool ShouldDropSfxForVoiceBudget(AudioSfxCue cue, float now)
         {
             if (_sfxSources == null || _sfxSources.Length == 0)
             {
-                return null;
+                return true;
             }
+
+            var activeVoices = 0;
+            var battleHitVoices = 0;
+            var gateVoices = 0;
 
             for (var i = 0; i < _sfxSources.Length; i++)
             {
-                var index = (_sfxSourceCursor + i) % _sfxSources.Length;
-                var source = _sfxSources[index];
+                var source = _sfxSources[i];
                 if (source == null)
                 {
                     continue;
                 }
 
-                if (!source.isPlaying)
+                var active = source.isPlaying || now < _sfxSourceReleaseTimes[i];
+                if (!active)
+                {
+                    continue;
+                }
+
+                activeVoices++;
+                var activeCue = _sfxSourceCueTags[i];
+                if (activeCue == AudioSfxCue.BattleHit)
+                {
+                    battleHitVoices++;
+                }
+
+                if (activeCue == AudioSfxCue.GatePositive || activeCue == AudioSfxCue.GateNegative)
+                {
+                    gateVoices++;
+                }
+            }
+
+            if (cue == AudioSfxCue.BattleHit && battleHitVoices >= MaxConcurrentBattleHitVoices)
+            {
+                return true;
+            }
+
+            if ((cue == AudioSfxCue.GatePositive || cue == AudioSfxCue.GateNegative) && gateVoices >= MaxConcurrentGateVoices)
+            {
+                return true;
+            }
+
+            if (activeVoices >= MaxActiveSfxSoftLimit && IsLowPrioritySfxCue(cue))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsLowPrioritySfxCue(AudioSfxCue cue)
+        {
+            switch (cue)
+            {
+                case AudioSfxCue.BattleHit:
+                case AudioSfxCue.GatePositive:
+                case AudioSfxCue.GateNegative:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static int GetSfxPriority(AudioSfxCue cue)
+        {
+            switch (cue)
+            {
+                case AudioSfxCue.BattleHit:
+                    return 220;
+                case AudioSfxCue.GatePositive:
+                case AudioSfxCue.GateNegative:
+                    return 190;
+                case AudioSfxCue.ButtonTap:
+                case AudioSfxCue.PauseOpen:
+                case AudioSfxCue.PauseClose:
+                    return 110;
+                case AudioSfxCue.BattleStart:
+                    return 120;
+                default:
+                    return 140;
+            }
+        }
+
+        private void TrackSfxVoice(AudioSfxCue cue, int sourceIndex, float startedAt, AudioClip clip, float pitch)
+        {
+            if (_sfxSourceCueTags == null || _sfxSourceReleaseTimes == null)
+            {
+                return;
+            }
+
+            if (sourceIndex < 0 || sourceIndex >= _sfxSourceCueTags.Length)
+            {
+                return;
+            }
+
+            _sfxSourceCueTags[sourceIndex] = cue;
+            var clipLength = clip != null ? clip.length : 0f;
+            var safePitch = Mathf.Max(0.25f, Mathf.Abs(pitch));
+            _sfxSourceReleaseTimes[sourceIndex] = startedAt + Mathf.Max(0.02f, clipLength / safePitch);
+        }
+
+        private bool TryAcquireSfxSource(out AudioSource source, out int sourceIndex)
+        {
+            source = null;
+            sourceIndex = -1;
+            if (_sfxSources == null || _sfxSources.Length == 0)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _sfxSources.Length; i++)
+            {
+                var index = (_sfxSourceCursor + i) % _sfxSources.Length;
+                var sourceCandidate = _sfxSources[index];
+                if (sourceCandidate == null)
+                {
+                    continue;
+                }
+
+                if (!sourceCandidate.isPlaying)
                 {
                     _sfxSourceCursor = (index + 1) % _sfxSources.Length;
-                    return source;
+                    source = sourceCandidate;
+                    sourceIndex = index;
+                    return true;
                 }
             }
 
             // Never steal a busy source; dropping a burst cue is less jarring than hard-cutting an active sound.
-            return null;
+            return false;
         }
 
         private void QueueCue(AudioMusicCue cue, float delaySeconds)
