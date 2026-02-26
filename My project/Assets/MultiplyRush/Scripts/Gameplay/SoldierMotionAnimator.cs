@@ -68,37 +68,39 @@ namespace MultiplyRush
             _fireKick = Mathf.MoveTowards(_fireKick, 0f, deltaTime * 9f);
 
             var motion = _movingBlend * Mathf.Clamp(intensity, 0.4f, 2.8f);
-            var cycleRate = Mathf.Lerp(4.6f, 6.8f, motion * 0.75f);
+            var gaitWeight = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(motion));
+            var cycleRate = Mathf.Lerp(3.65f, 5.75f, gaitWeight);
             var cycleTime = (Time.time + _phaseOffset) * cycleRate;
             var stride = Mathf.Sin(cycleTime);
             var strideOpposite = Mathf.Sin(cycleTime + Mathf.PI);
-            var leftLift = Mathf.Max(0f, stride);
-            var rightLift = Mathf.Max(0f, strideOpposite);
-            var sway = Mathf.Sin((Time.time + _phaseOffset) * 3.6f);
+            var leftLift = Mathf.Clamp01((stride + 1f) * 0.5f);
+            var rightLift = Mathf.Clamp01((strideOpposite + 1f) * 0.5f);
+            var sway = Mathf.Sin((Time.time + _phaseOffset) * 2.95f);
             var shoulderLead = Mathf.Sin(cycleTime * 0.5f);
             var aimBlend = _combatBlend * 13f;
             var recoil = _fireKick;
 
-            // Keep vertical bob very subtle so units read as walking/running, not hopping.
-            var torsoLean = 2.2f * motion + aimBlend;
-            var bodyBob = Mathf.Sin(cycleTime * 2f) * 0.0016f * motion;
+            // Keep vertical bob subtle and favor hip/torso counter-rotation for a grounded gait.
+            var torsoLean = 3.05f * motion + aimBlend;
+            var bodyBob = Mathf.Sin(cycleTime * 2f) * 0.00055f * motion;
+            var hipShift = stride * 0.0046f * motion;
 
-            _model.localPosition = _modelBasePos + new Vector3(0f, bodyBob, 0f);
-            _model.localRotation = _modelBaseRot * Quaternion.Euler(0f, sway * 0.9f * motion, 0f);
+            _model.localPosition = _modelBasePos + new Vector3(hipShift, bodyBob, Mathf.Abs(stride) * 0.0008f * motion);
+            _model.localRotation = _modelBaseRot * Quaternion.Euler(0f, sway * 1.1f * motion, stride * 0.22f * motion);
 
             if (_torso != null)
             {
                 _torso.localPosition = _torsoBasePos + new Vector3(0f, bodyBob * 0.55f, 0f);
                 _torso.localRotation = _torsoBaseRot * Quaternion.Euler(
                     -torsoLean - (recoil * 7f),
-                    shoulderLead * 1f * motion,
-                    sway * 1.15f * motion);
+                    shoulderLead * 1.25f * motion,
+                    sway * 1.45f * motion);
             }
 
             if (_head != null)
             {
                 _head.localRotation = _headBaseRot * Quaternion.Euler(
-                    stride * 1.4f * motion - (recoil * 4f),
+                    stride * 1.8f * motion - (recoil * 4f),
                     sway * 1.2f * motion + (_combatBlend * 2f),
                     0f);
             }
@@ -106,23 +108,23 @@ namespace MultiplyRush
             if (_leftArm != null)
             {
                 _leftArm.localRotation = _leftArmBaseRot * Quaternion.Euler(
-                    -28f - (strideOpposite * 5f * motion) - (aimBlend * 0.36f) - (recoil * 4f),
+                    -24f - (strideOpposite * 12f * motion) - (aimBlend * 0.34f) - (recoil * 4f),
                     -9f * _combatBlend,
-                    4f * motion);
+                    5f * motion);
             }
 
             if (_rightArm != null)
             {
                 _rightArm.localRotation = _rightArmBaseRot * Quaternion.Euler(
-                    -34f - (stride * 3.8f * motion) - aimBlend - (recoil * 11f),
+                    -31f - (stride * 9.5f * motion) - aimBlend - (recoil * 11f),
                     7f * _combatBlend,
-                    -4f * motion);
+                    -5f * motion);
             }
 
             if (_leftForearm != null)
             {
                 _leftForearm.localRotation = _leftForearmBaseRot * Quaternion.Euler(
-                    -58f - (aimBlend * 0.24f) - (recoil * 6f),
+                    -53f - (aimBlend * 0.24f) - (recoil * 6f),
                     -4f * _combatBlend,
                     3f * motion);
             }
@@ -130,35 +132,35 @@ namespace MultiplyRush
             if (_rightForearm != null)
             {
                 _rightForearm.localRotation = _rightForearmBaseRot * Quaternion.Euler(
-                    -65f - (aimBlend * 0.22f) - (recoil * 10f),
+                    -60f - (aimBlend * 0.22f) - (recoil * 10f),
                     3f * _combatBlend,
                     -3f * motion);
             }
 
             if (_leftLeg != null)
             {
-                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(stride * 22f * motion, 0f, 0f);
+                _leftLeg.localRotation = _leftLegBaseRot * Quaternion.Euler(stride * 37f * motion, stride * 0.6f * motion, 0f);
             }
 
             if (_rightLeg != null)
             {
-                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(strideOpposite * 22f * motion, 0f, 0f);
+                _rightLeg.localRotation = _rightLegBaseRot * Quaternion.Euler(strideOpposite * 37f * motion, -stride * 0.6f * motion, 0f);
             }
 
             if (_leftShin != null)
             {
-                _leftShin.localRotation = _leftShinBaseRot * Quaternion.Euler(-leftLift * 34f * motion, 0f, 0f);
+                _leftShin.localRotation = _leftShinBaseRot * Quaternion.Euler(-leftLift * 46f * motion, 0f, 0f);
             }
 
             if (_rightShin != null)
             {
-                _rightShin.localRotation = _rightShinBaseRot * Quaternion.Euler(-rightLift * 34f * motion, 0f, 0f);
+                _rightShin.localRotation = _rightShinBaseRot * Quaternion.Euler(-rightLift * 46f * motion, 0f, 0f);
             }
 
             if (_rifleBody != null)
             {
-                _rifleBody.localPosition = _rifleBasePos + new Vector3(0f, recoil * 0.009f, -recoil * 0.026f);
-                _rifleBody.localRotation = _rifleBodyBaseRot * Quaternion.Euler(-aimBlend * 0.65f - (recoil * 12f), 0f, 0f);
+                _rifleBody.localPosition = _rifleBasePos + new Vector3(stride * 0.0025f * motion, recoil * 0.009f, -recoil * 0.026f);
+                _rifleBody.localRotation = _rifleBodyBaseRot * Quaternion.Euler(-aimBlend * 0.65f - (recoil * 12f), stride * 0.7f * motion, 0f);
             }
 
             if (_rifleBarrel != null)

@@ -187,6 +187,14 @@ namespace MultiplyRush
         public Color sidewalkColor = new Color(0.29f, 0.33f, 0.4f, 1f);
         public Color curbColor = new Color(0.68f, 0.74f, 0.82f, 1f);
 
+        [Header("Roadside Props")]
+        public bool enableRoadsideProps = true;
+        public int streetPropPoolSize = 120;
+        public float streetPropSpacing = 10f;
+        public float streetPropOffsetFromSidewalk = 0.7f;
+        public Color streetPropBaseColor = new Color(0.18f, 0.26f, 0.36f, 1f);
+        public Color streetPropAccentColor = new Color(0.28f, 0.78f, 0.96f, 1f);
+
         [Header("Ambient Pulse")]
         public bool enableDecorPulse = true;
         public float decorPulseSpeed = 1.7f;
@@ -229,6 +237,8 @@ namespace MultiplyRush
         private readonly Stack<Transform> _sidewalkTilePool = new Stack<Transform>(256);
         private readonly List<Transform> _activePedestrians = new List<Transform>(96);
         private readonly Stack<Transform> _pedestrianPool = new Stack<Transform>(96);
+        private readonly List<Transform> _activeStreetProps = new List<Transform>(192);
+        private readonly Stack<Transform> _streetPropPool = new Stack<Transform>(192);
         private readonly List<HazardZone> _activeHazards = new List<HazardZone>(64);
         private readonly Stack<HazardZone> _hazardPool = new Stack<HazardZone>(64);
         private readonly List<float> _cloudSpeeds = new List<float>(64);
@@ -262,12 +272,14 @@ namespace MultiplyRush
         private bool _beaconPoolPrewarmed;
         private bool _sidewalkPoolPrewarmed;
         private bool _pedestrianPoolPrewarmed;
+        private bool _streetPropPoolPrewarmed;
         private Transform _trackDecorRoot;
         private Transform _backdropRoot;
         private Transform _cloudRoot;
         private Transform _beaconRoot;
         private Transform _streetRoot;
         private Transform _sidewalkRoot;
+        private Transform _streetPropsRoot;
         private Transform _pedestrianRoot;
         private Transform _hazardRoot;
         private Transform _leftRail;
@@ -283,6 +295,8 @@ namespace MultiplyRush
         private Material _pedestrianClothMaterial;
         private Material _pedestrianAccentMaterial;
         private Material _pedestrianSkinMaterial;
+        private Material _streetPropBaseMaterial;
+        private Material _streetPropAccentMaterial;
         private Material _hazardMaterial;
         private Color _trackColor = new Color(0.18f, 0.22f, 0.29f, 1f);
         private Color _gatePositiveColor = new Color(0.2f, 0.85f, 0.35f, 1f);
@@ -471,6 +485,16 @@ namespace MultiplyRush
                 {
                     _sidewalkRoot = new GameObject("Sidewalks").transform;
                     _sidewalkRoot.SetParent(_streetRoot, false);
+                }
+            }
+
+            if (_streetPropsRoot == null)
+            {
+                _streetPropsRoot = _streetRoot.Find("RoadsideProps");
+                if (_streetPropsRoot == null)
+                {
+                    _streetPropsRoot = new GameObject("RoadsideProps").transform;
+                    _streetPropsRoot.SetParent(_streetRoot, false);
                 }
             }
 
@@ -800,6 +824,7 @@ namespace MultiplyRush
             var random = new System.Random(41299 + (_activeLevelIndex * 71));
             PrewarmSidewalkPool();
             PrewarmPedestrianPool();
+            PrewarmStreetPropPool();
 
             var tileLength = Mathf.Max(3.4f, sidewalkTileLength / Mathf.Max(0.55f, density));
             var tileWidth = Mathf.Max(1.2f, sidewalkWidth);
@@ -823,6 +848,8 @@ namespace MultiplyRush
                     _activeSidewalkTiles.Add(tile);
                 }
             }
+
+            BuildRoadsideProps(trackLength, effectiveTrackHalfWidth, tileWidth, quality, density, random);
 
             var minZ = Mathf.Max(10f, startZ * 0.44f);
             var maxZ = Mathf.Max(minZ + 6f, trackLength - 10f);
@@ -859,6 +886,139 @@ namespace MultiplyRush
                 _pedestrianLeftLeg.Add(pedestrian.Find("LeftLeg"));
                 _pedestrianRightLeg.Add(pedestrian.Find("RightLeg"));
             }
+        }
+
+        private void BuildRoadsideProps(
+            float trackLength,
+            float effectiveTrackHalfWidth,
+            float tileWidth,
+            BackdropQuality quality,
+            float density,
+            System.Random random)
+        {
+            if (!enableRoadsideProps || _streetPropsRoot == null)
+            {
+                return;
+            }
+
+            var spacing = Mathf.Max(5.6f, streetPropSpacing / Mathf.Max(0.62f, density));
+            var start = Mathf.Max(8f, startZ * 0.35f);
+            var end = Mathf.Max(start + 6f, trackLength - 8f);
+            var qualityDensity = quality == BackdropQuality.High
+                ? 1f
+                : (quality == BackdropQuality.Medium ? 0.76f : 0.56f);
+            var baseX = effectiveTrackHalfWidth +
+                        railInset +
+                        Mathf.Max(0.2f, sidewalkOffsetFromRail) +
+                        tileWidth +
+                        Mathf.Max(0.25f, streetPropOffsetFromSidewalk);
+
+            for (var side = -1; side <= 1; side += 2)
+            {
+                for (var z = start; z <= end; z += spacing)
+                {
+                    if (random.NextDouble() > qualityDensity)
+                    {
+                        continue;
+                    }
+
+                    var prop = GetStreetProp();
+                    var x = side * (baseX + ((float)random.NextDouble() - 0.5f) * 0.95f);
+                    var zJitter = ((float)random.NextDouble() * 2f - 1f) * spacing * 0.3f;
+                    var yaw = side > 0 ? -90f : 90f;
+                    prop.position = new Vector3(x, -0.06f, z + zJitter);
+                    prop.rotation = Quaternion.Euler(0f, yaw + (((float)random.NextDouble() * 2f - 1f) * 8f), 0f);
+                    prop.localScale = Vector3.one * Mathf.Lerp(0.85f, 1.2f, (float)random.NextDouble());
+                    ConfigureRoadsidePropGeometry(prop, random.Next(0, 5), quality, random);
+                    prop.gameObject.SetActive(true);
+                    _activeStreetProps.Add(prop);
+                }
+            }
+        }
+
+        private static void ConfigureRoadsidePropGeometry(Transform prop, int style, BackdropQuality quality, System.Random random)
+        {
+            if (prop == null)
+            {
+                return;
+            }
+
+            var high = quality == BackdropQuality.High;
+            var mediumPlus = quality != BackdropQuality.Low;
+
+            var basePart = prop.Find("Base");
+            var bodyPart = prop.Find("Body");
+            var topPart = prop.Find("Top");
+            var accentPart = prop.Find("Accent");
+            var screenPart = prop.Find("Screen");
+            var shrubPart = prop.Find("Shrub");
+            var pillarLeftPart = prop.Find("PillarLeft");
+            var pillarRightPart = prop.Find("PillarRight");
+
+            SetPropPart(basePart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(bodyPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(topPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(accentPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(screenPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(shrubPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(pillarLeftPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+            SetPropPart(pillarRightPart, false, Vector3.zero, Vector3.one, Vector3.zero);
+
+            switch (style)
+            {
+                case 0: // Planter cluster
+                    SetPropPart(basePart, true, new Vector3(0f, 0.16f, 0f), new Vector3(1.2f, 0.32f, 0.84f), Vector3.zero);
+                    SetPropPart(bodyPart, true, new Vector3(0f, 0.38f, 0f), new Vector3(0.96f, 0.14f, 0.62f), Vector3.zero);
+                    SetPropPart(shrubPart, mediumPlus, new Vector3(0f, 0.62f, 0f), new Vector3(0.72f, 0.48f, 0.52f), Vector3.zero);
+                    SetPropPart(accentPart, high, new Vector3(0f, 0.32f, 0.36f), new Vector3(0.58f, 0.05f, 0.06f), Vector3.zero);
+                    break;
+                case 1: // Utility kiosk
+                    SetPropPart(basePart, true, new Vector3(0f, 0.24f, 0f), new Vector3(1f, 0.48f, 0.72f), Vector3.zero);
+                    SetPropPart(bodyPart, true, new Vector3(0f, 0.78f, 0f), new Vector3(0.78f, 0.72f, 0.58f), Vector3.zero);
+                    SetPropPart(topPart, true, new Vector3(0f, 1.22f, 0f), new Vector3(0.9f, 0.16f, 0.7f), Vector3.zero);
+                    SetPropPart(screenPart, mediumPlus, new Vector3(0f, 0.84f, 0.3f), new Vector3(0.52f, 0.3f, 0.05f), Vector3.zero);
+                    SetPropPart(accentPart, high, new Vector3(0f, 1.02f, 0.3f), new Vector3(0.58f, 0.05f, 0.06f), Vector3.zero);
+                    break;
+                case 2: // Billboard
+                    SetPropPart(basePart, true, new Vector3(0f, 0.2f, 0f), new Vector3(1.2f, 0.4f, 0.68f), Vector3.zero);
+                    SetPropPart(pillarLeftPart, true, new Vector3(-0.36f, 0.9f, 0f), new Vector3(0.14f, 1.4f, 0.14f), Vector3.zero);
+                    SetPropPart(pillarRightPart, true, new Vector3(0.36f, 0.9f, 0f), new Vector3(0.14f, 1.4f, 0.14f), Vector3.zero);
+                    SetPropPart(screenPart, true, new Vector3(0f, 1.62f, 0f), new Vector3(1.2f, 0.58f, 0.08f), Vector3.zero);
+                    SetPropPart(accentPart, mediumPlus, new Vector3(0f, 1.86f, 0f), new Vector3(1.06f, 0.06f, 0.09f), Vector3.zero);
+                    break;
+                case 3: // Shelter
+                    SetPropPart(basePart, true, new Vector3(0f, 0.16f, 0f), new Vector3(1.28f, 0.32f, 0.74f), Vector3.zero);
+                    SetPropPart(pillarLeftPart, true, new Vector3(-0.42f, 0.88f, 0f), new Vector3(0.12f, 1.08f, 0.12f), Vector3.zero);
+                    SetPropPart(pillarRightPart, true, new Vector3(0.42f, 0.88f, 0f), new Vector3(0.12f, 1.08f, 0.12f), Vector3.zero);
+                    SetPropPart(topPart, true, new Vector3(0f, 1.36f, 0f), new Vector3(1.06f, 0.12f, 0.66f), Vector3.zero);
+                    SetPropPart(screenPart, mediumPlus, new Vector3(0f, 0.82f, -0.26f), new Vector3(0.84f, 0.52f, 0.06f), Vector3.zero);
+                    SetPropPart(accentPart, high, new Vector3(0f, 1.16f, 0.26f), new Vector3(0.7f, 0.05f, 0.06f), Vector3.zero);
+                    break;
+                default: // Monument / sculpture
+                    SetPropPart(basePart, true, new Vector3(0f, 0.2f, 0f), new Vector3(1f, 0.4f, 0.8f), Vector3.zero);
+                    SetPropPart(bodyPart, true, new Vector3(0f, 0.82f, 0f), new Vector3(0.42f, 0.92f, 0.42f), new Vector3(0f, (float)random.NextDouble() * 32f, 0f));
+                    SetPropPart(topPart, true, new Vector3(0f, 1.38f, 0f), new Vector3(0.62f, 0.18f, 0.62f), Vector3.zero);
+                    SetPropPart(accentPart, mediumPlus, new Vector3(0f, 0.92f, 0.24f), new Vector3(0.34f, 0.34f, 0.06f), Vector3.zero);
+                    break;
+            }
+        }
+
+        private static void SetPropPart(Transform part, bool active, Vector3 localPosition, Vector3 localScale, Vector3 localEuler)
+        {
+            if (part == null)
+            {
+                return;
+            }
+
+            part.gameObject.SetActive(active);
+            if (!active)
+            {
+                return;
+            }
+
+            part.localPosition = localPosition;
+            part.localRotation = Quaternion.Euler(localEuler);
+            part.localScale = localScale;
         }
 
         private void AnimatePedestrians(float deltaTime)
@@ -972,6 +1132,7 @@ namespace MultiplyRush
             ApplyMaterialColor(_stripeMaterial, stripeColor * pulse, 0.42f, 0.42f * pulse);
             ApplyMaterialColor(_railMaterial, railColor * (0.98f + pulseStrength * 0.2f), 0.24f, 0.1f * pulse);
             ApplyMaterialColor(_beaconCoreMaterial, beaconCoreColor * pulse, 0.66f, 0.95f * pulse);
+            ApplyMaterialColor(_streetPropAccentMaterial, streetPropAccentColor * pulse, 0.34f, 0.58f * pulse);
 
             if (enableBeaconLights && _activeBeacons.Count > 0)
             {
@@ -1049,14 +1210,23 @@ namespace MultiplyRush
                 case BackdropQuality.Low:
                     QualitySettings.antiAliasing = 0;
                     QualitySettings.lodBias = 0.65f;
+                    QualitySettings.shadowDistance = 20f;
+                    QualitySettings.shadowCascades = 1;
+                    QualitySettings.pixelLightCount = 1;
                     break;
                 case BackdropQuality.Medium:
                     QualitySettings.antiAliasing = 2;
                     QualitySettings.lodBias = 0.9f;
+                    QualitySettings.shadowDistance = 42f;
+                    QualitySettings.shadowCascades = 2;
+                    QualitySettings.pixelLightCount = 2;
                     break;
                 case BackdropQuality.High:
                     QualitySettings.antiAliasing = 4;
                     QualitySettings.lodBias = 1.15f;
+                    QualitySettings.shadowDistance = 62f;
+                    QualitySettings.shadowCascades = 2;
+                    QualitySettings.pixelLightCount = 3;
                     break;
             }
         }
@@ -1238,6 +1408,16 @@ namespace MultiplyRush
             }
 
             return CreatePedestrian();
+        }
+
+        private Transform GetStreetProp()
+        {
+            if (_streetPropPool.Count > 0)
+            {
+                return _streetPropPool.Pop();
+            }
+
+            return CreateStreetProp();
         }
 
         private Transform CreateCloud()
@@ -1429,6 +1609,24 @@ namespace MultiplyRush
             CreateBackdropPart(root.transform, "LeftLeg", PrimitiveType.Cube, GetPedestrianClothMaterial());
             CreateBackdropPart(root.transform, "RightLeg", PrimitiveType.Cube, GetPedestrianClothMaterial());
             CreateBackdropPart(root.transform, "Bag", PrimitiveType.Cube, GetPedestrianAccentMaterial());
+
+            root.SetActive(false);
+            return root.transform;
+        }
+
+        private Transform CreateStreetProp()
+        {
+            var root = new GameObject("StreetProp");
+            root.transform.SetParent(_streetPropsRoot != null ? _streetPropsRoot : _streetRoot, false);
+
+            CreateBackdropPart(root.transform, "Base", PrimitiveType.Cube, GetStreetPropBaseMaterial());
+            CreateBackdropPart(root.transform, "Body", PrimitiveType.Cube, GetStreetPropBaseMaterial());
+            CreateBackdropPart(root.transform, "Top", PrimitiveType.Cube, GetStreetPropBaseMaterial());
+            CreateBackdropPart(root.transform, "Accent", PrimitiveType.Cube, GetStreetPropAccentMaterial());
+            CreateBackdropPart(root.transform, "Screen", PrimitiveType.Cube, GetStreetPropAccentMaterial());
+            CreateBackdropPart(root.transform, "Shrub", PrimitiveType.Sphere, GetStreetPropAccentMaterial());
+            CreateBackdropPart(root.transform, "PillarLeft", PrimitiveType.Cube, GetStreetPropBaseMaterial());
+            CreateBackdropPart(root.transform, "PillarRight", PrimitiveType.Cube, GetStreetPropBaseMaterial());
 
             root.SetActive(false);
             return root.transform;
@@ -2055,8 +2253,22 @@ namespace MultiplyRush
                 _pedestrianPool.Push(pedestrian);
             }
 
+            for (var i = 0; i < _activeStreetProps.Count; i++)
+            {
+                var prop = _activeStreetProps[i];
+                if (prop == null)
+                {
+                    continue;
+                }
+
+                prop.gameObject.SetActive(false);
+                prop.SetParent(_streetPropsRoot != null ? _streetPropsRoot : _streetRoot, false);
+                _streetPropPool.Push(prop);
+            }
+
             _activeSidewalkTiles.Clear();
             _activePedestrians.Clear();
+            _activeStreetProps.Clear();
             _pedestrianSpeed.Clear();
             _pedestrianMinZ.Clear();
             _pedestrianMaxZ.Clear();
@@ -2172,6 +2384,23 @@ namespace MultiplyRush
             _pedestrianPoolPrewarmed = true;
         }
 
+        private void PrewarmStreetPropPool()
+        {
+            if (_streetPropPoolPrewarmed || !enableRoadsideProps)
+            {
+                return;
+            }
+
+            var count = Mathf.Max(0, streetPropPoolSize);
+            for (var i = 0; i < count; i++)
+            {
+                var prop = CreateStreetProp();
+                _streetPropPool.Push(prop);
+            }
+
+            _streetPropPoolPrewarmed = true;
+        }
+
         private Material GetStripeMaterial()
         {
             if (_stripeMaterial != null)
@@ -2282,6 +2511,28 @@ namespace MultiplyRush
             return _pedestrianAccentMaterial;
         }
 
+        private Material GetStreetPropBaseMaterial()
+        {
+            if (_streetPropBaseMaterial != null)
+            {
+                return _streetPropBaseMaterial;
+            }
+
+            _streetPropBaseMaterial = CreateRuntimeMaterial("StreetPropBase", streetPropBaseColor, 0.28f, 0.04f);
+            return _streetPropBaseMaterial;
+        }
+
+        private Material GetStreetPropAccentMaterial()
+        {
+            if (_streetPropAccentMaterial != null)
+            {
+                return _streetPropAccentMaterial;
+            }
+
+            _streetPropAccentMaterial = CreateRuntimeMaterial("StreetPropAccent", streetPropAccentColor, 0.34f, 0.38f);
+            return _streetPropAccentMaterial;
+        }
+
         private Material GetSkinMaterialForPedestrian()
         {
             if (_pedestrianSkinMaterial != null)
@@ -2382,6 +2633,8 @@ namespace MultiplyRush
             curbColor = ScaleColor(theme.cloudColor, 0.72f + (bandProgress * 0.08f));
             beaconPoleColor = ScaleColor(theme.beaconPoleColor, 0.95f + (bandProgress * 0.04f));
             beaconCoreColor = ScaleColor(theme.beaconCoreColor, 1f + (bandProgress * 0.12f));
+            streetPropBaseColor = ScaleColor(theme.backdropColor, 0.7f + (bandProgress * 0.12f));
+            streetPropAccentColor = ScaleColor(theme.beaconCoreColor, 1f + (bandProgress * 0.2f));
 
             _gatePositiveColor = ScaleColor(theme.gatePositiveColor, 0.98f + (bandProgress * 0.06f));
             _gateNegativeColor = ScaleColor(theme.gateNegativeColor, 1f + (bandProgress * 0.05f));
@@ -2407,6 +2660,8 @@ namespace MultiplyRush
             ApplyMaterialColor(_curbMaterial, curbColor, 0.22f, 0.08f);
             ApplyMaterialColor(_pedestrianClothMaterial, ScaleColor(theme.ambientEquator, 0.88f), 0.18f, 0.05f);
             ApplyMaterialColor(_pedestrianAccentMaterial, ScaleColor(theme.ambientSky, 1.1f), 0.24f, 0.09f);
+            ApplyMaterialColor(_streetPropBaseMaterial, streetPropBaseColor, 0.3f, 0.06f);
+            ApplyMaterialColor(_streetPropAccentMaterial, streetPropAccentColor, 0.34f, 0.5f);
             ApplyMaterialColor(_hazardMaterial, _hazardSlowColor, 0.12f, 0.36f);
 
             SceneVisualTuning.ApplyLevelTheme(
