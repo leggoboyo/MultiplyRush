@@ -136,6 +136,7 @@ namespace MultiplyRush
             _selectedGameplayTrackIndex = ProgressionStore.GetGameplayMusicTrack(0, GameplayMusicTrackCount);
             ApplyMasterVolume();
             SceneManager.sceneLoaded += HandleSceneLoaded;
+            AudioSettings.OnAudioConfigurationChanged += HandleAudioConfigurationChanged;
         }
 
         private void OnDestroy()
@@ -143,6 +144,7 @@ namespace MultiplyRush
             if (_instance == this)
             {
                 SceneManager.sceneLoaded -= HandleSceneLoaded;
+                AudioSettings.OnAudioConfigurationChanged -= HandleAudioConfigurationChanged;
                 _instance = null;
             }
         }
@@ -171,6 +173,17 @@ namespace MultiplyRush
         private void OnApplicationFocus(bool hasFocus)
         {
             if (!hasFocus)
+            {
+                return;
+            }
+
+            TryRecoverMusicAfterForeground();
+        }
+
+        private void HandleAudioConfigurationChanged(bool deviceWasChanged)
+        {
+            // iOS interruptions (calls, route changes, Siri) can reset the audio graph.
+            if (!Application.isFocused || !deviceWasChanged)
             {
                 return;
             }
