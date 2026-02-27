@@ -5,10 +5,14 @@ namespace MultiplyRush
 {
     public sealed class AppLifecycleController : MonoBehaviour
     {
+        private const float BackgroundTransitionDebounceSeconds = 0.2f;
+
         private static AppLifecycleController _instance;
 
         private float _lastLowMemoryCleanupTime = -60f;
+        private float _lastBackgroundTransitionTime = -10f;
         private bool _wantsPauseOnFocusLoss = true;
+        private bool _isBackgrounded;
 
         public static AppLifecycleController Instance
         {
@@ -67,7 +71,10 @@ namespace MultiplyRush
             if (pauseStatus)
             {
                 HandleBackgroundTransition();
+                return;
             }
+
+            _isBackgrounded = false;
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -75,7 +82,10 @@ namespace MultiplyRush
             if (!hasFocus)
             {
                 HandleBackgroundTransition();
+                return;
             }
+
+            _isBackgrounded = false;
         }
 
         private void OnApplicationLowMemory()
@@ -102,6 +112,14 @@ namespace MultiplyRush
 
         private void HandleBackgroundTransition()
         {
+            var now = Time.realtimeSinceStartup;
+            if (_isBackgrounded && now <= _lastBackgroundTransitionTime + BackgroundTransitionDebounceSeconds)
+            {
+                return;
+            }
+
+            _isBackgrounded = true;
+            _lastBackgroundTransitionTime = now;
             ProgressionStore.Flush();
 
             if (!_wantsPauseOnFocusLoss)
