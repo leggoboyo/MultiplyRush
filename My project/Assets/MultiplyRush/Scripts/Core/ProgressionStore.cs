@@ -12,6 +12,7 @@ namespace MultiplyRush
 
     public static class ProgressionStore
     {
+        private const float FloatSaveEpsilon = 0.0001f;
         private const string UnlockedLevelKey = "mr_unlocked_level";
         private const string BestLevelKey = "mr_best_level";
         private const string ReinforcementKitKey = "mr_reinforcement_kits";
@@ -40,10 +41,9 @@ namespace MultiplyRush
         {
             var unlocked = Mathf.Max(GetUnlockedLevel(), levelIndex + 1);
             var best = Mathf.Max(GetBestLevel(), levelIndex);
-
-            PlayerPrefs.SetInt(UnlockedLevelKey, unlocked);
-            PlayerPrefs.SetInt(BestLevelKey, best);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(UnlockedLevelKey, unlocked);
+            changed |= SetIntIfChanged(BestLevelKey, best);
+            SaveIfChanged(changed);
         }
 
         public static int GetBestSurvivorsForLevel(int levelIndex)
@@ -63,14 +63,14 @@ namespace MultiplyRush
                 return;
             }
 
-            PlayerPrefs.SetInt(key, safeSurvivors);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(key, safeSurvivors);
+            SaveIfChanged(changed);
         }
 
         public static void SetRequestedStartLevel(int levelIndex)
         {
-            PlayerPrefs.SetInt(RequestedStartLevelKey, Mathf.Max(0, levelIndex));
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(RequestedStartLevelKey, Mathf.Max(0, levelIndex));
+            SaveIfChanged(changed);
         }
 
         public static void ClearRequestedStartLevel()
@@ -114,8 +114,8 @@ namespace MultiplyRush
                 return false;
             }
 
-            PlayerPrefs.SetInt(ReinforcementKitKey, current - 1);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(ReinforcementKitKey, current - 1);
+            SaveIfChanged(changed);
             return true;
         }
 
@@ -127,8 +127,8 @@ namespace MultiplyRush
                 return false;
             }
 
-            PlayerPrefs.SetInt(ShieldChargeKey, current - 1);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(ShieldChargeKey, current - 1);
+            SaveIfChanged(changed);
             return true;
         }
 
@@ -149,10 +149,10 @@ namespace MultiplyRush
 
             var reinforcementTotal = GetReinforcementKits() + reward.reinforcementKits;
             var shieldTotal = GetShieldCharges() + reward.shieldCharges;
-            PlayerPrefs.SetInt(ReinforcementKitKey, reinforcementTotal);
-            PlayerPrefs.SetInt(ShieldChargeKey, shieldTotal);
-            PlayerPrefs.SetInt(LastMiniBossRewardLevelKey, safeLevel);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(ReinforcementKitKey, reinforcementTotal);
+            changed |= SetIntIfChanged(ShieldChargeKey, shieldTotal);
+            changed |= SetIntIfChanged(LastMiniBossRewardLevelKey, safeLevel);
+            SaveIfChanged(changed);
 
             return reward;
         }
@@ -170,8 +170,8 @@ namespace MultiplyRush
 
         public static void SetDifficultyMode(DifficultyMode mode)
         {
-            PlayerPrefs.SetInt(DifficultyModeKey, (int)mode);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(DifficultyModeKey, (int)mode);
+            SaveIfChanged(changed);
         }
 
         public static float GetMasterVolume(float fallback = 0.85f)
@@ -182,8 +182,8 @@ namespace MultiplyRush
 
         public static void SetMasterVolume(float volume)
         {
-            PlayerPrefs.SetFloat(MasterVolumeKey, Mathf.Clamp01(volume));
-            PlayerPrefs.Save();
+            var changed = SetFloatIfChanged(MasterVolumeKey, Mathf.Clamp01(volume));
+            SaveIfChanged(changed);
         }
 
         public static BackdropQuality GetGraphicsFidelity(BackdropQuality fallback = BackdropQuality.Auto)
@@ -200,8 +200,8 @@ namespace MultiplyRush
         public static void SetGraphicsFidelity(BackdropQuality quality)
         {
             var safeQuality = Mathf.Clamp((int)quality, (int)BackdropQuality.Auto, (int)BackdropQuality.High);
-            PlayerPrefs.SetInt(GraphicsFidelityKey, safeQuality);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(GraphicsFidelityKey, safeQuality);
+            SaveIfChanged(changed);
         }
 
         public static float GetCameraMotionIntensity(float fallback = 0.45f)
@@ -212,8 +212,8 @@ namespace MultiplyRush
 
         public static void SetCameraMotionIntensity(float intensity)
         {
-            PlayerPrefs.SetFloat(CameraMotionKey, Mathf.Clamp01(intensity));
-            PlayerPrefs.Save();
+            var changed = SetFloatIfChanged(CameraMotionKey, Mathf.Clamp01(intensity));
+            SaveIfChanged(changed);
         }
 
         public static bool GetHapticsEnabled(bool fallback = true)
@@ -224,8 +224,8 @@ namespace MultiplyRush
 
         public static void SetHapticsEnabled(bool enabled)
         {
-            PlayerPrefs.SetInt(HapticsEnabledKey, enabled ? 1 : 0);
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(HapticsEnabledKey, enabled ? 1 : 0);
+            SaveIfChanged(changed);
         }
 
         public static int GetGameplayMusicTrack(int fallback = 0, int maxExclusive = 6)
@@ -238,13 +238,45 @@ namespace MultiplyRush
         public static void SetGameplayMusicTrack(int index, int maxExclusive = 6)
         {
             var safeMax = Mathf.Max(1, maxExclusive);
-            PlayerPrefs.SetInt(GameplayMusicTrackKey, Mathf.Clamp(index, 0, safeMax - 1));
-            PlayerPrefs.Save();
+            var changed = SetIntIfChanged(GameplayMusicTrackKey, Mathf.Clamp(index, 0, safeMax - 1));
+            SaveIfChanged(changed);
         }
 
         public static void Flush()
         {
             PlayerPrefs.Save();
+        }
+
+        private static void SaveIfChanged(bool changed)
+        {
+            if (changed)
+            {
+                PlayerPrefs.Save();
+            }
+        }
+
+        private static bool SetIntIfChanged(string key, int value)
+        {
+            var current = PlayerPrefs.GetInt(key, value);
+            if (current == value)
+            {
+                return false;
+            }
+
+            PlayerPrefs.SetInt(key, value);
+            return true;
+        }
+
+        private static bool SetFloatIfChanged(string key, float value)
+        {
+            var current = PlayerPrefs.GetFloat(key, value);
+            if (Mathf.Abs(current - value) <= FloatSaveEpsilon)
+            {
+                return false;
+            }
+
+            PlayerPrefs.SetFloat(key, value);
+            return true;
         }
     }
 }
