@@ -45,6 +45,7 @@ namespace MultiplyRush
         private const int MaxConcurrentBattleHitVoices = 3;
         private const int MaxConcurrentGateVoices = 5;
         private const int MaxActiveSfxSoftLimit = 38;
+        private const float ForegroundRecoveryDebounceSeconds = 0.2f;
         private static readonly int[] MajorScaleIntervals = { 0, 2, 4, 5, 7, 9, 11 };
         private static readonly int[] MinorScaleIntervals = { 0, 2, 3, 5, 7, 8, 10 };
         private static readonly string[] DefaultGameplayTrackNames =
@@ -92,6 +93,7 @@ namespace MultiplyRush
         private bool _hasGameplayPreview;
         private float _gameplayPreviewTimer;
         private AudioMusicCue _gameplayPreviewRestoreCue = AudioMusicCue.None;
+        private float _lastForegroundRecoveryTime = -10f;
 
         public static AudioDirector Instance
         {
@@ -154,6 +156,26 @@ namespace MultiplyRush
 
             UpdateQueuedCue(Time.unscaledDeltaTime);
             UpdateGameplayPreview(Time.unscaledDeltaTime);
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                return;
+            }
+
+            TryRecoverMusicAfterForeground();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus)
+            {
+                return;
+            }
+
+            TryRecoverMusicAfterForeground();
         }
 
         public void SetMusicCue(AudioMusicCue cue, bool immediate = false)
@@ -875,6 +897,29 @@ namespace MultiplyRush
             _incomingMusic = null;
             _activeMusic.volume = MusicBaseVolume;
             _isMusicBlending = false;
+        }
+
+        private void TryRecoverMusicAfterForeground()
+        {
+            var now = Time.realtimeSinceStartup;
+            if (now <= _lastForegroundRecoveryTime + ForegroundRecoveryDebounceSeconds)
+            {
+                return;
+            }
+
+            _lastForegroundRecoveryTime = now;
+            if (_currentCue == AudioMusicCue.None || _isMusicBlending)
+            {
+                return;
+            }
+
+            if (_activeMusic != null && _activeMusic.isPlaying)
+            {
+                return;
+            }
+
+            // iOS can occasionally resume without restarting the active AudioSource.
+            SetMusicCue(_currentCue, true);
         }
 
         private void StopMusic(bool immediate)
