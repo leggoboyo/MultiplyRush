@@ -4,6 +4,9 @@ namespace MultiplyRush
 {
     public sealed class DeviceRuntimeSettings : MonoBehaviour
     {
+        private const int PowerSaveFrameRateCap = 60;
+        private const float LowBatteryThreshold = 0.2f;
+
         [Range(30, 120)]
         public int targetFrameRate = 60;
         public bool disableVSync = true;
@@ -37,6 +40,7 @@ namespace MultiplyRush
                 ApplyRenderScale(renderScale);
             }
 
+            ApplyPowerAwareFrameRateCap(ref resolvedTargetFps);
             Application.targetFrameRate = resolvedTargetFps;
 
             if (keepScreenAwake)
@@ -81,6 +85,25 @@ namespace MultiplyRush
 
             fps = refreshRate >= 100f ? 120 : 60;
             renderScale = 1f;
+        }
+
+        private static void ApplyPowerAwareFrameRateCap(ref int fps)
+        {
+            var lowPowerMode = false;
+#if UNITY_IOS && !UNITY_EDITOR
+            lowPowerMode = UnityEngine.iOS.Device.lowPowerModeEnabled;
+#endif
+
+            var batteryLevel = SystemInfo.batteryLevel;
+            var lowBattery = SystemInfo.batteryStatus == BatteryStatus.Discharging &&
+                             batteryLevel >= 0f &&
+                             batteryLevel <= LowBatteryThreshold;
+            if (!lowPowerMode && !lowBattery)
+            {
+                return;
+            }
+
+            fps = Mathf.Min(fps, PowerSaveFrameRateCap);
         }
 
         private static void ApplyRenderScale(float scale)
