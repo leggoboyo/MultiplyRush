@@ -6,6 +6,7 @@ namespace MultiplyRush
     {
         private const int PowerSaveFrameRateCap = 60;
         private const float LowBatteryThreshold = 0.2f;
+        private const float PowerStatePollIntervalSeconds = 5f;
 
         [Range(30, 120)]
         public int targetFrameRate = 60;
@@ -19,6 +20,11 @@ namespace MultiplyRush
         public float midTierRenderScale = 0.94f;
 
         private static bool _applied;
+        private int _baseTargetFrameRate = 60;
+        private int _appliedTargetFrameRate = -1;
+        private float _nextPowerStatePollTime;
+        private bool _lastLowPowerMode;
+        private bool _lastLowBattery;
 
         private void Awake()
         {
@@ -40,8 +46,8 @@ namespace MultiplyRush
                 ApplyRenderScale(renderScale);
             }
 
-            ApplyPowerAwareFrameRateCap(ref resolvedTargetFps);
-            Application.targetFrameRate = resolvedTargetFps;
+            _baseTargetFrameRate = resolvedTargetFps;
+            ApplyPowerAwareFrameRate(forceApply: true);
 
             if (keepScreenAwake)
             {
@@ -58,6 +64,39 @@ namespace MultiplyRush
             }
 
             _applied = true;
+        }
+
+        private void Update()
+        {
+            if (!_applied || Time.unscaledTime < _nextPowerStatePollTime)
+            {
+                return;
+            }
+
+            _nextPowerStatePollTime = Time.unscaledTime + PowerStatePollIntervalSeconds;
+            ApplyPowerAwareFrameRate(forceApply: false);
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus || !_applied)
+            {
+                return;
+            }
+
+            _nextPowerStatePollTime = Time.unscaledTime + PowerStatePollIntervalSeconds;
+            ApplyPowerAwareFrameRate(forceApply: false);
+        }
+
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus || !_applied)
+            {
+                return;
+            }
+
+            _nextPowerStatePollTime = Time.unscaledTime + PowerStatePollIntervalSeconds;
+            ApplyPowerAwareFrameRate(forceApply: false);
         }
 
         private void ResolveDeviceTier(out int fps, out float renderScale)
@@ -87,23 +126,39 @@ namespace MultiplyRush
             renderScale = 1f;
         }
 
-        private static void ApplyPowerAwareFrameRateCap(ref int fps)
+        private void ApplyPowerAwareFrameRate(bool forceApply)
         {
-            var lowPowerMode = false;
+            var targetFrameRate = _baseTargetFrameRate;
+            ResolvePowerConstraints(out var lowPowerMode, out var lowBattery);
+            if (lowPowerMode || lowBattery)
+            {
+                targetFrameRate = Mathf.Min(targetFrameRate, PowerSaveFrameRateCap);
+            }
+
+            var hasStateChange = lowPowerMode != _lastLowPowerMode || lowBattery != _lastLowBattery;
+            var hasRateChange = targetFrameRate != _appliedTargetFrameRate;
+            if (!forceApply && !hasStateChange && !hasRateChange)
+            {
+                return;
+            }
+
+            _lastLowPowerMode = lowPowerMode;
+            _lastLowBattery = lowBattery;
+            _appliedTargetFrameRate = targetFrameRate;
+            Application.targetFrameRate = targetFrameRate;
+        }
+
+        private static void ResolvePowerConstraints(out bool lowPowerMode, out bool lowBattery)
+        {
+            lowPowerMode = false;
 #if UNITY_IOS && !UNITY_EDITOR
             lowPowerMode = UnityEngine.iOS.Device.lowPowerModeEnabled;
 #endif
 
             var batteryLevel = SystemInfo.batteryLevel;
-            var lowBattery = SystemInfo.batteryStatus == BatteryStatus.Discharging &&
-                             batteryLevel >= 0f &&
-                             batteryLevel <= LowBatteryThreshold;
-            if (!lowPowerMode && !lowBattery)
-            {
-                return;
-            }
-
-            fps = Mathf.Min(fps, PowerSaveFrameRateCap);
+            lowBattery = SystemInfo.batteryStatus == BatteryStatus.Discharging &&
+                         batteryLevel >= 0f &&
+                         batteryLevel <= LowBatteryThreshold;
         }
 
         private static void ApplyRenderScale(float scale)
