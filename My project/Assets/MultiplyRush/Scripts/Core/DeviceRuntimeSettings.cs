@@ -41,7 +41,10 @@ namespace MultiplyRush
         {
             if (_instance != null && _instance != this)
             {
-                Destroy(gameObject);
+                // Never destroy the whole GameObject on duplicate detection because this
+                // component can live alongside critical scene systems (for example GameManager).
+                // Only remove this duplicate settings component.
+                Destroy(this);
                 return;
             }
 
