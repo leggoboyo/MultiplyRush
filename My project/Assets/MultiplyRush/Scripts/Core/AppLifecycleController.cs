@@ -115,6 +115,8 @@ namespace MultiplyRush
             }
 
             _lastLowMemoryCleanupTime = now;
+            // Persist progress/settings before iOS decides to reclaim the process.
+            ProgressionStore.Flush();
             Resources.UnloadUnusedAssets();
             System.GC.Collect();
             Debug.Log("Multiply Rush: low-memory cleanup triggered.");
