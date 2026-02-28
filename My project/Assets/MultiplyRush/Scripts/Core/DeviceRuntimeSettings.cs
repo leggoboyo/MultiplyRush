@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using UnityEngine;
 
 namespace MultiplyRush
@@ -5,6 +7,8 @@ namespace MultiplyRush
     public sealed class DeviceRuntimeSettings : MonoBehaviour
     {
         private const int PowerSaveFrameRateCap = 60;
+        private const int ThermalSeriousFrameRateCap = 45;
+        private const int ThermalCriticalFrameRateCap = 30;
         private const float LowBatteryThreshold = 0.2f;
         private const float PowerStatePollIntervalSeconds = 5f;
 
@@ -25,6 +29,12 @@ namespace MultiplyRush
         private float _nextPowerStatePollTime;
         private bool _lastLowPowerMode;
         private bool _lastLowBattery;
+        private int _lastThermalFrameRateCap = int.MaxValue;
+
+#if UNITY_IOS && !UNITY_EDITOR
+        private static PropertyInfo _iOSThermalStateProperty;
+        private static bool _hasLoadedThermalReflection;
+#endif
 
         private void Awake()
         {
@@ -127,13 +137,16 @@ namespace MultiplyRush
         private void ApplyPowerAwareFrameRate(bool forceApply)
         {
             var targetFrameRate = _baseTargetFrameRate;
-            ResolvePowerConstraints(out var lowPowerMode, out var lowBattery);
+            ResolvePowerConstraints(out var lowPowerMode, out var lowBattery, out var thermalFrameRateCap);
             if (lowPowerMode || lowBattery)
             {
                 targetFrameRate = Mathf.Min(targetFrameRate, PowerSaveFrameRateCap);
             }
 
-            var hasStateChange = lowPowerMode != _lastLowPowerMode || lowBattery != _lastLowBattery;
+            targetFrameRate = Mathf.Min(targetFrameRate, thermalFrameRateCap);
+            var hasStateChange = lowPowerMode != _lastLowPowerMode ||
+                                 lowBattery != _lastLowBattery ||
+                                 thermalFrameRateCap != _lastThermalFrameRateCap;
             var hasRateChange = targetFrameRate != _appliedTargetFrameRate;
             if (!forceApply && !hasStateChange && !hasRateChange)
             {
@@ -142,11 +155,12 @@ namespace MultiplyRush
 
             _lastLowPowerMode = lowPowerMode;
             _lastLowBattery = lowBattery;
+            _lastThermalFrameRateCap = thermalFrameRateCap;
             _appliedTargetFrameRate = targetFrameRate;
             Application.targetFrameRate = targetFrameRate;
         }
 
-        private static void ResolvePowerConstraints(out bool lowPowerMode, out bool lowBattery)
+        private static void ResolvePowerConstraints(out bool lowPowerMode, out bool lowBattery, out int thermalFrameRateCap)
         {
             lowPowerMode = false;
 #if UNITY_IOS && !UNITY_EDITOR
@@ -157,6 +171,44 @@ namespace MultiplyRush
             lowBattery = SystemInfo.batteryStatus == BatteryStatus.Discharging &&
                          batteryLevel >= 0f &&
                          batteryLevel <= LowBatteryThreshold;
+            thermalFrameRateCap = ResolveThermalFrameRateCap();
+        }
+
+        private static int ResolveThermalFrameRateCap()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            if (!_hasLoadedThermalReflection)
+            {
+                _iOSThermalStateProperty = typeof(UnityEngine.iOS.Device).GetProperty(
+                    "thermalState",
+                    BindingFlags.Public | BindingFlags.Static);
+                _hasLoadedThermalReflection = true;
+            }
+
+            if (_iOSThermalStateProperty == null)
+            {
+                return int.MaxValue;
+            }
+
+            var thermalState = _iOSThermalStateProperty.GetValue(null, null);
+            if (thermalState == null)
+            {
+                return int.MaxValue;
+            }
+
+            var stateName = thermalState.ToString();
+            if (string.Equals(stateName, "Critical", StringComparison.OrdinalIgnoreCase))
+            {
+                return ThermalCriticalFrameRateCap;
+            }
+
+            if (string.Equals(stateName, "Serious", StringComparison.OrdinalIgnoreCase))
+            {
+                return ThermalSeriousFrameRateCap;
+            }
+#endif
+
+            return int.MaxValue;
         }
 
         private static void ApplyRenderScale(float scale)
