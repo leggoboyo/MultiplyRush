@@ -13,6 +13,7 @@ namespace MultiplyRush
         private float _lastBackgroundTransitionTime = -10f;
         private bool _wantsPauseOnFocusLoss = true;
         private bool _isBackgrounded;
+        private bool _pendingSystemPause;
 
         public static AppLifecycleController Instance
         {
@@ -61,6 +62,16 @@ namespace MultiplyRush
             }
         }
 
+        private void Update()
+        {
+            if (!_pendingSystemPause)
+            {
+                return;
+            }
+
+            TryApplyPendingSystemPause();
+        }
+
         public void SetPauseOnFocusLoss(bool enabled)
         {
             _wantsPauseOnFocusLoss = enabled;
@@ -75,6 +86,7 @@ namespace MultiplyRush
             }
 
             _isBackgrounded = false;
+            TryApplyPendingSystemPause();
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -86,6 +98,12 @@ namespace MultiplyRush
             }
 
             _isBackgrounded = false;
+            TryApplyPendingSystemPause();
+        }
+
+        private void OnApplicationQuit()
+        {
+            ProgressionStore.Flush();
         }
 
         private void OnApplicationLowMemory()
@@ -107,6 +125,7 @@ namespace MultiplyRush
             if (scene.name == "Game")
             {
                 ProgressionStore.Flush();
+                TryApplyPendingSystemPause();
             }
         }
 
@@ -137,7 +156,35 @@ namespace MultiplyRush
             if (pauseController != null)
             {
                 pauseController.PauseFromSystem();
+                _pendingSystemPause = false;
+                return;
             }
+
+            _pendingSystemPause = true;
+        }
+
+        private void TryApplyPendingSystemPause()
+        {
+            if (!_pendingSystemPause || !_wantsPauseOnFocusLoss)
+            {
+                return;
+            }
+
+            var activeScene = SceneManager.GetActiveScene();
+            if (activeScene.name != "Game")
+            {
+                _pendingSystemPause = false;
+                return;
+            }
+
+            var pauseController = FindFirstObjectByType<PauseMenuController>(FindObjectsInactive.Include);
+            if (pauseController == null)
+            {
+                return;
+            }
+
+            pauseController.PauseFromSystem();
+            _pendingSystemPause = false;
         }
     }
 }
