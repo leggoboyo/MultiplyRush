@@ -56,11 +56,7 @@ namespace MultiplyRush
 
             if (forcePortraitOrientation)
             {
-                Screen.orientation = ScreenOrientation.Portrait;
-                Screen.autorotateToLandscapeLeft = false;
-                Screen.autorotateToLandscapeRight = false;
-                Screen.autorotateToPortraitUpsideDown = false;
-                Screen.autorotateToPortrait = true;
+                ApplyPortraitOrientation();
             }
 
             _applied = true;
@@ -75,6 +71,7 @@ namespace MultiplyRush
 
             _nextPowerStatePollTime = Time.unscaledTime + PowerStatePollIntervalSeconds;
             ApplyPowerAwareFrameRate(forceApply: false);
+            ApplyPortraitOrientationIfNeeded();
         }
 
         private void OnApplicationFocus(bool hasFocus)
@@ -86,6 +83,7 @@ namespace MultiplyRush
 
             _nextPowerStatePollTime = Time.unscaledTime + PowerStatePollIntervalSeconds;
             ApplyPowerAwareFrameRate(forceApply: false);
+            ApplyPortraitOrientationIfNeeded();
         }
 
         private void OnApplicationPause(bool pauseStatus)
@@ -179,6 +177,25 @@ namespace MultiplyRush
             }
 
             renderScaleProperty.SetValue(urpAsset, clamped, null);
+        }
+
+        private void ApplyPortraitOrientationIfNeeded()
+        {
+            if (!forcePortraitOrientation)
+            {
+                return;
+            }
+
+            ApplyPortraitOrientation();
+        }
+
+        private static void ApplyPortraitOrientation()
+        {
+            Screen.orientation = ScreenOrientation.Portrait;
+            Screen.autorotateToLandscapeLeft = false;
+            Screen.autorotateToLandscapeRight = false;
+            Screen.autorotateToPortraitUpsideDown = false;
+            Screen.autorotateToPortrait = true;
         }
     }
 }
