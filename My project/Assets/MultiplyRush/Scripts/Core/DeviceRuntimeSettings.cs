@@ -23,7 +23,8 @@ namespace MultiplyRush
         [Range(0.7f, 1f)]
         public float midTierRenderScale = 0.94f;
 
-        private static bool _applied;
+        private static DeviceRuntimeSettings _instance;
+        private bool _initialized;
         private int _baseTargetFrameRate = 60;
         private int _appliedTargetFrameRate = -1;
         private float _nextPowerStatePollTime;
@@ -38,7 +39,16 @@ namespace MultiplyRush
 
         private void Awake()
         {
-            if (_applied)
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            _instance = this;
+            DontDestroyOnLoad(gameObject);
+
+            if (_initialized)
             {
                 return;
             }
@@ -69,12 +79,20 @@ namespace MultiplyRush
                 ApplyPortraitOrientation();
             }
 
-            _applied = true;
+            _initialized = true;
+        }
+
+        private void OnDestroy()
+        {
+            if (_instance == this)
+            {
+                _instance = null;
+            }
         }
 
         private void Update()
         {
-            if (!_applied || Time.unscaledTime < _nextPowerStatePollTime)
+            if (!_initialized || Time.unscaledTime < _nextPowerStatePollTime)
             {
                 return;
             }
@@ -86,7 +104,7 @@ namespace MultiplyRush
 
         private void OnApplicationFocus(bool hasFocus)
         {
-            if (!hasFocus || !_applied)
+            if (!hasFocus || !_initialized)
             {
                 return;
             }
@@ -98,7 +116,7 @@ namespace MultiplyRush
 
         private void OnApplicationPause(bool pauseStatus)
         {
-            if (pauseStatus || !_applied)
+            if (pauseStatus || !_initialized)
             {
                 return;
             }
