@@ -95,7 +95,6 @@ namespace MultiplyRush
         private readonly List<Text> _progressLevelTexts = new List<Text>(48);
         private readonly List<Text> _progressScoreTexts = new List<Text>(48);
         private readonly List<Button> _progressReplayButtons = new List<Button>(48);
-        private int _requestedReplayLevel = -1;
         private RectTransform _backdropLayerRect;
         private RectTransform _backdropNebulaARect;
         private RectTransform _backdropNebulaBRect;
@@ -206,15 +205,21 @@ namespace MultiplyRush
 
         public void Play()
         {
+            BeginPlayTransition(0);
+        }
+
+        private void BeginPlayTransition(int requestedLevel)
+        {
             if (_isStartingGame)
             {
                 return;
             }
 
-            if (_requestedReplayLevel > 0)
+            // Lock immediately to avoid same-frame double invokes (overlay + underlying button).
+            _isStartingGame = true;
+            if (requestedLevel > 0)
             {
-                ProgressionStore.SetRequestedStartLevel(_requestedReplayLevel);
-                _requestedReplayLevel = -1;
+                ProgressionStore.SetRequestedStartLevel(requestedLevel);
             }
             else
             {
@@ -755,7 +760,6 @@ namespace MultiplyRush
 
         private IEnumerator PlayTransitionAndLoad()
         {
-            _isStartingGame = true;
             AudioDirector.Instance?.PlaySfx(AudioSfxCue.PlayTransition, 0.9f, 1f);
 
             var playButton = _playButtonRect != null ? _playButtonRect.GetComponent<Button>() : null;
@@ -2271,9 +2275,8 @@ namespace MultiplyRush
                     var levelCopy = Mathf.Max(1, level);
                     replayButton.onClick.AddListener(() =>
                     {
-                        _requestedReplayLevel = levelCopy;
                         ToggleProgressOverlay();
-                        Play();
+                        BeginPlayTransition(levelCopy);
                     });
                     var replayImage = replayButton.GetComponent<Image>();
                     if (replayImage != null)
